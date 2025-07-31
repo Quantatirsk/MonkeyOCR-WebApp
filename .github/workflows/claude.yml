@@ -40,7 +40,19 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # 启用网络搜索和常用工具
+          
+          # 添加 Context7 MCP 服务器配置
+          mcp_config: |
+            {
+              "mcpServers": {
+                "Context7": {
+                  "command": "npx",
+                  "args": ["-y", "@upstash/context7-mcp"]
+                }
+              }
+            }
+          
+          # 启用网络搜索、常用工具和 Context7 MCP 工具
           allowed_tools: |
             WebFetch(https://google.com/*),
             WebFetch(https://www.google.com/*),
@@ -68,7 +80,7 @@ jobs:
             WebFetch(https://go.dev/*),
             WebFetch(https://docs.rust-lang.org/*),
             WebFetch(https://git-scm.com/*),
-            WebFetch(https://www.atlassian.com/git/*),
+            WebFetch(https://www.atlassian.com/*),
             WebFetch(https://docs.gitlab.com/*),
             WebFetch(https://fastapi.tiangolo.com/*),
             WebFetch(https://expressjs.com/*),
@@ -84,14 +96,13 @@ jobs:
             Write(*),
             Edit(*),
             Glob(*),
-            Grep(*)
+            Grep(*),
+            mcp__Context7__*
           
           # 增强权限
           additional_permissions: |
             actions: write
             checks: write
-          
-          
           
           # Optional: Specify model (defaults to Claude Sonnet 4, uncomment for Claude Opus 4)
           # model: "claude-opus-4-20250514"
