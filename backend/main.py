@@ -22,8 +22,13 @@ app.add_middleware(
 )
 
 # Static file serving for extracted images
-static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
+static_dir = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+else:
+    print(f"Warning: Static directory not found at {static_dir}")
+    # Create the directory if it doesn't exist
+    os.makedirs(static_dir, exist_ok=True)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Basic API routes
@@ -36,8 +41,8 @@ async def health_check():
     return {"status": "healthy"}
 
 # Import API routes
-from .api.upload import router as upload_router
-from .api.results import router as results_router
+from api.upload import router as upload_router
+from api.results import router as results_router
 
 # Include API routes
 app.include_router(upload_router)
@@ -45,4 +50,4 @@ app.include_router(results_router)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)

@@ -127,6 +127,14 @@ class MonkeyOCRClient:
             Path to the downloaded result file
         """
         
+        # Ensure download URL has proper protocol
+        if not download_url.startswith(('http://', 'https://')):
+            # If it's a relative URL, prepend the base URL
+            if download_url.startswith('/'):
+                download_url = self.base_url.rstrip('/') + download_url
+            else:
+                download_url = f"{self.base_url.rstrip('/')}/{download_url}"
+        
         # Create results directory if it doesn't exist
         results_dir = Path("results")
         results_dir.mkdir(exist_ok=True)

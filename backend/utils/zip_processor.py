@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import List, Optional
 import aiofiles
-from ..models import ImageResource, DocumentResult, DocumentMetadata
+from models import ImageResource, DocumentResult, DocumentMetadata
 
 class ZipProcessor:
     """Processes ZIP files returned by MonkeyOCR API"""
@@ -57,6 +57,10 @@ class ZipProcessor:
             
             # Fix markdown image paths
             processed_markdown = self._fix_image_paths(raw_markdown, task_id)
+            
+            # Write the processed markdown back to the file
+            async with aiofiles.open(main_md_file, 'w', encoding='utf-8') as f:
+                await f.write(processed_markdown)
             
             # Generate metadata
             metadata = self._generate_metadata(
@@ -168,25 +172,57 @@ class ZipProcessor:
             
             # Try to find the directory structure
             if len(path_parts) > 1:
-                # Preserve directory structure
-                relative_path = '/'.join(path_parts)
-                new_url = f"/static/{task_id}/{relative_path}"
+                # Preserve directory structure but handle filename prefix mismatch
+                directory = '/'.join(path_parts[:-1])  # e.g., "images"
+                
+                # First try exact match
+                exact_path = f"static/{task_id}/{directory}/{filename}"
+                if Path(exact_path).exists():
+                    new_url = f"/static/{task_id}/{directory}/{filename}"
+                else:
+                    # Look for files with the same suffix (handle prefix mismatch)
+                    directory_path = Path(f"static/{task_id}/{directory}")
+                    if directory_path.exists():
+                        matching_files = list(directory_path.glob(f"*_{filename}"))
+                        if not matching_files:
+                            # Also try files that end with the filename
+                            matching_files = list(directory_path.glob(f"*{filename}"))
+                        
+                        if matching_files:
+                            # Use the first match
+                            actual_filename = matching_files[0].name
+                            new_url = f"/static/{task_id}/{directory}/{actual_filename}"
+                        else:
+                            # Fallback to original path
+                            new_url = f"/static/{task_id}/{directory}/{filename}"
+                    else:
+                        new_url = f"/static/{task_id}/{directory}/{filename}"
             else:
                 # Just the filename - look in common directories
                 new_url = f"/static/{task_id}/{filename}"
                 
                 # Check if it might be in an images subdirectory
                 if not Path(f"static/{task_id}/{filename}").exists():
-                    potential_paths = [
-                        f"static/{task_id}/images/{filename}",
-                        f"static/{task_id}/img/{filename}",
-                        f"static/{task_id}/assets/{filename}"
-                    ]
+                    potential_dirs = ["images", "img", "assets"]
                     
-                    for potential_path in potential_paths:
-                        if Path(potential_path).exists():
-                            new_url = f"/{potential_path}"
+                    for dir_name in potential_dirs:
+                        # First try exact filename match
+                        exact_path = Path(f"static/{task_id}/{dir_name}/{filename}")
+                        if exact_path.exists():
+                            new_url = f"/static/{task_id}/{dir_name}/{filename}"
                             break
+                        
+                        # Then try prefix-suffixed filename match
+                        directory_path = Path(f"static/{task_id}/{dir_name}")
+                        if directory_path.exists():
+                            matching_files = list(directory_path.glob(f"*_{filename}"))
+                            if not matching_files:
+                                matching_files = list(directory_path.glob(f"*{filename}"))
+                            
+                            if matching_files:
+                                actual_filename = matching_files[0].name
+                                new_url = f"/static/{task_id}/{dir_name}/{actual_filename}"
+                                break
             
             return f"![{alt_text}]({new_url})"
         

@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import aiofiles
-from ..models import ImageResource, DocumentResult, DocumentMetadata
+from models import ImageResource, DocumentResult, DocumentMetadata
 
 class FileHandler:
     """Handles file operations for the MonkeyOCR WebApp"""

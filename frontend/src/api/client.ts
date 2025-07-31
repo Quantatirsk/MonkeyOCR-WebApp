@@ -6,8 +6,6 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { 
   APIResponse, 
-  ProcessingTask, 
-  DocumentResult, 
   UploadOptions,
   TaskStatusResponse,
   TaskResultResponse,
@@ -16,7 +14,7 @@ import {
 } from '../types';
 
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 const API_TIMEOUT = 30000; // 30 seconds
 
 // Create axios instance with default configuration
@@ -76,7 +74,7 @@ class ApiClient {
       formData.append('extract_type', options.extract_type);
     }
     if (options.split_pages !== undefined) {
-      formData.append('split_pages', options.split_pages.toString());
+      formData.append('split_pages', options.split_pages ? 'true' : 'false');
     }
 
     try {
@@ -94,8 +92,10 @@ class ApiClient {
       });
       
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('File upload failed:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Response status:', error.response?.status);
       throw new Error(error instanceof Error ? error.message : 'File upload failed');
     }
   }

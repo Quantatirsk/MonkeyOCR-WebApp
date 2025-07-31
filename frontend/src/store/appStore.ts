@@ -10,7 +10,6 @@ import {
   AppState, 
   ProcessingTask, 
   DocumentResult, 
-  UploadOptions,
   APIResponse 
 } from '../types';
 import { apiClient } from '../api/client';
@@ -132,51 +131,31 @@ export const useAppStore = create<AppStore>()(
 
       // File operations
       uploadFiles: async (files, options = {}) => {
-        const { addTask, updateTask, setUploading, pollTaskStatus } = get();
+        const { setUploading, pollTaskStatus } = get();
         
         setUploading(true);
         
         try {
           for (const file of files) {
-            // Create initial task
-            const taskData = {
-              filename: file.name,
-              file_type: file.type.startsWith('image/') ? 'image' as const : 'pdf' as const,
-              status: 'pending' as const,
-              progress: 0,
-              created_at: new Date().toISOString(),
-              completed_at: null,
-              error_message: null,
-              result_url: null
-            };
-            
-            addTask(taskData);
-            const task = get().tasks[get().tasks.length - 1]; // Get the just-added task
-            
             try {
-              // Upload file via API
+              // Upload file via API first to get the real task ID
               const response: APIResponse<ProcessingTask> = await apiClient.uploadFile(file, options);
               
               if (response.success && response.data) {
-                // Update task with server response
-                updateTask(task.id, {
-                  ...response.data,
-                  id: task.id // Keep our local ID
-                });
+                // Add the task returned from server
+                const serverTask = response.data;
+                set((state) => ({
+                  tasks: [...state.tasks, serverTask],
+                  currentTaskId: serverTask.id
+                }));
                 
-                // Start polling for status updates
-                pollTaskStatus(task.id);
+                // Start polling for status updates using server task ID
+                pollTaskStatus(serverTask.id);
               } else {
-                updateTask(task.id, {
-                  status: 'failed',
-                  error_message: response.error || 'Upload failed'
-                });
+                console.error('Upload failed:', response.error);
               }
             } catch (error) {
-              updateTask(task.id, {
-                status: 'failed',
-                error_message: error instanceof Error ? error.message : 'Upload failed'
-              });
+              console.error('Upload error:', error);
             }
           }
         } finally {

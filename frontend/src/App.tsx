@@ -1,6 +1,4 @@
-import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
-import { Separator } from './components/ui/separator';
 import { Badge } from './components/ui/badge';
 import UploadZone from './components/UploadZone';
 import TaskList from './components/TaskList';
@@ -12,65 +10,55 @@ function App() {
   const { tasks, isProcessing } = useAppStore();
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <h1 className="text-2xl font-bold">MonkeyOCR WebApp</h1>
-              <Badge variant="outline">Phase 2</Badge>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              {isProcessing && (
-                <Badge variant="secondary" className="animate-pulse">
-                  Processing...
-                </Badge>
-              )}
-              <Badge variant="outline">
-                {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
+    <div className="h-screen bg-background flex flex-col">
+      {/* Header - 紧凑设计 */}
+      <header className="h-12 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="h-full px-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <h1 className="text-lg font-semibold">MonkeyOCR</h1>
+            <Badge variant="outline" className="text-xs">v2.0</Badge>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            {isProcessing && (
+              <Badge variant="secondary" className="animate-pulse text-xs">
+                处理中...
               </Badge>
-            </div>
+            )}
+            <Badge variant="outline" className="text-xs">
+              {tasks.length} 个任务
+            </Badge>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Upload and Tasks */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Upload Zone */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload Files</CardTitle>
+      {/* Main Layout - 侧边栏 + 主内容区 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - 固定宽度 */}
+        <aside className="w-80 border-r bg-muted/10 flex flex-col">
+          {/* Upload Zone - 固定高度 */}
+          <div className="flex-shrink-0 p-3 pb-0">
+            <Card className="shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">上传文件</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <UploadZone />
               </CardContent>
             </Card>
-
-            {/* Task List */}
-            <TaskList maxHeight="600px" />
           </div>
 
-          {/* Right Column - Document Viewer */}
-          <div className="lg:col-span-2">
-            <DocumentViewer />
+          {/* Task List - 占用剩余空间 */}
+          <div className="flex-1 p-3 pt-2 min-h-0">
+            <TaskList />
           </div>
-        </div>
-      </main>
+        </aside>
 
-      {/* Footer */}
-      <footer className="border-t mt-12">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>MonkeyOCR WebApp - OCR Content Extraction Platform</p>
-            <p>Phase 2 Core Functionality Complete</p>
-          </div>
-        </div>
-      </footer>
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-hidden">
+          <DocumentViewer className="h-full" />
+        </main>
+      </div>
     </div>
   );
 }

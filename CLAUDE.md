@@ -52,7 +52,7 @@ npm run lint            # Run ESLint
 ### Backend Development
 ```bash
 cd backend
-uvicorn main:app --reload --host 0.0.0.0 --port 8000    # Start FastAPI dev server
+uvicorn main:app --reload --host 0.0.0.0 --port 8001    # Start FastAPI dev server
 python -m pytest                                         # Run tests (when implemented)
 ```
 

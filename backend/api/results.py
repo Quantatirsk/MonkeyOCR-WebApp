@@ -6,9 +6,9 @@ Handles result retrieval and processing
 import os
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from ..models import APIResponse, DocumentResult
-from ..utils.file_handler import FileHandler
-from ..utils.zip_processor import ZipProcessor
+from models import APIResponse, DocumentResult
+from utils.file_handler import FileHandler
+from utils.zip_processor import ZipProcessor
 
 router = APIRouter(prefix="/api", tags=["results"])
 

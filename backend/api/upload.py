@@ -13,9 +13,9 @@ from fastapi.responses import JSONResponse
 import httpx
 import aiofiles
 
-from ..models import ProcessingTask, APIResponse
-from ..utils.monkeyocr_client import MonkeyOCRClient
-from ..utils.file_handler import FileHandler
+from models import ProcessingTask, APIResponse
+from utils.monkeyocr_client import MonkeyOCRClient
+from utils.file_handler import FileHandler
 
 router = APIRouter(prefix="/api", tags=["upload"])
 

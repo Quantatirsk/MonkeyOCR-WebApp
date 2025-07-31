@@ -110,3 +110,6 @@ temp/
 
 # Local development files
 *.local
+
+# YoYo AI version control directory
+.yoyo/

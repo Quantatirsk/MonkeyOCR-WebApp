@@ -4,22 +4,20 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
+import './markdown/markdown-styles.css';
 import { 
   Search, 
   Download, 
-  ZoomIn, 
-  ZoomOut, 
   Copy, 
   Eye, 
-  EyeOff,
   FileText,
-  Images,
+  Image,
   Maximize2,
-  X
+  X,
+  Type
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -27,20 +25,42 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { ScrollArea } from './ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Separator } from './ui/separator';
-import { Alert, AlertDescription } from './ui/alert';
 import { useAppStore } from '../store/appStore';
-import { DocumentResult, ImageResource } from '../types';
+import { ImageResource } from '../types';
+import { apiClient } from '../api/client';
+
+// Get API base URL for constructing full image URLs
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
 interface DocumentViewerProps {
   className?: string;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { currentResult, searchQuery, setSearchQuery } = useAppStore();
+  const { searchQuery, setSearchQuery, currentTaskId, results } = useAppStore();
+  
+  // Calculate current result directly
+  const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('📱 DocumentViewer render - currentTaskId:', currentTaskId);
+    console.log('📱 DocumentViewer render - currentResult:', currentResult);
+    console.log('📱 DocumentViewer render - results Map:', results);
+    if (currentResult?.images) {
+      console.log('🖼️ Images found:', currentResult.images.length);
+      currentResult.images.forEach((img, i) => {
+        console.log(`🖼️ Image ${i}:`, img.url);
+      });
+    }
+  }, [currentTaskId, currentResult, results]);
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
   const [selectedImage, setSelectedImage] = useState<ImageResource | null>(null);
-  const [markdownZoom, setMarkdownZoom] = useState(100);
-  const [showImagePreview, setShowImagePreview] = useState(true);
+  // 字号设置: 0=小(85%), 1=中(100%), 2=大(120%)
+  const [fontSizeLevel, setFontSizeLevel] = useState(0);
+  const fontSizes = [85, 100, 120];
+  const fontLabels = ['小', '中', '大'];
+  const markdownZoom = fontSizes[fontSizeLevel];
   const [activeTab, setActiveTab] = useState<'content' | 'images' | 'metadata'>('content');
 
   // Process markdown content with search highlighting
@@ -61,10 +81,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     setSearchQuery(value);
   };
 
-  // Handle markdown zoom
-  const handleZoomIn = () => setMarkdownZoom(prev => Math.min(prev + 25, 200));
-  const handleZoomOut = () => setMarkdownZoom(prev => Math.max(prev - 25, 50));
-  const resetZoom = () => setMarkdownZoom(100);
+  // Handle font size change
+  const handleFontSizeChange = () => {
+    setFontSizeLevel(prev => (prev + 1) % 3);
+  };
 
   // Handle copy to clipboard
   const handleCopyMarkdown = async () => {
@@ -80,9 +100,25 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   };
 
   // Handle download
-  const handleDownload = () => {
-    if (currentResult?.download_url) {
-      window.open(currentResult.download_url, '_blank');
+  const handleDownload = async () => {
+    if (!currentTaskId) return;
+    
+    try {
+      // Download the result file as blob
+      const blob = await apiClient.downloadTaskResult(currentTaskId);
+      
+      // Create download URL and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${currentResult?.metadata?.filename || 'document'}_ocr_result.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // You could also show a toast notification here
     }
   };
 
@@ -108,276 +144,232 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Custom markdown components
-  const markdownComponents = {
-    img: ({ src, alt, ...props }: any) => {
-      // Find the corresponding image resource
-      const imageResource = currentResult?.images.find(img => 
-        src?.includes(img.filename) || src?.includes(img.path)
-      );
-      
-      return (
-        <div className="my-4">
-          <img
-            {...props}
-            src={src}
-            alt={alt}
-            className="max-w-full h-auto rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => imageResource && handleImageClick(imageResource)}
-            loading="lazy"
-          />
-          {alt && (
-            <p className="text-sm text-muted-foreground mt-1 italic">{alt}</p>
-          )}
-        </div>
-      );
-    },
-    table: ({ children, ...props }: any) => (
-      <div className="overflow-x-auto my-4">
-        <table {...props} className="min-w-full border-collapse border border-border">
-          {children}
-        </table>
-      </div>
-    ),
-    th: ({ children, ...props }: any) => (
-      <th {...props} className="border border-border px-3 py-2 bg-muted font-semibold text-left">
-        {children}
-      </th>
-    ),
-    td: ({ children, ...props }: any) => (
-      <td {...props} className="border border-border px-3 py-2">
-        {children}
-      </td>
-    ),
-    code: ({ inline, children, ...props }: any) => (
-      inline ? (
-        <code {...props} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
-          {children}
-        </code>
-      ) : (
-        <pre className="bg-muted p-4 rounded-lg overflow-x-auto my-4">
-          <code {...props} className="text-sm font-mono">
-            {children}
-          </code>
-        </pre>
-      )
-    )
-  };
 
   if (!currentResult) {
     return (
-      <Card className={className}>
-        <CardContent className="p-8 text-center">
-          <div className="flex flex-col items-center space-y-4">
-            <FileText className="w-12 h-12 text-muted-foreground" />
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">No document selected</h3>
-              <p className="text-muted-foreground">
-                Select a completed task from the task list to view the OCR results
-              </p>
-            </div>
+      <div className={`${className} h-full flex items-center justify-center bg-background`}>
+        <div className="flex flex-col items-center space-y-4 p-8">
+          <FileText className="w-12 h-12 text-muted-foreground" />
+          <div className="space-y-2 text-center">
+            <h3 className="text-lg font-semibold">未选择文档</h3>
+            <p className="text-muted-foreground">
+              介任务列表中选择已完成的任务查看 OCR 结果
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className={`space-y-4 ${className}`}>
-      {/* Header with controls */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <CardTitle className="text-lg">Document Viewer</CardTitle>
-              <Badge variant="outline">
+    <div className={`h-full flex flex-col ${className}`}>
+      {/* Header with controls - 紧凑设计 */}
+      <div className="border-b bg-muted/5">
+        <div className="p-3">
+          <div className="flex items-center gap-3">
+            {/* Left: Title and badge */}
+            <div className="flex items-center space-x-2 flex-shrink-0">
+              <h2 className="text-sm font-semibold">文档查看器</h2>
+              <Badge variant="outline" className="text-xs">
                 {currentResult.metadata.extraction_type}
               </Badge>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
-                <Copy className="w-4 h-4 mr-1" />
-                Copy
-              </Button>
-              
-              <Button variant="outline" size="sm" onClick={handleDownload}>
-                <Download className="w-4 h-4 mr-1" />
-                Download
-              </Button>
-            </div>
-          </div>
-          
-          {/* Search bar */}
-          <div className="flex items-center space-x-2">
+            {/* Center: Search bar - fills remaining space */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
               <Input
-                placeholder="Search in document content..."
+                placeholder="在文档内容中搜索..."
                 value={localSearchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-10"
+                className="pl-8 h-8 text-xs w-full"
               />
             </div>
             
-            {activeTab === 'content' && (
-              <div className="flex items-center space-x-1">
-                <Button variant="outline" size="sm" onClick={handleZoomOut}>
-                  <ZoomOut className="w-4 h-4" />
-                </Button>
-                <span className="text-sm font-mono w-12 text-center">{markdownZoom}%</span>
-                <Button variant="outline" size="sm" onClick={handleZoomIn}>
-                  <ZoomIn className="w-4 h-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={resetZoom}>
-                  Reset
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Main content */}
-      <Card>
-        <CardContent className="p-0">
-          <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)}>
-            <div className="border-b">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="content" className="flex items-center space-x-2">
-                  <FileText className="w-4 h-4" />
-                  <span>Content</span>
-                </TabsTrigger>
-                <TabsTrigger value="images" className="flex items-center space-x-2">
-                  <Images className="w-4 h-4" />
-                  <span>Images ({currentResult.images.length})</span>
-                </TabsTrigger>
-                <TabsTrigger value="metadata" className="flex items-center space-x-2">
-                  <Eye className="w-4 h-4" />
-                  <span>Details</span>
-                </TabsTrigger>
-              </TabsList>
-            </div>
-
-            {/* Content tab */}
-            <TabsContent value="content" className="p-6">
-              <ScrollArea className="h-[600px]">
-                <div 
-                  className="prose prose-slate max-w-none dark:prose-invert"
-                  style={{ fontSize: `${markdownZoom}%` }}
+            {/* Right: Action buttons */}
+            <div className="flex items-center space-x-1 flex-shrink-0">
+              {activeTab === 'content' && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleFontSizeChange}
+                  className="h-8 w-8 p-0"
+                  title={`字号: ${fontLabels[fontSizeLevel]}`}
                 >
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {processedMarkdown}
-                  </ReactMarkdown>
-                </div>
-              </ScrollArea>
-            </TabsContent>
+                  <Type className="w-3.5 h-3.5" />
+                </Button>
+              )}
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleCopyMarkdown}
+                className="h-8 w-8 p-0"
+                title="复制"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleDownload}
+                className="h-8 w-8 p-0"
+                title="下载"
+              >
+                <Download className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            {/* Images tab */}
-            <TabsContent value="images" className="p-6">
-              {currentResult.images.length === 0 ? (
-                <div className="text-center py-8">
-                  <Images className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">No images found in this document</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {currentResult.images.map((image, index) => (
-                    <div
-                      key={index}
-                      className="group relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => handleImageClick(image)}
-                    >
-                      <img
-                        src={image.url}
-                        alt={image.alt || image.filename}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <Maximize2 className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      {/* Main content - 占满剩余空间 */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="h-full flex flex-col">
+          <div className="border-b flex-shrink-0">
+            <TabsList className="grid w-full grid-cols-3 h-10">
+              <TabsTrigger value="content" className="flex items-center space-x-1 text-xs">
+                <FileText className="w-3 h-3" />
+                <span>内容</span>
+              </TabsTrigger>
+              <TabsTrigger value="images" className="flex items-center space-x-1 text-xs">
+                <Image className="w-3 h-3" />
+                <span>图片 ({currentResult.images.length})</span>
+              </TabsTrigger>
+              <TabsTrigger value="metadata" className="flex items-center space-x-1 text-xs">
+                <Eye className="w-3 h-3" />
+                <span>详情</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Content tab */}
+          <TabsContent value="content" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            <div className="flex-1 p-3 overflow-hidden h-full">
+              <ScrollArea className="h-full w-full">
+                <ModernMarkdownViewer 
+                  content={processedMarkdown}
+                  className="w-full"
+                  fontSize={markdownZoom}
+                />
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          {/* Images tab */}
+          <TabsContent value="images" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            <div className="flex-1 p-3 overflow-hidden h-full">
+              <ScrollArea className="h-full w-full">
+                {currentResult.images.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Image className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-xs text-muted-foreground">此文档中未找到图片</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {currentResult.images.map((image, index) => (
+                      <div
+                        key={index}
+                        className="group relative aspect-square overflow-hidden rounded border bg-muted cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => handleImageClick(image)}
+                      >
+                        <img
+                          src={image.url.startsWith('http') ? image.url : `${API_BASE_URL}${image.url}`}
+                          alt={image.alt || image.filename}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            console.error('Image failed to load:', image.url);
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white p-1">
+                          <p className="text-xs truncate">{image.filename}</p>
+                        </div>
                       </div>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2">
-                        <p className="text-xs truncate">{image.filename}</p>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </TabsContent>
+
+          {/* Metadata tab */}
+          <TabsContent value="metadata" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            <div className="flex-1 p-3 overflow-hidden h-full">
+              <ScrollArea className="h-full w-full">
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold">处理信息</h4>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">提取类型：</span>
+                          <Badge variant="outline" className="text-xs">{currentResult.metadata.extraction_type}</Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">处理时间：</span>
+                          <span>{formatProcessingTime(currentResult.metadata.processing_time)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">总页数：</span>
+                          <span>{currentResult.metadata.total_pages}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">文件大小：</span>
+                          <span>{formatFileSize(currentResult.metadata.file_size)}</span>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Metadata tab */}
-            <TabsContent value="metadata" className="p-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-semibold">Processing Information</h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Extraction Type:</span>
-                        <Badge variant="outline">{currentResult.metadata.extraction_type}</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Processing Time:</span>
-                        <span>{formatProcessingTime(currentResult.metadata.processing_time)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Pages:</span>
-                        <span>{currentResult.metadata.total_pages}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">File Size:</span>
-                        <span>{formatFileSize(currentResult.metadata.file_size)}</span>
+                    
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold">内容统计</h4>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">字符数：</span>
+                          <span>{currentResult.markdown_content.length.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">单词数：</span>
+                          <span>{currentResult.markdown_content.split(/\s+/).length.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">行数：</span>
+                          <span>{currentResult.markdown_content.split('\n').length.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">图片数：</span>
+                          <span>{currentResult.images.length}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
                   
+                  <Separator />
+                  
                   <div className="space-y-2">
-                    <h4 className="font-semibold">Content Statistics</h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Characters:</span>
-                        <span>{currentResult.markdown_content.length.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Words:</span>
-                        <span>{currentResult.markdown_content.split(/\s+/).length.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Lines:</span>
-                        <span>{currentResult.markdown_content.split('\n').length.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Images:</span>
-                        <span>{currentResult.images.length}</span>
-                      </div>
+                    <h4 className="text-sm font-semibold">下载选项</h4>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={handleDownload}>
+                        <Download className="w-3 h-3 mr-1" />
+                        <span className="text-xs">原始 ZIP</span>
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
+                        <Copy className="w-3 h-3 mr-1" />
+                        <span className="text-xs">复制 Markdown</span>
+                      </Button>
                     </div>
                   </div>
                 </div>
-                
-                <Separator />
-                
-                <div className="space-y-2">
-                  <h4 className="font-semibold">Download Options</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="outline" size="sm" onClick={handleDownload}>
-                      <Download className="w-4 h-4 mr-1" />
-                      Original ZIP
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
-                      <Copy className="w-4 h-4 mr-1" />
-                      Copy Markdown
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </TabsContent>
+              </ScrollArea>
+            </div>
+          </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
 
       {/* Image preview dialog */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
@@ -398,9 +390,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           {selectedImage && (
             <div className="flex items-center justify-center">
               <img
-                src={selectedImage.url}
+                src={selectedImage.url.startsWith('http') ? selectedImage.url : `${API_BASE_URL}${selectedImage.url}`}
                 alt={selectedImage.alt || selectedImage.filename}
                 className="max-w-full max-h-[60vh] object-contain rounded-lg"
+                onError={() => {
+                  console.error('Modal image failed to load:', selectedImage.url);
+                }}
               />
             </div>
           )}

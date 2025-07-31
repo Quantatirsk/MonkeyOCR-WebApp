@@ -5,14 +5,14 @@
 
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Upload, X, AlertCircle, CheckCircle, Play, Trash2 } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { useAppStore } from '../store/appStore';
-import { FileWithPreview, UploadOptions } from '../types';
+import { UploadOptions } from '../types';
 
 // File type validation
 const ACCEPTED_FILE_TYPES = {
@@ -30,11 +30,13 @@ interface UploadZoneProps {
   disabled?: boolean;
 }
 
-interface FileUploadItem extends FileWithPreview {
+interface FileUploadItem {
   id: string;
+  file: File;
   progress: number;
   status: 'pending' | 'uploading' | 'completed' | 'error';
   errorMessage?: string;
+  preview?: string;
 }
 
 export const UploadZone: React.FC<UploadZoneProps> = ({ 
@@ -61,11 +63,11 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
     // Process accepted files
     const newFiles: FileUploadItem[] = acceptedFiles.map(file => ({
-      ...file,
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      file: file,
       progress: 0,
       status: 'pending' as const,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+      preview: file.type?.startsWith('image/') ? URL.createObjectURL(file) : undefined
     }));
 
     setUploadQueue(prev => [...prev, ...newFiles]);
@@ -115,7 +117,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
     try {
       const filesToUpload = uploadQueue
         .filter(f => f.status === 'pending')
-        .map(f => new File([f], f.name, { type: f.type }));
+        .map(f => f.file);
 
       await uploadFiles(filesToUpload, uploadOptions);
       
@@ -148,63 +150,52 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   };
 
   // Get file type icon
-  const getFileIcon = (type: string) => {
+  const getFileIcon = (type: string | undefined) => {
+    if (!type) return '📎';
     if (type === 'application/pdf') return '📄';
     if (type.startsWith('image/')) return '🖼️';
     return '📎';
   };
 
   return (
-    <div className={`w-full space-y-4 ${className}`}>
+    <div className={`w-full space-y-2 ${className}`}>
       {/* Main Upload Area */}
-      <Card className={`transition-all duration-200 ${
-        isDragActive ? 'border-primary bg-primary/5' : ''
-      } ${isDragReject ? 'border-destructive bg-destructive/5' : ''}`}>
-        <CardContent className="p-8">
-          <div
-            {...getRootProps()}
-            className={`
-              relative cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors
-              ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
-              ${isDragReject ? 'border-destructive bg-destructive/5' : ''}
-              ${disabled || isUploading ? 'pointer-events-none opacity-50' : 'hover:border-primary/50'}
-            `}
-          >
-            <input {...getInputProps()} />
-            
-            <div className="flex flex-col items-center space-y-4">
-              <div className="rounded-full bg-primary/10 p-4">
-                <Upload className="h-8 w-8 text-primary" />
-              </div>
-              
-              <div className="space-y-2">
-                <h3 className="text-lg font-semibold">
-                  {isDragActive ? 'Drop files here' : 'Upload files for OCR processing'}
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                  Drag and drop files here, or click to select files
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Supports PDF, JPG, PNG, WEBP • Max {MAX_FILES} files • Up to {formatFileSize(MAX_FILE_SIZE)} each
-                </p>
-              </div>
-              
-              {!isDragActive && (
-                <Button variant="outline" disabled={disabled || isUploading}>
-                  Select Files
-                </Button>
-              )}
-            </div>
+      <div
+        {...getRootProps()}
+        className={`
+          relative cursor-pointer rounded border-2 border-dashed p-3 text-center transition-colors
+          ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
+          ${isDragReject ? 'border-destructive bg-destructive/5' : ''}
+          ${disabled || isUploading ? 'pointer-events-none opacity-50' : 'hover:border-primary/50'}
+        `}
+      >
+        <input {...getInputProps()} />
+        
+        <div className="flex flex-col items-center space-y-2">
+          <div className="rounded-full bg-primary/10 p-2">
+            <Upload className="h-4 w-4 text-primary" />
           </div>
-        </CardContent>
-      </Card>
+          
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              {isDragActive ? '拖放文件到此处' : '支持 PDF, JPG, PNG • 最多 10 个'}
+            </p>
+          </div>
+          
+          {!isDragActive && (
+            <Button variant="outline" size="sm" disabled={disabled || isUploading}>
+              <span className="text-xs">选择文件</span>
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* File Rejections */}
       {fileRejections.length > 0 && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Some files were rejected:
+            部分文件被拒绝：
             <ul className="mt-1 list-disc list-inside text-xs">
               {fileRejections.map(({ file, errors }) => (
                 <li key={file.name}>
@@ -216,17 +207,41 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         </Alert>
       )}
 
-      {/* Upload Options */}
+      {/* Processing Options & File Queue - Merged */}
       {uploadQueue.length > 0 && (
         <Card>
-          <CardContent className="p-4 space-y-4">
-            <h4 className="font-semibold">Processing Options</h4>
+          <CardContent className="p-3 space-y-3">
+            {/* Header with actions */}
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium">处理设置与文件列表 ({uploadQueue.length})</h4>
+              <div className="flex items-center space-x-1">
+                <Button 
+                  onClick={handleUpload}
+                  disabled={isUploading || uploadQueue.every(f => f.status !== 'pending')}
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-2"
+                >
+                  <Play className="w-3 h-3" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={clearAll} 
+                  size="sm" 
+                  disabled={isUploading}
+                  className="h-7 px-2"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Extraction Type</label>
+            {/* Processing options - compact */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">提取类型</label>
                 <select 
-                  className="w-full p-2 border rounded-md"
+                  className="w-full h-7 px-2 text-xs border rounded"
                   value={uploadOptions.extract_type}
                   onChange={(e) => setUploadOptions(prev => ({ 
                     ...prev, 
@@ -234,16 +249,16 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                   }))}
                   disabled={isUploading}
                 >
-                  <option value="standard">Standard</option>
-                  <option value="split">Split Pages</option>
-                  <option value="text">Text Only</option>
-                  <option value="formula">Formula Recognition</option>
-                  <option value="table">Table Extraction</option>
+                  <option value="standard">标准</option>
+                  <option value="split">分页</option>
+                  <option value="text">纯文本</option>
+                  <option value="formula">公式识别</option>
+                  <option value="table">表格提取</option>
                 </select>
               </div>
               
-              <div className="space-y-2">
-                <label className="flex items-center space-x-2">
+              <div className="flex items-end">
+                <label className="flex items-center space-x-1.5">
                   <input
                     type="checkbox"
                     checked={uploadOptions.split_pages}
@@ -252,74 +267,55 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                       split_pages: e.target.checked 
                     }))}
                     disabled={isUploading}
+                    className="w-3 h-3"
                   />
-                  <span className="text-sm font-medium">Split into pages</span>
+                  <span className="text-xs font-medium">按页拆分</span>
                 </label>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* File Queue */}
-      {uploadQueue.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-semibold">Files to Upload ({uploadQueue.length})</h4>
-              <div className="space-x-2">
-                <Button 
-                  onClick={handleUpload}
-                  disabled={isUploading || uploadQueue.every(f => f.status !== 'pending')}
-                  size="sm"
-                >
-                  {isUploading ? 'Uploading...' : 'Start Upload'}
-                </Button>
-                <Button variant="outline" onClick={clearAll} size="sm" disabled={isUploading}>
-                  Clear All
-                </Button>
-              </div>
-            </div>
             
-            <div className="space-y-2 max-h-64 overflow-y-auto">
+            {/* File list - compact */}
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
               {uploadQueue.map((file) => (
-                <div key={file.id} className="flex items-center space-x-3 p-2 border rounded-lg">
+                <div key={file.id} className="flex items-center space-x-2 p-1.5 border rounded">
                   {file.preview ? (
                     <img 
                       src={file.preview} 
-                      alt={file.name}
-                      className="w-10 h-10 object-cover rounded"
+                      alt={file.file.name}
+                      className="w-6 h-6 object-cover rounded"
                     />
                   ) : (
-                    <div className="w-10 h-10 flex items-center justify-center text-2xl">
-                      {getFileIcon(file.type)}
+                    <div className="w-6 h-6 flex items-center justify-center text-sm">
+                      {getFileIcon(file.file.type)}
                     </div>
                   )}
                   
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{file.name}</p>
+                    <p className="text-xs font-medium truncate">{file.file.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatFileSize(file.size)} • {file.type}
+                      {formatFileSize(file.file.size)}
                     </p>
                     
                     {file.status === 'uploading' && (
-                      <Progress value={file.progress} className="w-full mt-1" />
+                      <Progress value={file.progress} className="w-full mt-0.5 h-1" />
                     )}
                     
                     {file.errorMessage && (
-                      <p className="text-xs text-destructive mt-1">{file.errorMessage}</p>
+                      <p className="text-xs text-destructive mt-0.5">{file.errorMessage}</p>
                     )}
                   </div>
                   
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-1">
                     <Badge variant={
                       file.status === 'completed' ? 'default' :
                       file.status === 'error' ? 'destructive' :
                       file.status === 'uploading' ? 'secondary' : 'outline'
-                    }>
-                      {file.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                      {file.status === 'error' && <AlertCircle className="w-3 h-3 mr-1" />}
-                      {file.status}
+                    } className="text-xs px-1.5 py-0.5">
+                      {file.status === 'completed' && <CheckCircle className="w-2.5 h-2.5 mr-0.5" />}
+                      {file.status === 'error' && <AlertCircle className="w-2.5 h-2.5 mr-0.5" />}
+                      {file.status === 'completed' ? '完成' :
+                       file.status === 'error' ? '错误' :
+                       file.status === 'uploading' ? '上传中' : '等待'}
                     </Badge>
                     
                     <Button
@@ -327,8 +323,9 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                       size="sm"
                       onClick={() => removeFile(file.id)}
                       disabled={isUploading && file.status === 'uploading'}
+                      className="h-6 w-6 p-0"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3 h-3" />
                     </Button>
                   </div>
                 </div>
