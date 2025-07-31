@@ -1,0 +1,603 @@
+{
+  "project": "MonkeyOCR WebApp",
+  "version": "1.0.0",
+  "created": "2025-07-31",
+  "phases": {
+    "phase_1": {
+      "name": "项目初始化与基础设施",
+      "priority": "critical",
+      "estimated_hours": 8,
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P1-T001",
+          "title": "创建项目目录结构",
+          "description": "按照plan.json创建完整的目录结构",
+          "priority": "high",
+          "estimated_hours": 0.5,
+          "status": "pending",
+          "dependencies": [],
+          "subtasks": [
+            "创建 frontend/ 目录及子目录",
+            "创建 backend/ 目录及子目录", 
+            "创建 uploads/, results/, static/ 目录"
+          ]
+        },
+        {
+          "id": "P1-T002", 
+          "title": "初始化前端Vite+React项目",
+          "description": "使用Vite创建React+TypeScript项目",
+          "priority": "high",
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P1-T001"],
+          "subtasks": [
+            "运行 npm create vite@latest frontend -- --template react-ts",
+            "安装基础依赖包",
+            "配置 tsconfig.json",
+            "设置 vite.config.ts"
+          ]
+        },
+        {
+          "id": "P1-T003",
+          "title": "安装和配置shadcn/ui",
+          "description": "集成shadcn/ui组件库",
+          "priority": "high", 
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P1-T002"],
+          "subtasks": [
+            "安装 shadcn/ui CLI",
+            "初始化 shadcn/ui",
+            "安装核心组件: Button, Card, Progress, Badge, Alert",
+            "配置 components.json"
+          ]
+        },
+        {
+          "id": "P1-T004",
+          "title": "设置TailwindCSS",
+          "description": "配置TailwindCSS和相关插件",
+          "priority": "high",
+          "estimated_hours": 0.5,
+          "status": "pending", 
+          "dependencies": ["P1-T002"],
+          "subtasks": [
+            "安装 tailwindcss, autoprefixer, postcss",
+            "配置 tailwind.config.js",
+            "设置 postcss.config.js",
+            "创建全局样式文件"
+          ]
+        },
+        {
+          "id": "P1-T005",
+          "title": "创建FastAPI后端项目",
+          "description": "初始化后端项目和基础配置",
+          "priority": "high",
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P1-T001"],
+          "subtasks": [
+            "创建 main.py 入口文件",
+            "创建 requirements.txt",
+            "配置CORS中间件",
+            "设置静态文件服务",
+            "创建基础API路由结构"
+          ]
+        },
+        {
+          "id": "P1-T006",
+          "title": "安装前端依赖包",
+          "description": "安装plan.json中定义的所有前端依赖",
+          "priority": "medium",
+          "estimated_hours": 0.5,
+          "status": "pending",
+          "dependencies": ["P1-T002"],
+          "subtasks": [
+            "安装生产依赖: zustand, axios, react-dropzone等",
+            "安装开发依赖: eslint, typescript等",
+            "安装Markdown相关: react-markdown, remark-gfm",
+            "安装图标库: lucide-react"
+          ]
+        }
+      ]
+    },
+    "phase_2": {
+      "name": "核心功能开发",
+      "priority": "critical", 
+      "estimated_hours": 20,
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P2-T001",
+          "title": "创建TypeScript类型定义",
+          "description": "实现plan.json中定义的所有TypeScript接口",
+          "priority": "high",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P1-T002"],
+          "subtasks": [
+            "创建 src/types/index.ts",
+            "定义 ProcessingTask 接口",
+            "定义 DocumentResult 接口", 
+            "定义 APIResponse 泛型接口",
+            "定义 Zustand Store 类型"
+          ]
+        },
+        {
+          "id": "P2-T002",
+          "title": "实现Zustand状态管理",
+          "description": "创建全局状态管理store",
+          "priority": "high",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P2-T001"],
+          "subtasks": [
+            "创建 src/store/appStore.ts",
+            "实现状态定义和初始值",
+            "实现所有action方法",
+            "添加计算属性(computed)",
+            "集成localStorage持久化"
+          ]
+        },
+        {
+          "id": "P2-T003",
+          "title": "创建API客户端",
+          "description": "封装所有后端API调用",
+          "priority": "high",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P2-T001"],
+          "subtasks": [
+            "创建 src/api/client.ts",
+            "实现文件上传API", 
+            "实现任务状态查询API",
+            "实现结果获取API",
+            "添加错误处理和重试机制"
+          ]
+        },
+        {
+          "id": "P2-T004",
+          "title": "实现UploadZone组件",
+          "description": "文件拖拽上传组件",
+          "priority": "high",
+          "estimated_hours": 3,
+          "status": "pending",
+          "dependencies": ["P1-T003", "P2-T002"],
+          "subtasks": [
+            "创建 src/components/UploadZone.tsx",
+            "集成 react-dropzone",
+            "实现文件类型和大小验证",
+            "添加上传进度显示",
+            "实现多文件上传支持"
+          ]
+        },
+        {
+          "id": "P2-T005",
+          "title": "实现TaskList组件",
+          "description": "任务列表和状态管理组件",
+          "priority": "high", 
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P1-T003", "P2-T002"],
+          "subtasks": [
+            "创建 src/components/TaskList.tsx",
+            "实现任务状态显示",
+            "添加进度条组件",
+            "实现任务选择功能",
+            "添加重试和删除功能"
+          ]
+        },
+        {
+          "id": "P2-T006",
+          "title": "实现DocumentViewer组件",
+          "description": "文档内容展示组件",
+          "priority": "high",
+          "estimated_hours": 4,
+          "status": "pending", 
+          "dependencies": ["P1-T006", "P2-T002"],
+          "subtasks": [
+            "创建 src/components/DocumentViewer.tsx",
+            "集成 react-markdown",
+            "实现自定义Markdown渲染器",
+            "添加图片预览功能",
+            "实现搜索高亮功能"
+          ]
+        },
+        {
+          "id": "P2-T007",
+          "title": "实现后端文件上传API",
+          "description": "处理文件上传和MonkeyOCR集成",
+          "priority": "high",
+          "estimated_hours": 3,
+          "status": "pending",
+          "dependencies": ["P1-T005"],
+          "subtasks": [
+            "创建 backend/api/upload.py",
+            "实现文件验证逻辑",
+            "集成MonkeyOCR API调用",
+            "实现任务创建和状态管理",
+            "添加错误处理"
+          ]
+        },
+        {
+          "id": "P2-T008", 
+          "title": "实现后端结果处理",
+          "description": "处理MonkeyOCR返回的zip文件",
+          "priority": "high",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P2-T007"],
+          "subtasks": [
+            "创建 backend/utils/zip_processor.py",
+            "实现zip文件解压逻辑",
+            "实现Markdown路径修正",
+            "创建静态文件映射",
+            "实现结果API端点"
+          ]
+        }
+      ]
+    },
+    "phase_3": {
+      "name": "用户界面完善",
+      "priority": "high",
+      "estimated_hours": 12,
+      "status": "pending", 
+      "tasks": [
+        {
+          "id": "P3-T001",
+          "title": "创建布局组件",
+          "description": "实现应用整体布局结构",
+          "priority": "medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P1-T003"],
+          "subtasks": [
+            "创建 src/components/layout/App.tsx",
+            "创建 src/components/layout/Header.tsx", 
+            "创建 src/components/layout/MainContent.tsx",
+            "实现响应式布局",
+            "添加导航和主题切换"
+          ]
+        },
+        {
+          "id": "P3-T002",
+          "title": "实现ProcessingStatus组件",
+          "description": "处理状态指示器组件",
+          "priority": "medium",
+          "estimated_hours": 1.5,
+          "status": "pending",
+          "dependencies": ["P1-T003", "P2-T001"],
+          "subtasks": [
+            "创建 src/components/ProcessingStatus.tsx",
+            "实现状态图标映射",
+            "添加进度动画",
+            "实现时间估算显示",
+            "添加错误详情展示"
+          ]
+        },
+        {
+          "id": "P3-T003",
+          "title": "实现SearchBar组件",  
+          "description": "内容搜索功能组件",
+          "priority": "medium",
+          "estimated_hours": 1.5,
+          "status": "pending",
+          "dependencies": ["P1-T003", "P2-T002"],
+          "subtasks": [
+            "创建 src/components/SearchBar.tsx",
+            "实现实时搜索",
+            "添加搜索建议",
+            "实现搜索历史",
+            "集成状态管理"
+          ]
+        },
+        {
+          "id": "P3-T004",
+          "title": "实现ImageGallery组件",
+          "description": "图片资源展示组件",
+          "priority": "medium", 
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P1-T003"],
+          "subtasks": [
+            "创建 src/components/ImageGallery.tsx",
+            "实现缩略图网格布局",
+            "添加图片点击放大",
+            "实现懒加载",
+            "添加图片下载功能"
+          ]
+        },
+        {
+          "id": "P3-T005",
+          "title": "创建UI工具组件",
+          "description": "自定义UI组件库",
+          "priority": "low",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P1-T003"],
+          "subtasks": [
+            "创建 src/components/ui/FileIcon.tsx",
+            "创建 src/components/ui/StatusBadge.tsx",
+            "创建 src/components/ui/LoadingSpinner.tsx",
+            "创建 src/components/ui/EmptyState.tsx",
+            "统一组件样式和主题"
+          ]
+        },
+        {
+          "id": "P3-T006",
+          "title": "实现主题系统",
+          "description": "明暗主题切换功能",
+          "priority": "low",
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P2-T002", "P3-T001"],
+          "subtasks": [
+            "配置TailwindCSS暗色模式",
+            "实现主题切换逻辑",
+            "更新所有组件主题支持",
+            "添加主题持久化",
+            "实现系统主题检测"
+          ]
+        },
+        {
+          "id": "P3-T007",
+          "title": "样式优化和响应式设计",
+          "description": "完善UI样式和移动端适配",
+          "priority": "medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P3-T001", "P3-T002", "P3-T003"],
+          "subtasks": [
+            "优化桌面端布局",
+            "实现移动端响应式设计",
+            "添加loading和过渡动画",
+            "优化颜色和字体系统",
+            "完善组件间距和对齐"
+          ]
+        }
+      ]
+    },
+    "phase_4": {
+      "name": "高级功能与优化",
+      "priority": "medium", 
+      "estimated_hours": 10,
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P4-T001",
+          "title": "实现批量处理功能",
+          "description": "支持多文件批量处理",
+          "priority": "medium",
+          "estimated_hours": 3,
+          "status": "pending",
+          "dependencies": ["P2-T007", "P2-T008"],
+          "subtasks": [
+            "扩展上传组件支持批量选择",
+            "实现批量任务管理",
+            "添加批量进度显示",
+            "实现批量结果展示",
+            "添加批量导出功能"
+          ]
+        },
+        {
+          "id": "P4-T002",
+          "title": "实现导出功能",
+          "description": "结果文件导出和下载",
+          "priority": "medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P2-T006"],
+          "subtasks": [
+            "实现Markdown文件导出",
+            "实现图片批量下载",
+            "添加PDF导出功能",
+            "实现zip打包下载",
+            "添加导出格式选择"
+          ]
+        },
+        {
+          "id": "P4-T003",
+          "title": "实现实时进度跟踪",
+          "description": "WebSocket或轮询实现实时更新",
+          "priority": "medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P2-T007"],
+          "subtasks": [
+            "实现任务状态轮询",
+            "添加WebSocket支持(可选)",
+            "实现进度条实时更新",
+            "添加通知提醒",
+            "优化网络请求频率"
+          ]
+        },
+        {
+          "id": "P4-T004",
+          "title": "错误处理和用户体验优化",
+          "description": "完善错误处理和用户反馈",
+          "priority": "high",
+          "estimated_hours": 2,
+          "status": "pending", 
+          "dependencies": ["P2-T003", "P2-T007"],
+          "subtasks": [
+            "实现全局错误处理",
+            "添加友好的错误提示",
+            "实现重试机制",
+            "添加离线检测",
+            "优化加载状态显示"
+          ]
+        },
+        {
+          "id": "P4-T005",
+          "title": "性能优化",
+          "description": "应用性能和用户体验优化",
+          "priority": "medium",
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P2-T006", "P3-T004"],
+          "subtasks": [
+            "实现图片懒加载",
+            "优化组件重渲染",
+            "添加虚拟滚动(如需要)",
+            "优化打包体积",
+            "添加缓存策略"
+          ]
+        }
+      ]
+    },
+    "phase_5": {
+      "name": "测试与部署",
+      "priority": "medium",
+      "estimated_hours": 6,
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P5-T001",
+          "title": "功能测试",
+          "description": "全面测试所有功能",
+          "priority": "high",
+          "estimated_hours": 3,
+          "status": "pending",
+          "dependencies": ["P4-T004"],
+          "subtasks": [
+            "测试文件上传功能",
+            "测试各种处理模式",
+            "测试结果展示",
+            "测试错误处理",
+            "测试响应式设计"
+          ]
+        },
+        {
+          "id": "P5-T002",
+          "title": "浏览器兼容性测试",
+          "description": "确保主流浏览器兼容性",
+          "priority": "medium",
+          "estimated_hours": 1,
+          "status": "pending",
+          "dependencies": ["P5-T001"],
+          "subtasks": [
+            "Chrome/Edge测试",
+            "Firefox测试", 
+            "Safari测试",
+            "移动端浏览器测试",
+            "修复兼容性问题"
+          ]
+        },
+        {
+          "id": "P5-T003",
+          "title": "部署配置",
+          "description": "生产环境部署准备",
+          "priority": "medium", 
+          "estimated_hours": 2,
+          "status": "pending",
+          "dependencies": ["P5-T001"],
+          "subtasks": [
+            "配置生产环境变量",
+            "优化构建配置",
+            "设置静态文件服务",
+            "配置反向代理",
+            "添加健康检查端点"
+          ]
+        }
+      ]
+    }
+  },
+  "milestones": [
+    {
+      "name": "M1: 项目基础设施完成",
+      "target_date": "Day 2",
+      "tasks": ["P1-T001", "P1-T002", "P1-T003", "P1-T004", "P1-T005", "P1-T006"],
+      "criteria": ["前后端项目可正常启动", "基础UI组件可用", "API基础框架搭建完成"]
+    },
+    {
+      "name": "M2: 核心功能MVP完成", 
+      "target_date": "Day 5",
+      "tasks": ["P2-T001", "P2-T002", "P2-T003", "P2-T004", "P2-T007", "P2-T008"],
+      "criteria": ["文件上传功能可用", "基本OCR处理可用", "结果展示可用"]
+    },
+    {
+      "name": "M3: 完整UI体验",
+      "target_date": "Day 7", 
+      "tasks": ["P2-T005", "P2-T006", "P3-T001", "P3-T002", "P3-T007"],
+      "criteria": ["完整用户界面", "任务管理", "文档查看器完成"]
+    },
+    {
+      "name": "M4: 功能完善",
+      "target_date": "Day 9",
+      "tasks": ["P3-T003", "P3-T004", "P4-T001", "P4-T002", "P4-T004"],
+      "criteria": ["搜索功能", "批量处理", "导出功能", "错误处理完善"]
+    },
+    {
+      "name": "M5: 生产就绪",
+      "target_date": "Day 10",
+      "tasks": ["P4-T003", "P4-T005", "P5-T001", "P5-T003"],
+      "criteria": ["性能优化完成", "测试通过", "部署配置完成"]
+    }
+  ],
+  "risk_assessment": [
+    {
+      "risk": "MonkeyOCR API不稳定或访问问题",
+      "probability": "medium",
+      "impact": "high", 
+      "mitigation": "添加重试机制和错误处理，考虑本地测试模式"
+    },
+    {
+      "risk": "zip文件处理复杂性超预期",
+      "probability": "low",
+      "impact": "medium",
+      "mitigation": "先实现基础功能，复杂情况后续迭代"
+    },
+    {
+      "risk": "前端组件集成问题",
+      "probability": "low", 
+      "impact": "low",
+      "mitigation": "使用成熟的组件库和最佳实践"
+    },
+    {
+      "risk": "性能问题(大文件处理)",
+      "probability": "medium",
+      "impact": "medium",
+      "mitigation": "实现分页加载和文件大小限制"
+    }
+  ],
+  "quality_gates": [
+    {
+      "phase": "P1",
+      "criteria": ["所有依赖正确安装", "开发环境可正常启动", "基础路由可访问"]
+    },
+    {
+      "phase": "P2", 
+      "criteria": ["TypeScript无编译错误", "API端点返回正确格式", "基础功能可演示"]
+    },
+    {
+      "phase": "P3",
+      "criteria": ["UI组件渲染正常", "响应式设计基本可用", "用户交互流程完整"]
+    },
+    {
+      "phase": "P4",
+      "criteria": ["错误场景处理正常", "性能满足基本要求", "用户体验良好"]
+    },
+    {
+      "phase": "P5",
+      "criteria": ["所有测试用例通过", "部署流程验证", "文档完整"]
+    }
+  ],
+  "progress_tracking": {
+    "total_tasks": 36,
+    "total_estimated_hours": 56,
+    "completed_tasks": 0,
+    "in_progress_tasks": 0,
+    "pending_tasks": 36,
+    "blocked_tasks": 0,
+    "completion_percentage": 0,
+    "current_phase": "phase_1",
+    "next_task": "P1-T001"
+  },
+  "notes": [
+    "优先完成MVP功能，确保核心流程可用",
+    "UI美化可以在功能完成后进行",
+    "考虑添加演示数据以便开发测试",
+    "保持代码简洁，避免过度工程化",
+    "及时更新progress_tracking字段"
+  ]
+}
