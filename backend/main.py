@@ -35,8 +35,13 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-# Import API routes (will be created in later phases)
-# from .api import upload, tasks, results
+# Import API routes
+from .api.upload import router as upload_router
+from .api.results import router as results_router
+
+# Include API routes
+app.include_router(upload_router)
+app.include_router(results_router)
 
 if __name__ == "__main__":
     import uvicorn
