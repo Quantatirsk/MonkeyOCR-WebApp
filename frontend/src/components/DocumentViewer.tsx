@@ -28,6 +28,7 @@ import { Separator } from './ui/separator';
 import { useAppStore } from '../store/appStore';
 import { ImageResource } from '../types';
 import { apiClient } from '../api/client';
+import { useToast } from '../hooks/use-toast';
 
 // Get API base URL for constructing full image URLs
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
@@ -38,6 +39,7 @@ interface DocumentViewerProps {
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
   const { searchQuery, setSearchQuery, currentTaskId, results } = useAppStore();
+  const { toast } = useToast();
   
   // Calculate current result directly
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
@@ -91,10 +93,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     if (currentResult?.markdown_content) {
       try {
         await navigator.clipboard.writeText(currentResult.markdown_content);
-        // You could add a toast notification here
-        console.log('Markdown copied to clipboard');
+        toast({
+          description: "已复制到剪贴板",
+        });
       } catch (error) {
         console.error('Failed to copy markdown:', error);
+        toast({
+          variant: "destructive",
+          description: "复制失败",
+        });
       }
     }
   };
@@ -104,6 +111,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     if (!currentTaskId) return;
     
     try {
+      toast({
+        description: "开始下载...",
+      });
+      
       // Download the result file as blob
       const blob = await apiClient.downloadTaskResult(currentTaskId);
       
@@ -118,7 +129,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      // You could also show a toast notification here
+      toast({
+        variant: "destructive",
+        description: "下载失败",
+      });
     }
   };
 

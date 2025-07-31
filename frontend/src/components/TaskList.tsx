@@ -22,6 +22,7 @@ import { Separator } from './ui/separator';
 import { useAppStore } from '../store/appStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
+import { useToast } from '../hooks/use-toast';
 
 interface TaskListProps {
   className?: string;
@@ -41,6 +42,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     results,
     loadResult
   } = useAppStore();
+  const { toast } = useToast();
 
   // Filter tasks based on showCompleted prop
   const filteredTasks = showCompleted 
@@ -103,6 +105,10 @@ export const TaskList: React.FC<TaskListProps> = ({
   // Handle task retry
   const handleRetry = async (task: ProcessingTask) => {
     try {
+      toast({
+        description: "重试中...",
+      });
+      
       // Create a new file object from the task (this is a simplified version)
       // In a real implementation, you might need to store the original file
       const blob = new Blob([''], { type: task.file_type === 'pdf' ? 'application/pdf' : 'image/jpeg' });
@@ -111,6 +117,10 @@ export const TaskList: React.FC<TaskListProps> = ({
       await uploadFiles([file]);
     } catch (error) {
       console.error('Retry failed:', error);
+      toast({
+        variant: "destructive",
+        description: "重试失败",
+      });
     }
   };
 
@@ -118,6 +128,9 @@ export const TaskList: React.FC<TaskListProps> = ({
   const handleDelete = (taskId: string) => {
     if (confirm('确定要删除这个任务吗？')) {
       removeTask(taskId);
+      toast({
+        description: "任务已删除",
+      });
     }
   };
 
@@ -125,6 +138,10 @@ export const TaskList: React.FC<TaskListProps> = ({
   // Handle result download
   const handleDownload = async (task: ProcessingTask) => {
     try {
+      toast({
+        description: "开始下载...",
+      });
+      
       // Download the result file as blob
       const blob = await apiClient.downloadTaskResult(task.id);
       
@@ -139,7 +156,10 @@ export const TaskList: React.FC<TaskListProps> = ({
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      // You could also show a toast notification here
+      toast({
+        variant: "destructive",
+        description: "下载失败",
+      });
     }
   };
 

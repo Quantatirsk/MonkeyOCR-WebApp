@@ -3,6 +3,7 @@ import { Badge } from './components/ui/badge';
 import UploadZone from './components/UploadZone';
 import TaskList from './components/TaskList';
 import DocumentViewer from './components/DocumentViewer';
+import { Toaster } from './components/ui/toaster';
 import { useAppStore } from './store/appStore';
 import './App.css';
 
@@ -59,6 +60,7 @@ function App() {
           <DocumentViewer className="h-full" />
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }
