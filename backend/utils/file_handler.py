@@ -8,10 +8,20 @@ import shutil
 import tempfile
 import zipfile
 import re
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import aiofiles
 from models import ImageResource, DocumentResult, DocumentMetadata
+
+try:
+    import PyPDF2
+    PDF_SUPPORT = True
+except ImportError:
+    PDF_SUPPORT = False
+    logger.warning("PyPDF2 not available, PDF page counting disabled")
+
+logger = logging.getLogger(__name__)
 
 class FileHandler:
     """Handles file operations for the MonkeyOCR WebApp"""
@@ -57,6 +67,62 @@ class FileHandler:
             if os.path.exists(temp_file.name):
                 os.unlink(temp_file.name)
             raise Exception(f"Failed to save temporary file: {str(e)}")
+    
+    async def save_original_file(self, task_id: str, file_content: bytes, filename: str) -> str:
+        """
+        Save original file for a specific task
+        
+        Args:
+            task_id: Task ID
+            file_content: The file content as bytes
+            filename: Original filename
+            
+        Returns:
+            Path to the saved original file
+        """
+        
+        # Create task-specific directory
+        task_uploads_dir = self.uploads_dir / task_id
+        task_uploads_dir.mkdir(exist_ok=True)
+        
+        # Save original file
+        original_file_path = task_uploads_dir / filename
+        
+        try:
+            async with aiofiles.open(original_file_path, 'wb') as f:
+                await f.write(file_content)
+            
+            logger.info(f"Saved original file for task {task_id}: {filename}")
+            return str(original_file_path)
+            
+        except Exception as e:
+            raise Exception(f"Failed to save original file: {str(e)}")
+    
+    def get_original_file(self, task_id: str, filename: Optional[str] = None) -> Optional[str]:
+        """
+        Get the path to the original file for a task
+        
+        Args:
+            task_id: Task ID
+            filename: Original filename (optional, will look for any file if not provided)
+            
+        Returns:
+            Path to the original file, or None if not found
+        """
+        
+        task_uploads_dir = self.uploads_dir / task_id
+        
+        if filename:
+            # Look for specific file
+            original_file_path = task_uploads_dir / filename
+            return str(original_file_path) if original_file_path.exists() else None
+        else:
+            # Look for any file in the task directory
+            if task_uploads_dir.exists():
+                for file_path in task_uploads_dir.iterdir():
+                    if file_path.is_file():
+                        return str(file_path)
+            return None
     
     async def process_result_zip(self, zip_path: str, task_id: str) -> DocumentResult:
         """
@@ -239,17 +305,26 @@ class FileHandler:
         result_file = self.results_dir / f"{task_id}_result.zip"
         if result_file.exists():
             result_file.unlink()
+            logger.info(f"Removed result file: {result_file}")
         
         # Remove static files directory
         task_static_dir = self.static_dir / task_id
         if task_static_dir.exists():
             shutil.rmtree(task_static_dir)
+            logger.info(f"Removed static directory: {task_static_dir}")
+        
+        # Remove uploads directory for the task
+        task_uploads_dir = self.uploads_dir / task_id
+        if task_uploads_dir.exists():
+            shutil.rmtree(task_uploads_dir)
+            logger.info(f"Removed uploads directory: {task_uploads_dir}")
         
         # Remove any temporary files (they should already be cleaned up)
         # This is a safety measure
         for temp_file in self.temp_dir.glob(f"*{task_id}*"):
             if temp_file.is_file():
                 temp_file.unlink()
+                logger.debug(f"Removed temp file: {temp_file}")
     
     def get_static_url(self, task_id: str, filename: str) -> str:
         """
@@ -264,3 +339,28 @@ class FileHandler:
         """
         
         return f"/static/{task_id}/{filename}"
+    
+    def get_pdf_page_count(self, file_content: bytes) -> Optional[int]:
+        """
+        Extract page count from PDF file
+        
+        Args:
+            file_content: PDF file content as bytes
+            
+        Returns:
+            Number of pages in PDF, or None if extraction fails
+        """
+        if not PDF_SUPPORT:
+            logger.warning("PyPDF2 not available, cannot count PDF pages")
+            return None
+            
+        try:
+            import io
+            pdf_stream = io.BytesIO(file_content)
+            pdf_reader = PyPDF2.PdfReader(pdf_stream)
+            page_count = len(pdf_reader.pages)
+            logger.info(f"PDF has {page_count} pages")
+            return page_count
+        except Exception as e:
+            logger.error(f"Failed to count PDF pages: {e}")
+            return None

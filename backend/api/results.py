@@ -16,9 +16,10 @@ router = APIRouter(prefix="/api", tags=["results"])
 file_handler = FileHandler()
 zip_processor = ZipProcessor()
 
-# This should be the same storage as in upload.py
-# In production, use a proper database or shared storage
-from .upload import tasks_storage
+# Use persistence manager for task storage
+from utils.persistence import get_persistence_manager
+
+# Note: persistence manager instance will be obtained when needed
 
 
 @router.get("/tasks/{task_id}/result", response_model=APIResponse[DocumentResult])
@@ -28,7 +29,8 @@ async def get_task_result(task_id: str):
     """
     try:
         # Check if task exists
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -66,7 +68,8 @@ async def download_task_result(task_id: str):
     """
     try:
         # Check if task exists
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -101,7 +104,8 @@ async def get_task_images(task_id: str):
     """
     try:
         # Check if task exists
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -138,7 +142,8 @@ async def get_task_markdown(task_id: str):
     """
     try:
         # Check if task exists
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         

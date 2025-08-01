@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
   AppStore, 
   AppState, 
@@ -13,6 +13,37 @@ import {
   APIResponse 
 } from '../types';
 import { apiClient } from '../api/client';
+import { syncManager, SyncStatus } from '../utils/syncManager';
+
+// Store version for migration
+const STORE_VERSION = 2;
+
+// Type for serializable task (without File objects)
+interface SerializableTask extends Omit<ProcessingTask, 'original_file' | 'original_file_url'> {
+  // Keep track of whether original file exists for reconstruction
+  has_original_file?: boolean;
+}
+
+// Custom storage with data migration
+const customStorage = createJSONStorage<any>(() => localStorage);
+
+// Migration function from v1 to v2
+function migrateV1toV2(oldState: any) {
+  return {
+    ...oldState,
+    tasks: (oldState.tasks || []).map((task: any) => {
+      // Remove old non-serializable fields and mark if they existed
+      const { original_file, original_file_url, ...cleanTask } = task;
+      return {
+        ...cleanTask,
+        has_original_file: !!original_file
+      };
+    }),
+    // Clear old results - they'll be fetched fresh from server
+    results: {},
+    _version: 2
+  };
+}
 
 // Initial state
 const initialState: AppState = {
@@ -21,7 +52,10 @@ const initialState: AppState = {
   results: new Map(),
   isUploading: false,
   searchQuery: '',
-  theme: 'light'
+  theme: 'light',
+  // Sync state (not persisted)
+  syncStatus: null,
+  isInitialized: false
 };
 
 // Create the Zustand store
@@ -30,6 +64,10 @@ export const useAppStore = create<AppStore>()(
     (set, get) => ({
       // State
       ...initialState,
+      
+      // Sync state (not persisted)
+      syncStatus: null as SyncStatus | null,
+      isInitialized: false,
 
       // Computed properties
       get currentTask() {
@@ -70,10 +108,7 @@ export const useAppStore = create<AppStore>()(
           tasks: state.tasks.map(task => 
             task.id === id ? { 
               ...task, 
-              ...updates,
-              // 保留原始文件信息，避免被服务器更新覆盖
-              original_file: task.original_file,
-              original_file_url: task.original_file_url
+              ...updates
             } : task
           )
         }));
@@ -84,13 +119,6 @@ export const useAppStore = create<AppStore>()(
       },
 
       removeTask: (id) => {
-        const task = get().tasks.find(t => t.id === id);
-        
-        // Clean up object URL to prevent memory leaks
-        if (task?.original_file_url) {
-          URL.revokeObjectURL(task.original_file_url);
-        }
-        
         set((state) => ({
           tasks: state.tasks.filter(task => task.id !== id),
           currentTaskId: state.currentTaskId === id ? null : state.currentTaskId
@@ -127,16 +155,8 @@ export const useAppStore = create<AppStore>()(
         set({ results: new Map() });
       },
 
-      // Cleanup object URLs when clearing all tasks
+      // Clear all tasks and results
       clearTasks: () => {
-        const { tasks } = get();
-        // Clean up all object URLs
-        tasks.forEach(task => {
-          if (task.original_file_url) {
-            URL.revokeObjectURL(task.original_file_url);
-          }
-        });
-        
         set({ 
           tasks: [],
           currentTaskId: null,
@@ -172,11 +192,9 @@ export const useAppStore = create<AppStore>()(
               const response: APIResponse<ProcessingTask> = await apiClient.uploadFile(file, options);
               
               if (response.success && response.data) {
-                // Add the task returned from server with original file info
+                // Add the task returned from server (no longer storing File objects)
                 const serverTask: ProcessingTask = {
-                  ...response.data,
-                  original_file: file, // Store original file for preview
-                  original_file_url: URL.createObjectURL(file) // Create URL for preview
+                  ...response.data
                 };
                 
                 set((state) => ({
@@ -229,19 +247,104 @@ export const useAppStore = create<AppStore>()(
             error_message: error instanceof Error ? error.message : 'Status check failed'
           });
         }
+      },
+
+      // Sync operations
+      initializeSync: () => {
+        const { isInitialized } = get();
+        if (isInitialized) return;
+
+        // 设置同步状态监听器
+        syncManager.onSyncStatusChange((status) => {
+          set({ syncStatus: status });
+        });
+
+        // 标记为已初始化
+        set({ isInitialized: true });
+
+        // 页面加载时自动同步（延迟执行避免冲突）
+        setTimeout(() => {
+          get().syncWithServer().catch(error => {
+            console.error('Initial sync failed:', error);
+          });
+        }, 50);
+      },
+
+      syncWithServer: async () => {
+        try {
+          const serverTasks = await syncManager.smartSync();
+          
+          if (serverTasks.length > 0) {
+            const { tasks, results } = get();
+            const mergedTasks = syncManager.mergeTasks(tasks, serverTasks);
+            
+            set({ tasks: mergedTasks });
+            
+            // 处理任务状态变化
+            mergedTasks.forEach(async (task) => {
+              if (task.status === 'processing') {
+                // 重新启动处理中任务的轮询
+                get().pollTaskStatus(task.id);
+              } else if (task.status === 'completed') {
+                // 为已完成的任务加载OCR结果（如果还没有加载）
+                if (!results.has(task.id)) {
+                  try {
+                    await get().loadResult(task.id);
+                  } catch (error) {
+                    console.error(`Failed to load result for task ${task.id}:`, error);
+                  }
+                }
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Sync with server failed:', error);
+          throw error;
+        }
       }
     }),
     {
       name: 'monkeyocr-app-store',
-      // Only persist certain parts of the state
-      partialize: (state) => ({
-        tasks: state.tasks,
-        currentTaskId: state.currentTaskId,
-        theme: state.theme,
-        searchQuery: state.searchQuery
-      }),
+      storage: customStorage,
+      // Only persist certain parts of the state with custom serialization
+      partialize: (state) => {
+        // Remove non-serializable fields before storing
+        const tasks = state.tasks?.map((task: ProcessingTask): SerializableTask => {
+          const { original_file, original_file_url, ...serializableTask } = task;
+          return {
+            ...serializableTask,
+            has_original_file: !!original_file
+          };
+        }) || [];
+        
+        return {
+          tasks,
+          currentTaskId: state.currentTaskId,
+          theme: state.theme,
+          searchQuery: state.searchQuery,
+          _version: STORE_VERSION
+        };
+      },
       // Don't persist results and upload state - these should be fresh on reload
-      version: 1,
+      version: STORE_VERSION,
+      // Handle version migration
+      migrate: (persistedState: any, version: number) => {
+        if (version < 2) {
+          console.log('Migrating store from version', version, 'to 2');
+          return migrateV1toV2(persistedState);
+        }
+        return persistedState;
+      },
+      // Trigger rehydration callback
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          console.log('Store rehydrated with', state.tasks?.length || 0, 'tasks');
+          // Initialize empty results map if not present
+          if (!state.results || !(state.results instanceof Map)) {
+            state.results = new Map();
+          }
+        }
+      },
     }
   )
 );
@@ -273,3 +376,10 @@ export const useUIActions = () => useAppStore(state => ({
   setUploading: state.setUploading,
   toggleTheme: state.toggleTheme
 }));
+
+export const useSyncActions = () => useAppStore(state => ({
+  syncWithServer: state.syncWithServer,
+  initializeSync: state.initializeSync
+}));
+
+export const useSyncStatus = () => useAppStore(state => state.syncStatus);

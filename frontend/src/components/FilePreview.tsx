@@ -21,6 +21,7 @@ import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
 import { ProcessingTask } from '../types';
+import { syncManager } from '../utils/syncManager';
 
 // Set up PDF.js worker for Vite
 // Use local worker file copied by vite-plugin-static-copy
@@ -36,11 +37,41 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
   const [scale, setScale] = useState<number>(1.0);
   const [rotation, setRotation] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
+  const [previewInfo, setPreviewInfo] = useState<any>(null);
   
-  // 稳定的文件URL - 使用useMemo避免重新渲染时重新创建
-  const fileUrl = React.useMemo(() => {
-    return task.original_file ? URL.createObjectURL(task.original_file) : task.original_file_url;
-  }, [task.original_file, task.original_file_url]);
+  // 从服务器获取文件预览URL和信息
+  React.useEffect(() => {
+    const loadFilePreview = async () => {
+      if (!task.id) return;
+      
+      setIsLoadingFile(true);
+      setError(null);
+      
+      try {
+        // 获取预览信息
+        const previewData = await syncManager.getTaskPreview(task.id);
+        setPreviewInfo(previewData.data);
+        
+        // 如果文件存在，设置预览URL
+        if (previewData.data?.file_exists) {
+          const url = syncManager.getOriginalFileUrl(task.id);
+          setFileUrl(url);
+        } else {
+          setFileUrl(null);
+        }
+      } catch (err) {
+        console.error('Failed to load file preview:', err);
+        setError('无法加载文件预览');
+        setFileUrl(null);
+      } finally {
+        setIsLoadingFile(false);
+      }
+    };
+    
+    loadFilePreview();
+  }, [task.id]);
 
   // 简单的缩放控制 - 移除所有复杂的优化
   const zoomIn = () => setScale(prev => Math.min(3.0, prev + 0.1));
@@ -59,26 +90,57 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
     setError('无法加载PDF文件');
   }, []);
 
-  if (!fileUrl) {
+  // Loading state
+  if (isLoadingFile) {
+    return (
+      <div className={`${className} h-full flex items-center justify-center bg-background`}>
+        <div className="flex flex-col items-center space-y-4 p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <div className="space-y-2 text-center">
+            <h3 className="text-lg font-semibold">加载文件预览中...</h3>
+            <p className="text-muted-foreground">正在从服务器获取文件信息</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // No file or error state
+  if (!fileUrl || error) {
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
         <div className="flex flex-col items-center space-y-4 p-8">
           <AlertCircle className="w-12 h-12 text-muted-foreground" />
           <div className="space-y-2 text-center">
-            <h3 className="text-lg font-semibold">文件预览不可用</h3>
+            <h3 className="text-lg font-semibold">
+              {error ? '文件预览加载失败' : '文件预览不可用'}
+            </h3>
             <p className="text-muted-foreground">
-              {task.status === 'completed' 
-                ? '任务已完成，请查看"内容"页面的OCR结果'
-                : task.status === 'processing'
-                ? '文件正在处理中，完成后可查看OCR结果'
-                : task.status === 'failed'
-                ? '任务处理失败，无法预览文件'
-                : '原始文件已清理或页面已刷新，预览不可用'}
+              {error || (
+                task.status === 'completed' 
+                  ? '任务已完成，请查看"内容"页面的OCR结果'
+                  : task.status === 'processing'
+                  ? '文件正在处理中，完成后可查看OCR结果'
+                  : task.status === 'failed'
+                  ? '任务处理失败，无法预览文件'
+                  : '原始文件不可用，可能已被清理'
+              )}
             </p>
-            {task.status === 'completed' && (
+            {task.status === 'completed' && !error && (
               <p className="text-xs text-muted-foreground mt-2">
                 💡 提示：切换到"内容"标签页查看提取的文本和图片
               </p>
+            )}
+            {previewInfo && (
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>文件信息：{previewInfo.filename || task.filename}</p>
+                {previewInfo.file_size && (
+                  <p>文件大小：{(previewInfo.file_size / 1024 / 1024).toFixed(2)} MB</p>
+                )}
+                {previewInfo.file_type && (
+                  <p>文件类型：{previewInfo.file_type}</p>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -241,8 +303,7 @@ export const FilePreview = React.memo(FilePreviewComponent, (prevProps, nextProp
     prevProps.task.id === nextProps.task.id &&
     prevProps.task.filename === nextProps.task.filename &&
     prevProps.task.file_type === nextProps.task.file_type &&
-    prevProps.task.original_file === nextProps.task.original_file &&
-    prevProps.task.original_file_url === nextProps.task.original_file_url &&
+    prevProps.task.status === nextProps.task.status &&
     prevProps.className === nextProps.className
   );
 });

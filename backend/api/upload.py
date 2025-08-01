@@ -6,6 +6,7 @@ Handles file uploads and MonkeyOCR API integration
 import os
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
@@ -13,9 +14,12 @@ from fastapi.responses import JSONResponse
 import httpx
 import aiofiles
 
+logger = logging.getLogger(__name__)
+
 from models import ProcessingTask, APIResponse
 from utils.monkeyocr_client import MonkeyOCRClient
 from utils.file_handler import FileHandler
+from utils.persistence import get_persistence_manager
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -23,8 +27,7 @@ router = APIRouter(prefix="/api", tags=["upload"])
 monkeyocr_client = MonkeyOCRClient()
 file_handler = FileHandler()
 
-# In-memory task storage (in production, use a proper database)
-tasks_storage: dict[str, ProcessingTask] = {}
+# Note: persistence manager instance will be obtained when needed
 
 # Supported file types
 SUPPORTED_FILE_TYPES = {
@@ -69,6 +72,11 @@ async def upload_file(
         # Generate task ID
         task_id = str(uuid.uuid4())
         
+        # Extract PDF page count if it's a PDF file
+        total_pages = None
+        if file.content_type == "application/pdf":
+            total_pages = file_handler.get_pdf_page_count(file_content)
+        
         # Create task record
         task = ProcessingTask(
             id=task_id,
@@ -79,11 +87,19 @@ async def upload_file(
             created_at=datetime.now().isoformat(),
             completed_at=None,
             error_message=None,
-            result_url=None
+            result_url=None,
+            total_pages=total_pages
         )
         
         # Store task
-        tasks_storage[task_id] = task
+        persistence_manager = get_persistence_manager()
+        persistence_manager.add_task(task)
+        
+        # Save original file for later access
+        try:
+            await file_handler.save_original_file(task_id, file_content, task.filename)
+        except Exception as e:
+            logger.warning(f"Failed to save original file for task {task_id}: {e}")
         
         # Start background processing
         background_tasks.add_task(
@@ -115,7 +131,8 @@ async def get_task_status(task_id: str):
     Get the status of a processing task
     """
     try:
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -138,9 +155,9 @@ async def get_all_tasks():
     Get all tasks
     """
     try:
-        tasks_list = list(tasks_storage.values())
-        # Sort by creation time, newest first
-        tasks_list.sort(key=lambda x: x.created_at, reverse=True)
+        persistence_manager = get_persistence_manager()
+        tasks_list = persistence_manager.get_all_tasks()
+        # Already sorted by creation time, newest first
         
         return APIResponse(
             success=True,
@@ -159,7 +176,8 @@ async def delete_task(task_id: str):
     Delete a task and its associated files
     """
     try:
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -167,7 +185,8 @@ async def delete_task(task_id: str):
         await file_handler.cleanup_task_files(task_id)
         
         # Remove from storage
-        del tasks_storage[task_id]
+        persistence_manager = get_persistence_manager()
+        persistence_manager.delete_task(task_id)
         
         return APIResponse(
             success=True,
@@ -195,17 +214,19 @@ async def process_file_async(
     """
     try:
         # Update task status to processing
-        if task_id in tasks_storage:
-            tasks_storage[task_id].status = "processing"
-            tasks_storage[task_id].progress = 10
+        persistence_manager = get_persistence_manager()
+        persistence_manager.update_task(task_id, {
+            "status": "processing",
+            "progress": 10
+        })
         
         # Save file temporarily
         temp_file_path = await file_handler.save_temp_file(file_content, filename)
         
         try:
             # Update progress
-            if task_id in tasks_storage:
-                tasks_storage[task_id].progress = 30
+            persistence_manager = get_persistence_manager()
+            persistence_manager.update_task(task_id, {"progress": 30})
             
             # Call MonkeyOCR API
             result = await monkeyocr_client.process_file(
@@ -215,8 +236,8 @@ async def process_file_async(
             )
             
             # Update progress
-            if task_id in tasks_storage:
-                tasks_storage[task_id].progress = 70
+            persistence_manager = get_persistence_manager()
+            persistence_manager.update_task(task_id, {"progress": 70})
             
             # Download and process result
             if result.get("download_url"):
@@ -226,11 +247,13 @@ async def process_file_async(
                 )
                 
                 # Update task with result
-                if task_id in tasks_storage:
-                    tasks_storage[task_id].status = "completed"
-                    tasks_storage[task_id].progress = 100
-                    tasks_storage[task_id].completed_at = datetime.now().isoformat()
-                    tasks_storage[task_id].result_url = f"/api/download/{task_id}"
+                persistence_manager = get_persistence_manager()
+                persistence_manager.update_task(task_id, {
+                    "status": "completed",
+                    "progress": 100,
+                    "completed_at": datetime.now().isoformat(),
+                    "result_url": f"/api/download/{task_id}"
+                })
             else:
                 raise ValueError("No download URL received from MonkeyOCR API")
                 
@@ -241,10 +264,12 @@ async def process_file_async(
                 
     except Exception as e:
         # Update task with error
-        if task_id in tasks_storage:
-            tasks_storage[task_id].status = "failed"
-            tasks_storage[task_id].error_message = str(e)
-            tasks_storage[task_id].completed_at = datetime.now().isoformat()
+        persistence_manager = get_persistence_manager()
+        persistence_manager.update_task(task_id, {
+            "status": "failed",
+            "error_message": str(e),
+            "completed_at": datetime.now().isoformat()
+        })
         
         print(f"Processing failed for task {task_id}: {e}")
 
@@ -255,7 +280,8 @@ async def download_result(task_id: str):
     Download the result file for a task
     """
     try:
-        task = tasks_storage.get(task_id)
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         

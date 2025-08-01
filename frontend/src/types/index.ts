@@ -57,6 +57,14 @@ export interface UploadOptions {
   split_pages?: boolean;
 }
 
+// Sync status interface
+export interface SyncStatus {
+  last_sync: string | null;
+  is_syncing: boolean;
+  sync_error: string | null;
+  server_data_hash: string | null;
+}
+
 // Zustand store state interface
 export interface AppState {
   tasks: ProcessingTask[];
@@ -65,6 +73,10 @@ export interface AppState {
   isUploading: boolean;
   searchQuery: string;
   theme: 'light' | 'dark';
+  
+  // Sync state (not persisted)
+  syncStatus: SyncStatus | null;
+  isInitialized: boolean;
 }
 
 // Zustand store actions interface
@@ -89,6 +101,10 @@ export interface AppActions {
   // File operations
   uploadFiles: (files: File[], options?: UploadOptions) => Promise<void>;
   pollTaskStatus: (taskId: string) => void;
+  
+  // Sync operations
+  syncWithServer: () => Promise<void>;
+  initializeSync: () => void;
 }
 
 // Combined store interface

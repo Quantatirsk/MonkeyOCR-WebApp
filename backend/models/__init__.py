@@ -1,5 +1,6 @@
 # Models module init
 from .schemas import (
+    TaskStatusHistory,
     ProcessingTask,
     ImageResource, 
     DocumentMetadata,
@@ -15,6 +16,7 @@ from .schemas import (
 )
 
 __all__ = [
+    "TaskStatusHistory",
     "ProcessingTask",
     "ImageResource",
     "DocumentMetadata", 

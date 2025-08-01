@@ -2,15 +2,21 @@
 Pydantic models for MonkeyOCR WebApp API
 """
 
-from typing import Optional, List, Literal, Generic, TypeVar
+from typing import Optional, List, Literal, Generic, TypeVar, Dict, Any
 from pydantic import BaseModel, Field
 from datetime import datetime
 
 # Generic type for API responses
 T = TypeVar('T')
 
+class TaskStatusHistory(BaseModel):
+    """Task status change history entry"""
+    status: str
+    timestamp: str
+    message: Optional[str] = None
+
 class ProcessingTask(BaseModel):
-    """Processing task model"""
+    """Processing task model with enhanced persistence support"""
     id: str
     filename: str
     file_type: Literal['pdf', 'image']
@@ -20,6 +26,20 @@ class ProcessingTask(BaseModel):
     completed_at: Optional[str] = None
     error_message: Optional[str] = None
     result_url: Optional[str] = None
+    
+    # Enhanced fields for persistence
+    file_hash: Optional[str] = Field(None, description="SHA256 hash of original file")
+    file_size: Optional[int] = Field(None, description="Size of original file in bytes")
+    total_pages: Optional[int] = Field(None, description="Total pages for PDF files")
+    last_modified: Optional[str] = Field(None, description="Last modification timestamp")
+    status_history: List[TaskStatusHistory] = Field(default_factory=list, description="Status change history")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional task metadata")
+    
+    # Processing metadata
+    processing_started_at: Optional[str] = None
+    processing_duration: Optional[float] = Field(None, description="Processing duration in seconds")
+    extraction_type: Optional[str] = Field(None, description="Type of extraction performed")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
 
     class Config:
         json_encoders = {

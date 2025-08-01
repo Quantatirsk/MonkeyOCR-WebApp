@@ -38,7 +38,7 @@ interface DocumentViewerProps {
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { searchQuery, setSearchQuery, currentTaskId, results, tasks } = useAppStore();
+  const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult } = useAppStore();
   const { toast } = useToast();
   
   // Calculate current result and task directly
@@ -67,18 +67,25 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const markdownZoom = fontSizes[fontSizeLevel];
   const [activeTab, setActiveTab] = useState<'preview' | 'content' | 'images' | 'metadata'>('preview');
 
-  // 自动切换标签页逻辑：当任务完成且预览不可用时，切换到内容页
+  // 自动加载OCR结果逻辑：当选择新任务且任务已完成但结果未加载时
   React.useEffect(() => {
-    if (currentTask && currentResult && activeTab === 'preview') {
-      // 检查预览是否可用（有原始文件信息）
-      const previewAvailable = currentTask.original_file || currentTask.original_file_url;
-      
-      if (!previewAvailable && currentTask.status === 'completed') {
-        // 预览不可用且任务已完成，自动切换到内容页
-        setActiveTab('content');
+    const loadTaskResult = async () => {
+      if (currentTask && currentTask.status === 'completed' && !currentResult) {
+        try {
+          console.log(`🔄 Auto-loading result for completed task: ${currentTask.id}`);
+          await loadResult(currentTask.id);
+        } catch (error) {
+          console.error('Failed to auto-load task result:', error);
+          toast({
+            variant: "destructive",
+            description: "加载OCR结果失败",
+          });
+        }
       }
-    }
-  }, [currentTask, currentResult, activeTab]);
+    };
+    
+    loadTaskResult();
+  }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
 
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
@@ -212,9 +219,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
               <TabsTrigger value="preview" className="flex items-center space-x-1 text-xs">
                 <Monitor className="w-3 h-3" />
                 <span>预览</span>
-                {currentTask && !(currentTask.original_file || currentTask.original_file_url) && (
-                  <span className="text-xs text-muted-foreground ml-1">(!)</span>
-                )}
               </TabsTrigger>
               <TabsTrigger value="content" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
                 <FileText className="w-3 h-3" />

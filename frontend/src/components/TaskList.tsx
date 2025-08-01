@@ -14,11 +14,7 @@ import {
   Download,
   BookOpen
 } from 'lucide-react';
-import { Document, pdfjs } from 'react-pdf';
 import { Alert, AlertDescription } from './ui/alert';
-
-// Set up PDF.js worker (same as FilePreview component)
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { Button } from './ui/button';
 import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
@@ -28,6 +24,7 @@ import { useAppStore } from '../store/appStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
+import { syncManager } from '../utils/syncManager';
 
 interface TaskListProps {
   className?: string;
@@ -44,7 +41,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     setCurrentTask, 
     removeTask, 
     uploadFiles,
-    results
+    results,
+    initializeSync,
+    syncWithServer
   } = useAppStore();
   const { toast } = useToast();
 
@@ -54,6 +53,131 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [finalProcessingTimes, setFinalProcessingTimes] = useState<{ [taskId: string]: number }>({});
   // PDF页数缓存
   const [pdfPageCounts, setPdfPageCounts] = useState<{ [taskId: string]: number }>({});
+  // 组件初始化状态
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 组件初始化 - 恢复状态和同步
+  useEffect(() => {
+    const initializeComponent = async () => {
+      if (isInitialized) return;
+      
+      try {
+        // 初始化同步管理器（这会自动触发同步）
+        initializeSync();
+        
+        // 等待一小段时间让store的自动同步完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // 恢复处理中任务的计时器状态
+        const now = Date.now();
+        const initialTimers: { [taskId: string]: number } = {};
+        const initialFinalTimes: { [taskId: string]: number } = {};
+        
+        tasks.forEach(task => {
+          if (task.status === 'processing') {
+            // 基于服务器时间戳计算已经过的时间
+            const startTime = new Date(task.created_at).getTime();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            initialTimers[task.id] = Math.max(0, elapsed);
+          } else if (task.status === 'completed' || task.status === 'failed') {
+            // 对于已完成的任务，计算总处理时间
+            if (task.completed_at) {
+              const startTime = new Date(task.created_at).getTime();
+              const endTime = new Date(task.completed_at).getTime();
+              const totalTime = Math.floor((endTime - startTime) / 1000);
+              initialFinalTimes[task.id] = Math.max(0, totalTime);
+            }
+          }
+        });
+        
+        setTimers(initialTimers);
+        setFinalProcessingTimes(initialFinalTimes);
+        
+        // 恢复PDF页数信息
+        await restorePdfPageCounts();
+        
+        console.log('TaskList initialized with recovered state:', {
+          timers: Object.keys(initialTimers).length,
+          finalTimes: Object.keys(initialFinalTimes).length,
+          tasks: tasks.length
+        });
+        
+      } catch (error) {
+        console.error('TaskList initialization failed:', error);
+        toast({
+          variant: "destructive",
+          description: "任务状态恢复失败，可能需要手动刷新"
+        });
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+    
+    initializeComponent();
+  }, [tasks.length, initializeSync, syncWithServer, isInitialized, toast]);
+
+  // 恢复PDF页数信息
+  const restorePdfPageCounts = async () => {
+    const pdfTasks = tasks.filter(task => task.file_type === 'pdf');
+    const pageCounts: { [taskId: string]: number } = {};
+    
+    // 首先从结果元数据获取页数（本地数据，无需网络请求）
+    for (const task of pdfTasks) {
+      const result = results.get(task.id);
+      if (result?.metadata?.total_pages) {
+        pageCounts[task.id] = result.metadata.total_pages;
+      }
+    }
+    
+    // 立即更新已有的页数信息
+    if (Object.keys(pageCounts).length > 0) {
+      setPdfPageCounts(prev => ({ ...prev, ...pageCounts }));
+      console.log('Restored PDF page counts from results:', pageCounts);
+    }
+    
+    // 对于没有页数信息的任务，限制并发请求数量
+    const tasksNeedingPageCount = pdfTasks.filter(task => 
+      !pageCounts[task.id] && 
+      (task.status === 'completed' || task.status === 'processing')
+    );
+    
+    if (tasksNeedingPageCount.length > 0) {
+      console.log(`Need to fetch page counts for ${tasksNeedingPageCount.length} tasks`);
+      
+      // 限制并发数量，每次最多处理3个任务
+      const batchSize = 3;
+      for (let i = 0; i < tasksNeedingPageCount.length; i += batchSize) {
+        const batch = tasksNeedingPageCount.slice(i, i + batchSize);
+        
+        // 并行处理当前批次
+        await Promise.allSettled(
+          batch.map(async (task) => {
+            try {
+              const previewData = await syncManager.getTaskPreview(task.id);
+              if (previewData.data?.total_pages) {
+                setPdfPageCounts(prev => ({
+                  ...prev,
+                  [task.id]: previewData.data.total_pages
+                }));
+              }
+            } catch (error) {
+              console.warn(`Failed to get preview for task ${task.id}:`, error);
+              // 标记为失败
+              setPdfPageCounts(prev => ({
+                ...prev,
+                [task.id]: -1
+              }));
+            }
+          })
+        );
+        
+        // 批次间间隔，避免过载
+        if (i + batchSize < tasksNeedingPageCount.length) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+    }
+  };
 
   // 计时器effect - 为处理中的任务更新计时
   useEffect(() => {
@@ -84,12 +208,104 @@ export const TaskList: React.FC<TaskListProps> = ({
     return () => clearInterval(interval);
   }, [tasks]);
 
-  // PDF页数处理函数
-  const handlePdfLoadSuccess = (taskId: string, { numPages }: { numPages: number }) => {
-    setPdfPageCounts(prev => ({
-      ...prev,
-      [taskId]: numPages
-    }));
+  // 监听任务变化，动态恢复新任务的状态
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const now = Date.now();
+    const newTimers: { [taskId: string]: number } = {};
+    const newFinalTimes: { [taskId: string]: number } = {};
+    
+    tasks.forEach(task => {
+      if (task.status === 'processing' && !timers[task.id]) {
+        // 新的处理中任务，计算已经过的时间
+        const startTime = new Date(task.created_at).getTime();
+        const elapsed = Math.floor((now - startTime) / 1000);
+        newTimers[task.id] = Math.max(0, elapsed);
+      } else if ((task.status === 'completed' || task.status === 'failed') && 
+                 !finalProcessingTimes[task.id] && task.completed_at) {
+        // 新完成的任务，计算总处理时间
+        const startTime = new Date(task.created_at).getTime();
+        const endTime = new Date(task.completed_at).getTime();
+        const totalTime = Math.floor((endTime - startTime) / 1000);
+        newFinalTimes[task.id] = Math.max(0, totalTime);
+      }
+    });
+    
+    if (Object.keys(newTimers).length > 0) {
+      setTimers(prev => ({ ...prev, ...newTimers }));
+    }
+    
+    if (Object.keys(newFinalTimes).length > 0) {
+      setFinalProcessingTimes(prev => ({ ...prev, ...newFinalTimes }));
+    }
+  }, [tasks, isInitialized, timers, finalProcessingTimes]);
+
+
+  // 跟踪正在加载的任务，避免并发请求
+  const [loadingPageCounts, setLoadingPageCounts] = useState<Set<string>>(new Set());
+
+  // 动态加载单个PDF页数
+  const loadPdfPageCount = async (taskId: string) => {
+    if (pdfPageCounts[taskId]) return; // 已经有缓存
+    if (loadingPageCounts.has(taskId)) return; // 正在加载中
+    
+    // 避免对无效任务ID发起请求
+    if (!taskId || taskId.length < 10) {
+      console.warn(`Invalid task ID for page count: ${taskId}`);
+      return;
+    }
+    
+    // 标记为加载中
+    setLoadingPageCounts(prev => new Set(prev).add(taskId));
+    
+    try {
+      const previewData = await syncManager.getTaskPreview(taskId);
+      if (previewData.data?.total_pages) {
+        setPdfPageCounts(prev => ({
+          ...prev,
+          [taskId]: previewData.data.total_pages
+        }));
+      } else {
+        // 没有页数信息，标记为0
+        setPdfPageCounts(prev => ({
+          ...prev,
+          [taskId]: 0
+        }));
+      }
+    } catch (error) {
+      // 检查是否是网络连接错误
+      const isConnectionError = error instanceof Error && 
+        (error.message.includes('ERR_CONNECTION_REFUSED') || 
+         error.message.includes('Network error') ||
+         error.message.includes('Cannot connect to server'));
+      
+      if (isConnectionError) {
+        console.warn(`Backend server is not running. Skipping page count loading for task ${taskId}`);
+        // 对于连接错误，标记为-2，表示服务器不可用
+        setPdfPageCounts(prev => ({
+          ...prev,
+          [taskId]: -2
+        }));
+      } else {
+        // 其他错误，只在开发环境显示详细错误
+        if (process.env.NODE_ENV === 'development') {
+          console.warn(`Failed to load page count for task ${taskId}:`, error);
+        }
+        // 标记此任务已尝试获取页数，避免重复请求
+        setPdfPageCounts(prev => ({
+          ...prev,
+          [taskId]: -1 // 使用-1表示获取失败
+        }));
+      }
+    } finally {
+      // 移除加载中标记
+      setLoadingPageCounts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(taskId);
+        return newSet;
+      });
+    }
   };
 
   // 格式化时间显示
@@ -116,7 +332,19 @@ export const TaskList: React.FC<TaskListProps> = ({
   const getProcessingInfo = (task: ProcessingTask): string | null => {
     if (task.file_type === 'pdf') {
       // 对于PDF文件，显示页码信息
-      const totalPages = pdfPageCounts[task.id] || results.get(task.id)?.metadata?.total_pages;
+      let totalPages = pdfPageCounts[task.id] || results.get(task.id)?.metadata?.total_pages;
+      
+      // 如果没有页数信息且未曾失败过，尝试动态加载
+      // -1表示获取失败，-2表示服务器不可用
+      if (!totalPages && pdfPageCounts[task.id] !== -1 && pdfPageCounts[task.id] !== -2 && 
+          (task.status === 'completed' || task.status === 'processing')) {
+        loadPdfPageCount(task.id);
+      }
+      
+      // 如果获取失败（-1）或服务器不可用（-2），不显示页数信息
+      if (pdfPageCounts[task.id] === -1 || pdfPageCounts[task.id] === -2) {
+        totalPages = undefined;
+      }
       
       if (totalPages && totalPages > 0) {
         if (task.status === 'processing') {
@@ -224,12 +452,36 @@ export const TaskList: React.FC<TaskListProps> = ({
   };
 
   // Handle task deletion
-  const handleDelete = (taskId: string) => {
+  const handleDelete = async (taskId: string) => {
     if (confirm('确定要删除这个任务吗？')) {
-      removeTask(taskId);
-      toast({
-        description: "任务已删除",
-      });
+      try {
+        // Call backend API to delete the task
+        await apiClient.deleteTask(taskId);
+        
+        // Remove from frontend state first
+        removeTask(taskId);
+        
+        // Force a full sync with server to ensure consistency
+        // This will use the fixed mergeTasks logic that respects server as authority
+        await syncWithServer();
+        
+        toast({
+          description: "任务已删除",
+        });
+      } catch (error) {
+        console.error('Failed to delete task:', error);
+        toast({
+          variant: "destructive",
+          description: "删除任务失败，请重新尝试",
+        });
+        
+        // If deletion failed, sync to restore state
+        try {
+          await syncWithServer();
+        } catch (syncError) {
+          console.error('Failed to sync after delete error:', syncError);
+        }
+      }
     }
   };
 
@@ -434,25 +686,6 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* 隐藏的PDF Document组件用于获取页数 */}
-      <div style={{ display: 'none' }}>
-        {tasks.map(task => {
-          if (task.file_type === 'pdf' && task.original_file && !pdfPageCounts[task.id]) {
-            const fileUrl = URL.createObjectURL(task.original_file);
-            return (
-              <Document
-                key={`pdf-counter-${task.id}`}
-                file={fileUrl}
-                onLoadSuccess={(data) => handlePdfLoadSuccess(task.id, data)}
-                onLoadError={() => {
-                  console.warn(`Failed to load PDF for page count: ${task.filename}`);
-                }}
-              />
-            );
-          }
-          return null;
-        })}
-      </div>
       {/* Header */}
       <div className="border-b bg-muted/5 p-2">
         <div className="flex items-center justify-between mb-2">
