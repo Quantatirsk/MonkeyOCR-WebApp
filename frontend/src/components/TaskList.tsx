@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
-import { Progress } from './ui/progress';
+import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
@@ -170,11 +170,10 @@ export const TaskList: React.FC<TaskListProps> = ({
     return (
       <div
         key={task.id}
-        className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-muted/50 hover:shadow-sm ${
+        className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-muted/50 hover:shadow-sm min-w-0 ${
           isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'
         }`}
         onClick={() => handleTaskSelect(task)}
-        style={{ maxWidth: '100%', width: '100%' }}
       >
         {/* Main content area */}
         <div className="flex items-start gap-3">
@@ -187,7 +186,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           <div className="flex-1 min-w-0">
             {/* First row: filename and status */}
             <div className="flex items-start gap-2 mb-2">
-              <p className="text-sm font-medium break-words flex-1 leading-tight" title={task.filename}>
+              <p className="text-sm font-medium flex-1 leading-tight break-words" title={task.filename} style={{ wordBreak: 'break-all' }}>
                 {task.filename}
               </p>
               <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 flex-shrink-0">
@@ -200,7 +199,7 @@ export const TaskList: React.FC<TaskListProps> = ({
             
             {/* Second row: file type, time and action buttons */}
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1">
                 <span className="flex-shrink-0 font-medium">{task.file_type.toUpperCase()}</span>
                 <span className="flex-shrink-0">•</span>
                 <span className="break-words">{formatTimeAgo(task.created_at)}</span>
@@ -258,7 +257,11 @@ export const TaskList: React.FC<TaskListProps> = ({
         {/* Progress bar for processing tasks */}
         {task.status === 'processing' && (
           <div className="mt-2">
-            <Progress value={task.progress} className="w-full h-1.5" />
+            <AnimatedProgress 
+              value={task.progress} 
+              className="w-full h-1.5" 
+              showAnimation={true}
+            />
           </div>
         )}
         

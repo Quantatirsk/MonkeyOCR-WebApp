@@ -45,7 +45,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
   const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
   
-  // Debug logging
+  // Debug logging (双重渲染是React.StrictMode的正常开发行为)
   React.useEffect(() => {
     console.log('📱 DocumentViewer render - currentTaskId:', currentTaskId);
     console.log('📱 DocumentViewer render - currentResult:', currentResult);

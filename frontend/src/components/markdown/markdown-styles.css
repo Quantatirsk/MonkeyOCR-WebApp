@@ -31,7 +31,7 @@
 
 .markdown-viewer .wmde-markdown,
 .markdown-viewer .w-md-editor-preview {
-  font-size: 0.875rem !important; /* 14px base */
+  /* font-size removed to allow dynamic sizing */
   line-height: 1.4 !important;
 }
 
@@ -489,9 +489,20 @@
   border: 1px solid hsl(var(--border));
   border-radius: 0.25rem;
   background-color: hsl(var(--muted) / 0.3);
-  display: inline-block;
   font-size: 0.875rem;
   position: relative;
+}
+
+/* Block-level custom tags (div) */
+div[data-custom-tag] {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+/* Inline custom tags (span) */
+span[data-custom-tag] {
+  display: inline-block;
+  margin: 0.125rem 0.25rem;
 }
 
 [data-custom-tag]:before {
@@ -520,4 +531,56 @@
 [data-custom-tag="conclusion"] {
   border-color: hsl(var(--accent) / 0.3);
   background-color: hsl(var(--accent) / 0.1);
+}
+
+/* Additional custom tags styling */
+[data-custom-tag="facts"],
+[data-custom-tag="entities"] {
+  border-color: hsl(var(--primary) / 0.3);
+  background-color: hsl(var(--primary) / 0.1);
+}
+
+[data-custom-tag="previous"],
+[data-custom-tag="existing"] {
+  border-color: hsl(var(--muted-foreground) / 0.3);
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+[data-custom-tag="current"],
+[data-custom-tag="new"] {
+  border-color: hsl(var(--destructive) / 0.3);
+  background-color: hsl(var(--destructive) / 0.1);
+}
+
+[data-custom-tag="changes"],
+[data-custom-tag="updates"] {
+  border-color: hsl(var(--ring) / 0.3);
+  background-color: hsl(var(--ring) / 0.1);
+}
+
+[data-custom-tag="section"],
+[data-custom-tag="content"],
+[data-custom-tag="details"] {
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card) / 0.5);
+}
+
+[data-custom-tag="analysis"],
+[data-custom-tag="description"],
+[data-custom-tag="explanation"] {
+  border-color: hsl(var(--primary) / 0.4);
+  background-color: hsl(var(--primary) / 0.05);
+}
+
+[data-custom-tag="example"],
+[data-custom-tag="definition"] {
+  border-color: hsl(var(--accent) / 0.4);
+  background-color: hsl(var(--accent) / 0.1);
+}
+
+[data-custom-tag="result"],
+[data-custom-tag="finding"],
+[data-custom-tag="observation"] {
+  border-color: hsl(var(--secondary) / 0.3);
+  background-color: hsl(var(--secondary) / 0.1);
 }

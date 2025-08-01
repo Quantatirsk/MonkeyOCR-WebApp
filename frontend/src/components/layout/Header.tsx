@@ -10,8 +10,8 @@ export function Header() {
       <div className="h-full px-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <h1 className="text-lg font-semibold">MonkeyOCR</h1>
-          <Badge variant="outline" className="text-xs">
-            v2.0
+          <Badge variant="default" className="text-xs">
+            v1.0
           </Badge>
         </div>
 
@@ -21,7 +21,7 @@ export function Header() {
               处理中...
             </Badge>
           )}
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="secondary" className="text-xs">
             {tasks.length} 个任务
           </Badge>
         </div>
