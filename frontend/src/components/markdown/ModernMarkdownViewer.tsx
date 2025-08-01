@@ -1,10 +1,11 @@
 import React, { useRef, useMemo } from 'react';
 import MarkdownPreview from '@uiw/react-markdown-preview';
 import '@uiw/react-markdown-preview/markdown.css';
+import 'katex/dist/katex.min.css';
 import './markdown-styles.css';
-
-// Get API base URL for constructing full image URLs
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+import { getStaticFileUrl } from '../../config';
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
 
 interface ModernMarkdownViewerProps {
   content: string;
@@ -89,14 +90,13 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
   // 启用代码块复制功能
   useCopyCodeBlock(containerRef);
   
-  // Process content to fix image URLs
   const processedContent = useMemo(() => {
     if (!content) return '';
-    
-    // Replace relative /static/ paths with full URLs
+
+    // 只替换图片路径
     return content.replace(
       /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
-      `![$1](${API_BASE_URL}/static/$2)`
+      (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );
   }, [content]);
 
@@ -113,8 +113,27 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
           fontFamily: 'inherit',
           fontSize: `${fontSize}%`,
         }}
-        rehypePlugins={[]}
-        remarkPlugins={[]}
+        rehypePlugins={[
+          [rehypeKatex, {
+            strict: false,
+            throwOnError: false,
+            errorColor: '#cc0000',
+            macros: {
+              "\\RR": "\\mathbb{R}",
+              "\\NN": "\\mathbb{N}",
+              "\\ZZ": "\\mathbb{Z}",
+              "\\QQ": "\\mathbb{Q}",
+              "\\CC": "\\mathbb{C}",
+            },
+            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+          }]
+        ]}
+        remarkPlugins={[
+          [remarkMath, {
+            // 数学插件配置
+            singleDollarTextMath: true, // 启用单$内联数学
+          }]
+        ]}
         wrapperElement={{ 'data-color-mode': 'light' }}
         data-color-mode="light"
       />

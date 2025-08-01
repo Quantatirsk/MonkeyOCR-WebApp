@@ -13,9 +13,11 @@ import {
   UploadResponse
 } from '../types';
 
+import { APP_CONFIG, getStaticFileUrl } from '../config';
+
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
-const API_TIMEOUT = 30000; // 30 seconds
+const API_BASE_URL = APP_CONFIG.api.baseURL;
+const API_TIMEOUT = APP_CONFIG.api.timeout;
 
 // Create axios instance with default configuration
 const axiosInstance: AxiosInstance = axios.create({
@@ -198,7 +200,7 @@ class ApiClient {
    * Get static file URL for images
    */
   getStaticFileUrl(filePath: string): string {
-    return `${API_BASE_URL}/static/${filePath}`;
+    return getStaticFileUrl(filePath);
   }
 
   /**
@@ -244,7 +246,6 @@ export const {
   downloadTaskResult,
   deleteTask,
   getHealthStatus,
-  getStaticFileUrl,
   retryRequest
 } = apiClient;
 

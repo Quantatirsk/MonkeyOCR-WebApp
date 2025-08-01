@@ -1,5 +1,9 @@
 /* Markdown Preview Styles */
 
+/* ============================================================================
+   Base Styles & Utilities
+   ============================================================================ */
+
 /* 隐藏滚动条但保持滚动功能 */
 .hide-scrollbar {
   -ms-overflow-style: none; /* IE and Edge */
@@ -21,88 +25,204 @@
   min-height: 100%;
 }
 
-/* 概览弹窗的Markdown样式 */
-.overview-markdown .wmde-markdown {
-  padding: 6px !important;
-  font-size: 1em !important;
+/* ============================================================================
+   Main Markdown Styles
+   ============================================================================ */
+
+.markdown-viewer .wmde-markdown,
+.markdown-viewer .w-md-editor-preview {
+  font-size: 0.875rem !important; /* 14px base */
+  line-height: 1.4 !important;
 }
 
-.overview-markdown .wmde-markdown ul {
-  margin-top: 0.3em !important;
+/* Headers */
+.markdown-viewer .wmde-markdown h1,
+.markdown-viewer .w-md-editor-preview h1 {
+  color: #00253c !important;
+  font-size: 1.5rem !important;
+  margin-top: 1em !important;
   margin-bottom: 0.3em !important;
-  padding-left: 0.4em !important;
+  line-height: 1.3 !important;
 }
 
-.overview-markdown .wmde-markdown ol {
-  margin-left: 0.4em !important;
-  margin-top: 0.3em !important;
+.markdown-viewer .wmde-markdown h2,
+.markdown-viewer .w-md-editor-preview h2 {
+  color: #27374D !important;
+  font-size: 1.25rem !important;
+  margin-top: 1em !important;
   margin-bottom: 0.3em !important;
-  padding-left: 0.4em !important;
+  line-height: 1.3 !important;
 }
 
-.overview-markdown .wmde-markdown h1 {
-  font-size: 1.2em !important;
-  margin-top: 0.6em !important;
+.markdown-viewer .wmde-markdown h3,
+.markdown-viewer .w-md-editor-preview h3 {
+  color: #526D82 !important;
+  font-size: 1.1rem !important;
+  margin-top: 1em !important;
   margin-bottom: 0.3em !important;
-  color: #222831 !important;
+  line-height: 1.3 !important;
 }
 
-.overview-markdown .wmde-markdown h2 {
-  font-size: 1.1em !important;
-  margin-top: 0.6em !important;
+.markdown-viewer .wmde-markdown h4,
+.markdown-viewer .wmde-markdown h5,
+.markdown-viewer .wmde-markdown h6,
+.markdown-viewer .w-md-editor-preview h4,
+.markdown-viewer .w-md-editor-preview h5,
+.markdown-viewer .w-md-editor-preview h6 {
+  color: hsl(var(--foreground)) !important;
+  font-size: 1rem !important;
+  margin-top: 1em !important;
   margin-bottom: 0.3em !important;
-  color: #393E46 !important;
+  line-height: 1.3 !important;
 }
 
-.overview-markdown .wmde-markdown h3 {
-  font-size: 1.1em !important;
-  margin-top: 0.6em !important;
-  margin-bottom: 0.3em !important;
-  color: #00ADB5 !important;
-}
-
-.overview-markdown .wmde-markdown h4 {
-  font-size: 1.05em !important;
-  margin-top: 0.6em !important;
-  margin-bottom: 0.3em !important;
-}
-
-.overview-markdown .wmde-markdown p {
-  margin-top: 0.6em !important;
+/* Paragraphs */
+.markdown-viewer .wmde-markdown p,
+.markdown-viewer .w-md-editor-preview p {
+  color: hsl(var(--foreground)) !important;
+  line-height: 1.4 !important;
   margin-bottom: 0.6em !important;
-}
-
-.overview-markdown .wmde-markdown hr {
   margin-top: 0.3em !important;
-  margin-bottom: 0.3em !important;
 }
 
+/* Lists */
+.markdown-viewer .wmde-markdown ul,
+.markdown-viewer .wmde-markdown ol,
+.markdown-viewer .w-md-editor-preview ul,
+.markdown-viewer .w-md-editor-preview ol {
+  margin-top: 0.4em !important;
+  margin-bottom: 0.6em !important;
+  padding-left: 1.2em !important;
+}
 
+.markdown-viewer .wmde-markdown li,
+.markdown-viewer .w-md-editor-preview li {
+  margin-bottom: 0.2em !important;
+}
 
+/* Code Blocks */
+.markdown-viewer .wmde-markdown pre,
 .markdown-viewer .w-md-editor-preview pre {
   background-color: #f6f8fa !important;
   border: 1px solid #d0d7de !important;
   border-radius: 6px !important;
   padding: 12px !important;
+  margin: 0.6em 0 !important;
+  font-size: 0.8em !important;
+  position: relative;
 }
 
+.markdown-viewer .wmde-markdown pre code,
 .markdown-viewer .w-md-editor-preview pre code {
   background-color: transparent !important;
   color: #24292f !important;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace !important;
 }
 
+/* Inline Code */
+.markdown-viewer .wmde-markdown code,
 .markdown-viewer .w-md-editor-preview code {
   background-color: #f6f8fa !important;
   color: #24292f !important;
   padding: 2px 6px !important;
   border-radius: 4px !important;
-  font-size: 0.875em !important;
+  font-size: 0.85em !important;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace !important;
   border: 1px solid #d0d7de !important;
 }
 
-/* Light theme syntax highlighting tokens */
+/* Tables */
+.markdown-viewer .wmde-markdown table,
+.markdown-viewer .w-md-editor-preview table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 0.8em 0 !important;
+  font-size: 0.85em !important;
+}
+
+.markdown-viewer .wmde-markdown th,
+.markdown-viewer .wmde-markdown td,
+.markdown-viewer .w-md-editor-preview th,
+.markdown-viewer .w-md-editor-preview td {
+  border: 1px solid hsl(var(--border)) !important;
+  padding: 8px 12px !important;
+  text-align: left !important;
+}
+
+.markdown-viewer .wmde-markdown th,
+.markdown-viewer .w-md-editor-preview th {
+  background-color: hsl(var(--muted)) !important;
+  font-weight: 600 !important;
+}
+
+/* Blockquotes */
+.markdown-viewer .wmde-markdown blockquote,
+.markdown-viewer .w-md-editor-preview blockquote {
+  border-left: 4px solid hsl(var(--primary)) !important;
+  background-color: hsl(var(--muted)) !important;
+  padding: 12px !important;
+  margin: 12px 0 !important;
+  border-radius: 6px !important;
+}
+
+/* ============================================================================
+   Code Block Copy Functionality
+   ============================================================================ */
+
+.markdown-viewer .w-md-editor-preview .code-line {
+  position: relative;
+}
+
+.markdown-viewer .w-md-editor-preview .code-line:hover .copied {
+  visibility: visible;
+}
+
+.markdown-viewer .w-md-editor-preview .copied {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  visibility: hidden;
+  cursor: pointer;
+  background: var(--color-border-default, #d0d7de);
+  color: var(--color-fg-default, #24292f);
+  border-radius: 4px;
+  padding: 6px;
+  font-size: 12px;
+  transition: all 0.3s;
+  z-index: 10;
+}
+
+.markdown-viewer .w-md-editor-preview .copied .octicon-copy {
+  display: block;
+}
+
+.markdown-viewer .w-md-editor-preview .copied .octicon-check {
+  display: none;
+}
+
+.markdown-viewer .w-md-editor-preview .copied:hover {
+  background: var(--color-prettylights-syntax-entity-tag, #116329);
+  color: var(--color-canvas-default, #ffffff);
+}
+
+.markdown-viewer .w-md-editor-preview .copied:active,
+.markdown-viewer .w-md-editor-preview .copied.active {
+  background: var(--color-copied-active-bg, #2e9b33);
+  color: var(--color-canvas-default, #ffffff);
+}
+
+.markdown-viewer .w-md-editor-preview .copied.active .octicon-copy {
+  display: none;
+}
+
+.markdown-viewer .w-md-editor-preview .copied.active .octicon-check {
+  display: block;
+}
+
+/* ============================================================================
+   Syntax Highlighting
+   ============================================================================ */
+
 .markdown-viewer .w-md-editor-preview .token.comment,
 .markdown-viewer .w-md-editor-preview .token.prolog,
 .markdown-viewer .w-md-editor-preview .token.doctype,
@@ -162,211 +282,167 @@
   color: #e36209 !important;
 }
 
-/* Copy button styles for code blocks */
-.markdown-viewer .w-md-editor-preview .code-line {
-  position: relative;
-}
+/* ============================================================================
+   Math Equations (KaTeX)
+   ============================================================================ */
 
-.markdown-viewer .w-md-editor-preview .code-line:hover .copied {
-  visibility: visible;
-}
-
-.markdown-viewer .w-md-editor-preview .copied {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  visibility: hidden;
-  cursor: pointer;
-  background: var(--color-border-default, #d0d7de);
-  color: var(--color-fg-default, #24292f);
-  border-radius: 4px;
-  padding: 6px;
-  font-size: 12px;
-  transition: all 0.3s;
-  z-index: 10;
-}
-
-.markdown-viewer .w-md-editor-preview .copied .octicon-copy {
-  display: block;
-}
-
-.markdown-viewer .w-md-editor-preview .copied .octicon-check {
-  display: none;
-}
-
-.markdown-viewer .w-md-editor-preview .copied:hover {
-  background: var(--color-prettylights-syntax-entity-tag, #116329);
-  color: var(--color-canvas-default, #ffffff);
-}
-
-.markdown-viewer .w-md-editor-preview .copied:active,
-.markdown-viewer .w-md-editor-preview .copied.active {
-  background: var(--color-copied-active-bg, #2e9b33);
-  color: var(--color-canvas-default, #ffffff);
-}
-
-.markdown-viewer .w-md-editor-preview .copied.active .octicon-copy {
-  display: none;
-}
-
-.markdown-viewer .w-md-editor-preview .copied.active .octicon-check {
-  display: block;
-}
-
-/* Additional styling for better readability */
-.markdown-viewer .w-md-editor-preview h1,
-.markdown-viewer .w-md-editor-preview h2,
-.markdown-viewer .w-md-editor-preview h3,
-.markdown-viewer .w-md-editor-preview h4,
-.markdown-viewer .w-md-editor-preview h5,
-.markdown-viewer .w-md-editor-preview h6 {
+/* KaTeX基础样式 */
+.markdown-viewer .katex {
+  font-size: 1em !important;
   color: hsl(var(--foreground)) !important;
-  margin-top: 1em !important;
+}
+
+/* 块级数学公式 */
+.markdown-viewer .katex-display {
+  margin: 1.2em 0 !important;
+  text-align: center !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+/* 内联数学公式 */
+.markdown-viewer .katex-inline {
+  margin: 0 0.1em !important;
+  padding: 0 0.1em !important;
+}
+
+/* KaTeX HTML内容 */
+.markdown-viewer .katex-html {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* KaTeX错误显示 */
+.markdown-viewer .katex-error {
+  color: #cc0000 !important;
+  background-color: rgba(204, 0, 0, 0.1) !important;
+  padding: 2px 4px !important;
+  border-radius: 3px !important;
+  font-family: monospace !important;
+}
+
+/* 确保KaTeX在不同背景下可见 */
+.markdown-viewer .katex .mord,
+.markdown-viewer .katex .mop,
+.markdown-viewer .katex .mbin,
+.markdown-viewer .katex .mrel,
+.markdown-viewer .katex .mopen,
+.markdown-viewer .katex .mclose,
+.markdown-viewer .katex .mpunct {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* KaTeX分数线 */
+.markdown-viewer .katex .frac-line {
+  border-bottom-color: hsl(var(--foreground)) !important;
+}
+
+/* KaTeX根号 */
+.markdown-viewer .katex .sqrt-line {
+  border-top-color: hsl(var(--foreground)) !important;
+}
+
+/* KaTeX括号 */
+.markdown-viewer .katex .delimsizing,
+.markdown-viewer .katex .delim-size1,
+.markdown-viewer .katex .delim-size2,
+.markdown-viewer .katex .delim-size3,
+.markdown-viewer .katex .delim-size4 {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* 响应式数学公式 */
+@media (max-width: 768px) {
+  .markdown-viewer .katex-display {
+    font-size: 0.9em !important;
+    margin: 1em 0 !important;
+  }
+  
+  .markdown-viewer .katex {
+    font-size: 0.9em !important;
+  }
+}
+
+/* ============================================================================
+   Specialized Layouts
+   ============================================================================ */
+
+/* Overview Modal - Compact Styles */
+.overview-markdown .wmde-markdown {
+  padding: 6px !important;
+  font-size: 0.875rem !important;
+}
+
+.overview-markdown .wmde-markdown h1 {
+  font-size: 1.1rem !important;
+  margin-top: 0.6em !important;
   margin-bottom: 0.3em !important;
-  line-height: 1.3 !important;
+  color: #222831 !important;
 }
 
-.wmde-markdown h1 {
-  color: #00253c !important;
-}
-.wmde-markdown h2 {
-  color: #27374D !important;
-}
-
-.wmde-markdown h3 {
-  color: #526D82 !important;
+.overview-markdown .wmde-markdown h2 {
+  font-size: 1rem !important;
+  margin-top: 0.6em !important;
+  margin-bottom: 0.3em !important;
+  color: #393E46 !important;
 }
 
-.wmde-markdown .code-line {
-  color: #00253c !important;
+.overview-markdown .wmde-markdown h3 {
+  font-size: 0.95rem !important;
+  margin-top: 0.6em !important;
+  margin-bottom: 0.3em !important;
+  color: #00ADB5 !important;
 }
 
-.markdown-viewer .w-md-editor-preview p {
-  color: hsl(var(--foreground)) !important;
-  line-height: 1.4 !important;
-  margin-bottom: 0.6em !important;
+.overview-markdown .wmde-markdown ul,
+.overview-markdown .wmde-markdown ol {
   margin-top: 0.3em !important;
+  margin-bottom: 0.3em !important;
+  padding-left: 0.8em !important;
 }
 
-.markdown-viewer .w-md-editor-preview blockquote {
-  border-left: 4px solid hsl(var(--primary)) !important;
-  background-color: hsl(var(--muted)) !important;
-  padding: 12px !important;
-  margin: 12px 0 !important;
-  border-radius: 6px !important;
-}
-
-.markdown-viewer .w-md-editor-preview table {
-  border-collapse: collapse !important;
-  width: 100% !important;
-  margin: 12px 0 !important;
-}
-
-.markdown-viewer .w-md-editor-preview th,
-.markdown-viewer .w-md-editor-preview td {
-  border: 1px solid hsl(var(--border)) !important;
-  padding: 8px 12px !important;
-  text-align: left !important;
-}
-
-.markdown-viewer .w-md-editor-preview th {
-  background-color: hsl(var(--muted)) !important;
-  font-weight: 600 !important;
-}
-
-/* 紧凑的markdown样式 - 默认更小的字号和间距 */
-.markdown-viewer .w-md-editor-preview {
-  font-size: 0.875rem !important; /* 14px - 基础字号更小 */
-  line-height: 1.4 !important;
-}
-
-.markdown-viewer .w-md-editor-preview ul,
-.markdown-viewer .w-md-editor-preview ol {
+.overview-markdown .wmde-markdown p {
   margin-top: 0.4em !important;
-  margin-bottom: 0.6em !important;
-  padding-left: 1.2em !important;
+  margin-bottom: 0.4em !important;
 }
 
-.markdown-viewer .w-md-editor-preview li {
-  margin-bottom: 0.2em !important;
-}
-
-.markdown-viewer .w-md-editor-preview table {
-  margin: 0.8em 0 !important;
-  font-size: 0.85em !important;
-}
-
-.markdown-viewer .w-md-editor-preview pre {
-  margin: 0.6em 0 !important;
-  font-size: 0.8em !important;
-}
-
-.markdown-viewer .w-md-editor-preview code {
-  font-size: 0.85em !important;
-}
-
-/* 用户消息的markdown样式 - 针对深色背景 */
+/* User Message - Dark Theme Optimized */
 .user-message-markdown .wmde-markdown {
   color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.75rem !important; /* 12px - 与 text-xs 一致 */
+  font-size: 0.75rem !important;
   padding: 0 !important;
 }
 
-.user-message-markdown .wmde-markdown h1 {
-  color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.9rem !important; /* 略大于基础字体 */
-  margin-top: 0.8em !important;
-  margin-bottom: 0.4em !important;
-  font-weight: 600 !important;
-}
-
-.user-message-markdown .wmde-markdown h2 {
-  color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.85rem !important;
-  margin-top: 0.8em !important;
-  margin-bottom: 0.4em !important;
-  font-weight: 600 !important;
-}
-
+.user-message-markdown .wmde-markdown h1,
+.user-message-markdown .wmde-markdown h2,
 .user-message-markdown .wmde-markdown h3,
 .user-message-markdown .wmde-markdown h4,
 .user-message-markdown .wmde-markdown h5,
 .user-message-markdown .wmde-markdown h6 {
   color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.8rem !important;
+  font-weight: 600 !important;
   margin-top: 0.8em !important;
   margin-bottom: 0.4em !important;
-  font-weight: 600 !important;
 }
 
-.user-message-markdown .wmde-markdown p {
+.user-message-markdown .wmde-markdown h1 { font-size: 0.9rem !important; }
+.user-message-markdown .wmde-markdown h2 { font-size: 0.85rem !important; }
+.user-message-markdown .wmde-markdown h3,
+.user-message-markdown .wmde-markdown h4,
+.user-message-markdown .wmde-markdown h5,
+.user-message-markdown .wmde-markdown h6 { font-size: 0.8rem !important; }
+
+.user-message-markdown .wmde-markdown p,
+.user-message-markdown .wmde-markdown li {
   color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.75rem !important; /* 与基础字体大小一致 */
+  font-size: 0.75rem !important;
   margin-top: 0.4em !important;
   margin-bottom: 0.4em !important;
-}
-
-.user-message-markdown .wmde-markdown strong {
-  color: hsl(var(--primary-foreground)) !important;
-  font-weight: 600 !important;
-}
-
-.user-message-markdown .wmde-markdown em {
-  color: hsl(var(--primary-foreground)) !important;
 }
 
 .user-message-markdown .wmde-markdown ul,
 .user-message-markdown .wmde-markdown ol {
-  color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.75rem !important;
-  margin-top: 0.4em !important;
-  margin-bottom: 0.4em !important;
   padding-left: 1em !important;
-}
-
-.user-message-markdown .wmde-markdown li {
-  color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.75rem !important;
+  margin: 0.4em 0 !important;
 }
 
 .user-message-markdown .wmde-markdown code {
@@ -374,7 +450,7 @@
   color: hsl(var(--primary-foreground)) !important;
   padding: 2px 4px !important;
   border-radius: 3px !important;
-  font-size: 0.7rem !important; /* 略小于基础字体 */
+  font-size: 0.7rem !important;
 }
 
 .user-message-markdown .wmde-markdown pre {
@@ -383,13 +459,12 @@
   padding: 8px !important;
   border-radius: 4px !important;
   margin: 0.4em 0 !important;
-  font-size: 0.7rem !important; /* 略小于基础字体 */
+  font-size: 0.7rem !important;
 }
 
 .user-message-markdown .wmde-markdown pre code {
   background-color: transparent !important;
-  color: hsl(var(--primary-foreground)) !important;
-  font-size: 0.7rem !important; /* 与 pre 保持一致 */
+  font-size: 0.7rem !important;
 }
 
 .user-message-markdown .wmde-markdown blockquote {
@@ -407,3 +482,42 @@
   font-size: 0.75rem !important;
 }
 
+/* Custom OCR tags styling */
+[data-custom-tag] {
+  padding: 0.25rem 0.5rem;
+  margin: 0.125rem 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.25rem;
+  background-color: hsl(var(--muted) / 0.3);
+  display: inline-block;
+  font-size: 0.875rem;
+  position: relative;
+}
+
+[data-custom-tag]:before {
+  content: attr(data-custom-tag);
+  position: absolute;
+  top: -0.5rem;
+  left: 0.25rem;
+  background-color: hsl(var(--background));
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.125rem;
+}
+
+[data-custom-tag="facts"] {
+  border-color: hsl(var(--primary) / 0.3);
+  background-color: hsl(var(--primary) / 0.1);
+}
+
+[data-custom-tag="summary"] {
+  border-color: hsl(var(--secondary) / 0.3);
+  background-color: hsl(var(--secondary) / 0.1);
+}
+
+[data-custom-tag="conclusion"] {
+  border-color: hsl(var(--accent) / 0.3);
+  background-color: hsl(var(--accent) / 0.1);
+}

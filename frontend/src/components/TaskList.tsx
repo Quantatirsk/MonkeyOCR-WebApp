@@ -39,8 +39,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     setCurrentTask, 
     removeTask, 
     uploadFiles,
-    results,
-    loadResult
+    results
   } = useAppStore();
   const { toast } = useToast();
 

@@ -68,7 +68,13 @@ export const useAppStore = create<AppStore>()(
       updateTask: (id, updates) => {
         set((state) => ({
           tasks: state.tasks.map(task => 
-            task.id === id ? { ...task, ...updates } : task
+            task.id === id ? { 
+              ...task, 
+              ...updates,
+              // 保留原始文件信息，避免被服务器更新覆盖
+              original_file: task.original_file,
+              original_file_url: task.original_file_url
+            } : task
           )
         }));
       },
@@ -78,6 +84,13 @@ export const useAppStore = create<AppStore>()(
       },
 
       removeTask: (id) => {
+        const task = get().tasks.find(t => t.id === id);
+        
+        // Clean up object URL to prevent memory leaks
+        if (task?.original_file_url) {
+          URL.revokeObjectURL(task.original_file_url);
+        }
+        
         set((state) => ({
           tasks: state.tasks.filter(task => task.id !== id),
           currentTaskId: state.currentTaskId === id ? null : state.currentTaskId
@@ -114,6 +127,23 @@ export const useAppStore = create<AppStore>()(
         set({ results: new Map() });
       },
 
+      // Cleanup object URLs when clearing all tasks
+      clearTasks: () => {
+        const { tasks } = get();
+        // Clean up all object URLs
+        tasks.forEach(task => {
+          if (task.original_file_url) {
+            URL.revokeObjectURL(task.original_file_url);
+          }
+        });
+        
+        set({ 
+          tasks: [],
+          currentTaskId: null,
+          results: new Map()
+        });
+      },
+
       // UI state actions
       setSearchQuery: (query) => {
         set({ searchQuery: query });
@@ -142,8 +172,13 @@ export const useAppStore = create<AppStore>()(
               const response: APIResponse<ProcessingTask> = await apiClient.uploadFile(file, options);
               
               if (response.success && response.data) {
-                // Add the task returned from server
-                const serverTask = response.data;
+                // Add the task returned from server with original file info
+                const serverTask: ProcessingTask = {
+                  ...response.data,
+                  original_file: file, // Store original file for preview
+                  original_file_url: URL.createObjectURL(file) // Create URL for preview
+                };
+                
                 set((state) => ({
                   tasks: [...state.tasks, serverTask],
                   currentTaskId: serverTask.id

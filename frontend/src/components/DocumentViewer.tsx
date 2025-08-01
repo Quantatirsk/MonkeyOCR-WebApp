@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
+import { FilePreview } from './FilePreview';
 import './markdown/markdown-styles.css';
 import { 
   Search, 
@@ -15,9 +16,9 @@ import {
   Image,
   Maximize2,
   X,
-  Type
+  Type,
+  Monitor
 } from 'lucide-react';
-import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -30,19 +31,19 @@ import { ImageResource } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
 
-// Get API base URL for constructing full image URLs
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+import { getStaticFileUrl } from '../config';
 
 interface DocumentViewerProps {
   className?: string;
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { searchQuery, setSearchQuery, currentTaskId, results } = useAppStore();
+  const { searchQuery, setSearchQuery, currentTaskId, results, tasks } = useAppStore();
   const { toast } = useToast();
   
-  // Calculate current result directly
+  // Calculate current result and task directly
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
+  const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
   
   // Debug logging
   React.useEffect(() => {
@@ -63,7 +64,20 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const fontSizes = [85, 100, 120];
   const fontLabels = ['小', '中', '大'];
   const markdownZoom = fontSizes[fontSizeLevel];
-  const [activeTab, setActiveTab] = useState<'content' | 'images' | 'metadata'>('content');
+  const [activeTab, setActiveTab] = useState<'preview' | 'content' | 'images' | 'metadata'>('preview');
+
+  // 自动切换标签页逻辑：当任务完成且预览不可用时，切换到内容页
+  React.useEffect(() => {
+    if (currentTask && currentResult && activeTab === 'preview') {
+      // 检查预览是否可用（有原始文件信息）
+      const previewAvailable = currentTask.original_file || currentTask.original_file_url;
+      
+      if (!previewAvailable && currentTask.status === 'completed') {
+        // 预览不可用且任务已完成，自动切换到内容页
+        setActiveTab('content');
+      }
+    }
+  }, [currentTask, currentResult, activeTab]);
 
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
@@ -122,7 +136,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${currentResult?.metadata?.filename || 'document'}_ocr_result.zip`;
+      link.download = `${currentTask?.filename || 'document'}_ocr_result.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -159,7 +173,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   };
 
 
-  if (!currentResult) {
+  if (!currentTask) {
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
         <div className="flex flex-col items-center space-y-4 p-8">
@@ -167,7 +181,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           <div className="space-y-2 text-center">
             <h3 className="text-lg font-semibold">未选择文档</h3>
             <p className="text-muted-foreground">
-              介任务列表中选择已完成的任务查看 OCR 结果
+              请从任务列表中选择一个任务查看预览或 OCR 结果
             </p>
           </div>
         </div>
@@ -185,8 +199,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
             <div className="flex items-center space-x-2 flex-shrink-0">
               <h2 className="text-sm font-semibold">文档查看器</h2>
               <Badge variant="outline" className="text-xs">
-                {currentResult.metadata.extraction_type}
+                {currentTask.file_type}
               </Badge>
+              {currentResult && (
+                <Badge variant="secondary" className="text-xs">
+                  {currentResult.metadata.extraction_type}
+                </Badge>
+              )}
             </div>
             
             {/* Center: Search bar - fills remaining space */}
@@ -242,54 +261,87 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       <div className="flex-1 flex flex-col overflow-hidden">
         <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="h-full flex flex-col">
           <div className="border-b flex-shrink-0">
-            <TabsList className="grid w-full grid-cols-3 h-10">
-              <TabsTrigger value="content" className="flex items-center space-x-1 text-xs">
+            <TabsList className="grid w-full grid-cols-4 h-10">
+              <TabsTrigger value="preview" className="flex items-center space-x-1 text-xs">
+                <Monitor className="w-3 h-3" />
+                <span>预览</span>
+                {currentTask && !(currentTask.original_file || currentTask.original_file_url) && (
+                  <span className="text-xs text-muted-foreground ml-1">(!)</span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="content" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
                 <FileText className="w-3 h-3" />
                 <span>内容</span>
+                {currentTask?.status === 'completed' && currentResult && (
+                  <span className="text-xs text-green-500 ml-1">✓</span>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="images" className="flex items-center space-x-1 text-xs">
+              <TabsTrigger value="images" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
                 <Image className="w-3 h-3" />
-                <span>图片 ({currentResult.images.length})</span>
+                <span>图片 ({currentResult?.images.length || 0})</span>
+                {currentTask?.status === 'completed' && currentResult && (
+                  <span className="text-xs text-green-500 ml-1">✓</span>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="metadata" className="flex items-center space-x-1 text-xs">
+              <TabsTrigger value="metadata" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
                 <Eye className="w-3 h-3" />
                 <span>详情</span>
+                {currentTask?.status === 'completed' && currentResult && (
+                  <span className="text-xs text-green-500 ml-1">✓</span>
+                )}
               </TabsTrigger>
             </TabsList>
           </div>
 
+          {/* Preview tab */}
+          <TabsContent value="preview" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            {currentTask && <FilePreview task={currentTask} className="flex-1" />}
+          </TabsContent>
+
           {/* Content tab */}
           <TabsContent value="content" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
-            <div className="flex-1 p-3 overflow-hidden h-full">
-              <ScrollArea className="h-full w-full">
-                <ModernMarkdownViewer 
-                  content={processedMarkdown}
-                  className="w-full"
-                  fontSize={markdownZoom}
-                />
-              </ScrollArea>
-            </div>
+            {currentResult ? (
+              <div className="flex-1 p-3 overflow-hidden h-full">
+                <ScrollArea className="h-full w-full">
+                  <ModernMarkdownViewer 
+                    content={processedMarkdown}
+                    className="w-full"
+                    fontSize={markdownZoom}
+                  />
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <FileText className="w-8 h-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm text-muted-foreground">
+                    等待OCR处理完成以查看内容
+                  </p>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Images tab */}
           <TabsContent value="images" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
-            <div className="flex-1 p-3 overflow-hidden h-full">
-              <ScrollArea className="h-full w-full">
-                {currentResult.images.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Image className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-xs text-muted-foreground">此文档中未找到图片</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {currentResult.images.map((image, index) => (
+            {currentResult ? (
+              <div className="flex-1 p-3 overflow-hidden h-full">
+                <ScrollArea className="h-full w-full">
+                  {currentResult.images.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Image className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-xs text-muted-foreground">此文档中未找到图片</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {currentResult.images.map((image, index) => (
                       <div
                         key={index}
                         className="group relative aspect-square overflow-hidden rounded border bg-muted cursor-pointer hover:opacity-80 transition-opacity"
                         onClick={() => handleImageClick(image)}
                       >
                         <img
-                          src={image.url.startsWith('http') ? image.url : `${API_BASE_URL}${image.url}`}
+                          src={image.url.startsWith('http') ? image.url : getStaticFileUrl(image.url.replace('/static/', ''))}
                           alt={image.alt || image.filename}
                           className="w-full h-full object-cover"
                           loading="lazy"
@@ -305,82 +357,103 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                           <p className="text-xs truncate">{image.filename}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Image className="w-8 h-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm text-muted-foreground">
+                    等待OCR处理完成以查看提取的图片
+                  </p>
+                </div>
+              </div>
+            )}
           </TabsContent>
 
           {/* Metadata tab */}
           <TabsContent value="metadata" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
-            <div className="flex-1 p-3 overflow-hidden h-full">
-              <ScrollArea className="h-full w-full">
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">处理信息</h4>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">提取类型：</span>
-                          <Badge variant="outline" className="text-xs">{currentResult.metadata.extraction_type}</Badge>
+            {currentResult ? (
+              <div className="flex-1 p-3 overflow-hidden h-full">
+                <ScrollArea className="h-full w-full">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">处理信息</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">提取类型：</span>
+                            <Badge variant="outline" className="text-xs">{currentResult.metadata.extraction_type}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">处理时间：</span>
+                            <span>{formatProcessingTime(currentResult.metadata.processing_time)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">总页数：</span>
+                            <span>{currentResult.metadata.total_pages}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">文件大小：</span>
+                            <span>{formatFileSize(currentResult.metadata.file_size)}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">处理时间：</span>
-                          <span>{formatProcessingTime(currentResult.metadata.processing_time)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">总页数：</span>
-                          <span>{currentResult.metadata.total_pages}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">文件大小：</span>
-                          <span>{formatFileSize(currentResult.metadata.file_size)}</span>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold">内容统计</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">字符数：</span>
+                            <span>{currentResult.markdown_content.length.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">单词数：</span>
+                            <span>{currentResult.markdown_content.split(/\s+/).length.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">行数：</span>
+                            <span>{currentResult.markdown_content.split('\n').length.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">图片数：</span>
+                            <span>{currentResult.images.length}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                     
+                    <Separator />
+                    
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold">内容统计</h4>
-                      <div className="space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">字符数：</span>
-                          <span>{currentResult.markdown_content.length.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">单词数：</span>
-                          <span>{currentResult.markdown_content.split(/\s+/).length.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">行数：</span>
-                          <span>{currentResult.markdown_content.split('\n').length.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">图片数：</span>
-                          <span>{currentResult.images.length}</span>
-                        </div>
+                      <h4 className="text-sm font-semibold">下载选项</h4>
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={handleDownload}>
+                          <Download className="w-3 h-3 mr-1" />
+                          <span className="text-xs">原始 ZIP</span>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
+                          <Copy className="w-3 h-3 mr-1" />
+                          <span className="text-xs">复制 Markdown</span>
+                        </Button>
                       </div>
                     </div>
                   </div>
-                  
-                  <Separator />
-                  
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold">下载选项</h4>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={handleDownload}>
-                        <Download className="w-3 h-3 mr-1" />
-                        <span className="text-xs">原始 ZIP</span>
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleCopyMarkdown}>
-                        <Copy className="w-3 h-3 mr-1" />
-                        <span className="text-xs">复制 Markdown</span>
-                      </Button>
-                    </div>
-                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center space-y-2">
+                  <Eye className="w-8 h-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm text-muted-foreground">
+                    等待OCR处理完成以查看详细信息
+                  </p>
                 </div>
-              </ScrollArea>
-            </div>
+              </div>
+            )}
           </TabsContent>
           </Tabs>
         </div>
@@ -404,7 +477,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           {selectedImage && (
             <div className="flex items-center justify-center">
               <img
-                src={selectedImage.url.startsWith('http') ? selectedImage.url : `${API_BASE_URL}${selectedImage.url}`}
+                src={selectedImage.url.startsWith('http') ? selectedImage.url : getStaticFileUrl(selectedImage.url.replace('/static/', ''))}
                 alt={selectedImage.alt || selectedImage.filename}
                 className="max-w-full max-h-[60vh] object-contain rounded-lg"
                 onError={() => {

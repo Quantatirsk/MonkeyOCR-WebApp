@@ -14,6 +14,8 @@ export interface ProcessingTask {
   completed_at: string | null;
   error_message: string | null;
   result_url: string | null;
+  original_file?: File; // Store original file for preview
+  original_file_url?: string; // Store original file URL for preview
 }
 
 // Image resource interface
@@ -72,6 +74,7 @@ export interface AppActions {
   updateTask: (id: string, updates: Partial<ProcessingTask>) => void;
   setCurrentTask: (taskId: string | null) => void;
   removeTask: (id: string) => void;
+  clearTasks: () => void;
   
   // Result management
   addResult: (result: DocumentResult) => void;
