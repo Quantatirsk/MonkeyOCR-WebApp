@@ -7,7 +7,7 @@
       "name": "项目初始化与基础设施",
       "priority": "critical",
       "estimated_hours": 8,
-      "status": "pending",
+      "status": "completed",
       "tasks": [
         {
           "id": "P1-T001",
@@ -15,7 +15,7 @@
           "description": "按照plan.json创建完整的目录结构",
           "priority": "high",
           "estimated_hours": 0.5,
-          "status": "pending",
+          "status": "completed",
           "dependencies": [],
           "subtasks": [
             "创建 frontend/ 目录及子目录",
@@ -29,7 +29,7 @@
           "description": "使用Vite创建React+TypeScript项目",
           "priority": "high",
           "estimated_hours": 1,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T001"],
           "subtasks": [
             "运行 npm create vite@latest frontend -- --template react-ts",
@@ -44,7 +44,7 @@
           "description": "集成shadcn/ui组件库",
           "priority": "high", 
           "estimated_hours": 1,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T002"],
           "subtasks": [
             "安装 shadcn/ui CLI",
@@ -59,7 +59,7 @@
           "description": "配置TailwindCSS和相关插件",
           "priority": "high",
           "estimated_hours": 0.5,
-          "status": "pending", 
+          "status": "completed", 
           "dependencies": ["P1-T002"],
           "subtasks": [
             "安装 tailwindcss, autoprefixer, postcss",
@@ -74,7 +74,7 @@
           "description": "初始化后端项目和基础配置",
           "priority": "high",
           "estimated_hours": 1,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T001"],
           "subtasks": [
             "创建 main.py 入口文件",
@@ -90,7 +90,7 @@
           "description": "安装plan.json中定义的所有前端依赖",
           "priority": "medium",
           "estimated_hours": 0.5,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T002"],
           "subtasks": [
             "安装生产依赖: zustand, axios, react-dropzone等",
@@ -105,7 +105,7 @@
       "name": "核心功能开发",
       "priority": "critical", 
       "estimated_hours": 20,
-      "status": "pending",
+      "status": "completed",
       "tasks": [
         {
           "id": "P2-T001",
@@ -113,7 +113,7 @@
           "description": "实现plan.json中定义的所有TypeScript接口",
           "priority": "high",
           "estimated_hours": 2,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T002"],
           "subtasks": [
             "创建 src/types/index.ts",
@@ -129,7 +129,7 @@
           "description": "创建全局状态管理store",
           "priority": "high",
           "estimated_hours": 2,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P2-T001"],
           "subtasks": [
             "创建 src/store/appStore.ts",
@@ -145,7 +145,7 @@
           "description": "封装所有后端API调用",
           "priority": "high",
           "estimated_hours": 2,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P2-T001"],
           "subtasks": [
             "创建 src/api/client.ts",
@@ -161,7 +161,7 @@
           "description": "文件拖拽上传组件",
           "priority": "high",
           "estimated_hours": 3,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T003", "P2-T002"],
           "subtasks": [
             "创建 src/components/UploadZone.tsx",
@@ -177,7 +177,7 @@
           "description": "任务列表和状态管理组件",
           "priority": "high", 
           "estimated_hours": 2,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T003", "P2-T002"],
           "subtasks": [
             "创建 src/components/TaskList.tsx",
@@ -193,7 +193,7 @@
           "description": "文档内容展示组件",
           "priority": "high",
           "estimated_hours": 4,
-          "status": "pending", 
+          "status": "completed", 
           "dependencies": ["P1-T006", "P2-T002"],
           "subtasks": [
             "创建 src/components/DocumentViewer.tsx",
@@ -209,7 +209,7 @@
           "description": "处理文件上传和MonkeyOCR集成",
           "priority": "high",
           "estimated_hours": 3,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P1-T005"],
           "subtasks": [
             "创建 backend/api/upload.py",
@@ -225,7 +225,7 @@
           "description": "处理MonkeyOCR返回的zip文件",
           "priority": "high",
           "estimated_hours": 2,
-          "status": "pending",
+          "status": "completed",
           "dependencies": ["P2-T007"],
           "subtasks": [
             "创建 backend/utils/zip_processor.py",
@@ -585,13 +585,13 @@
   "progress_tracking": {
     "total_tasks": 36,
     "total_estimated_hours": 56,
-    "completed_tasks": 0,
+    "completed_tasks": 14,
     "in_progress_tasks": 0,
-    "pending_tasks": 36,
+    "pending_tasks": 22,
     "blocked_tasks": 0,
-    "completion_percentage": 0,
-    "current_phase": "phase_1",
-    "next_task": "P1-T001"
+    "completion_percentage": 38.9,
+    "current_phase": "phase_3",
+    "next_task": "P3-T001"
   },
   "notes": [
     "优先完成MVP功能，确保核心流程可用",

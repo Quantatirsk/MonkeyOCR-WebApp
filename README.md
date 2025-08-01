@@ -62,7 +62,7 @@ npm run dev    # Starts on http://localhost:5173
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
 
 ### Development Workflow
