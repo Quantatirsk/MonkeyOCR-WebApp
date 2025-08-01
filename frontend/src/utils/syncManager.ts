@@ -17,6 +17,8 @@ export interface SyncStatus {
   is_syncing: boolean;
   sync_error: string | null;
   server_data_hash: string | null;
+  retry_count: number;
+  max_retries: number;
 }
 
 class SyncManager {
@@ -26,6 +28,9 @@ class SyncManager {
   private syncCallbacks: Array<(status: SyncStatus) => void> = [];
   private serverDataHash: string | null = null;
   private pendingSyncPromise: Promise<ProcessingTask[]> | null = null;
+  private retryCount: number = 0;
+  private maxRetries: number = 3;
+  private lastSyncError: string | null = null;
 
   constructor(baseURL: string = 'http://localhost:8001/api') {
     this.baseURL = baseURL;
@@ -54,8 +59,10 @@ class SyncManager {
     return {
       last_sync: this.lastSyncTimestamp,
       is_syncing: this.isSyncing,
-      sync_error: null,
-      server_data_hash: this.serverDataHash
+      sync_error: this.lastSyncError,
+      server_data_hash: this.serverDataHash,
+      retry_count: this.retryCount,
+      max_retries: this.maxRetries
     };
   }
 
@@ -74,31 +81,74 @@ class SyncManager {
   }
 
   /**
-   * 智能同步 - 根据服务器状态选择增量或全量同步
+   * 智能同步 - 根据服务器状态选择增量或全量同步，带重试机制
    */
   async smartSync(): Promise<ProcessingTask[]> {
-    try {
-      // 检查服务器状态
-      const statusResponse = await fetch(`${this.baseURL}/sync/status`);
-      if (!statusResponse.ok) {
-        throw new Error(`Server status check failed: ${statusResponse.statusText}`);
-      }
+    return this.syncWithRetry(async () => {
+      try {
+        // 检查服务器状态
+        const statusResponse = await fetch(`${this.baseURL}/sync/status`, {
+          signal: AbortSignal.timeout(5000) // 5秒超时
+        });
+        
+        if (!statusResponse.ok) {
+          throw new Error(`Server status check failed: ${statusResponse.statusText}`);
+        }
 
-      const statusData = await statusResponse.json();
-      const serverHash = statusData.data?.data_hash;
+        const statusData = await statusResponse.json();
+        const serverHash = statusData.data?.data_hash;
 
-      // 如果服务器数据哈希与本地不同，执行全量同步
-      if (serverHash && serverHash !== this.serverDataHash) {
-        console.log('Server data changed, performing full sync');
+        // 如果服务器数据哈希与本地不同，执行全量同步
+        if (serverHash && serverHash !== this.serverDataHash) {
+          console.log('Server data changed, performing full sync');
+          return this.syncAll();
+        }
+
+        // 否则执行增量同步
+        return this.syncIncremental();
+      } catch (error) {
+        console.error('Smart sync failed, falling back to full sync:', error);
         return this.syncAll();
       }
+    });
+  }
 
-      // 否则执行增量同步
-      return this.syncIncremental();
-    } catch (error) {
-      console.error('Smart sync failed, falling back to full sync:', error);
-      return this.syncAll();
+  /**
+   * 带重试机制的同步包装器
+   */
+  private async syncWithRetry<T>(syncFn: () => Promise<T>): Promise<T> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        this.retryCount = attempt;
+        const result = await syncFn();
+        
+        // 成功时重置重试计数和错误
+        this.retryCount = 0;
+        this.lastSyncError = null;
+        this.notifySyncStatusChange();
+        
+        return result;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown sync error');
+        this.lastSyncError = lastError.message;
+        
+        console.error(`Sync attempt ${attempt + 1}/${this.maxRetries + 1} failed:`, error);
+        
+        // 如果还有重试机会，等待一段时间后重试
+        if (attempt < this.maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // 指数退避，最大10秒
+          console.log(`Retrying sync in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        this.notifySyncStatusChange();
+      }
     }
+    
+    // 所有重试都失败了
+    throw lastError || new Error('Sync failed after all retries');
   }
 
   /**

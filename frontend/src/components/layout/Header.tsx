@@ -1,6 +1,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/store/appStore';
+import { SyncStatusIndicator } from '../SyncStatusIndicator';
 
 export function Header() {
   const { tasks, isProcessing } = useAppStore();
@@ -16,6 +17,7 @@ export function Header() {
         </div>
 
         <div className="flex items-center space-x-2">
+          <SyncStatusIndicator compact={true} />
           {isProcessing && (
             <Badge variant="secondary" className="animate-pulse text-xs">
               处理中...
