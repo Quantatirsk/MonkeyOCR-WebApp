@@ -37,7 +37,7 @@ interface DocumentViewerProps {
   className?: string;
 }
 
-export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
+export const DocumentViewer: React.FC<DocumentViewerProps> = React.memo(({ className = '' }) => {
   const { searchQuery, setSearchQuery, currentTaskId, results } = useAppStore();
   const { toast } = useToast();
   
@@ -291,12 +291,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                         <img
                           src={image.url.startsWith('http') ? image.url : `${API_BASE_URL}${image.url}`}
                           alt={image.alt || image.filename}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover transition-opacity duration-200"
                           loading="lazy"
+                          onLoad={(e) => {
+                            e.currentTarget.style.opacity = '1';
+                          }}
                           onError={(e) => {
                             console.error('Image failed to load:', image.url);
                             e.currentTarget.style.display = 'none';
                           }}
+                          style={{ opacity: 0 }}
                         />
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                           <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -417,6 +421,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       </Dialog>
     </div>
   );
-};
+});
 
 export default DocumentViewer;

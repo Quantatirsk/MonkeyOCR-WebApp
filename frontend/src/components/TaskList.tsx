@@ -23,6 +23,7 @@ import { useAppStore } from '../store/appStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
+import BatchControls from './BatchControls';
 
 interface TaskListProps {
   className?: string;
@@ -163,14 +164,13 @@ export const TaskList: React.FC<TaskListProps> = ({
     }
   };
 
-  // Render individual task item
-  const renderTaskItem = (task: ProcessingTask) => {
+  // Memoized task item component for better performance
+  const TaskItem = React.memo(({ task }: { task: ProcessingTask }) => {
     const isSelected = currentTaskId === task.id;
     const hasResult = results.has(task.id);
     
     return (
       <div
-        key={task.id}
         className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-muted/50 hover:shadow-sm ${
           isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'
         }`}
@@ -274,7 +274,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         )}
       </div>
     );
-  };
+  }, [currentTaskId, results]);
 
   if (filteredTasks.length === 0) {
     return (
@@ -299,7 +299,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         </div>
         
         {/* Task summary badges */}
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 mb-2">
           {groupedTasks.processing.length > 0 && (
             <Badge variant="secondary" className="animate-pulse text-xs px-1 py-0">
               {groupedTasks.processing.length} 处理中
@@ -321,6 +321,9 @@ export const TaskList: React.FC<TaskListProps> = ({
             </Badge>
           )}
         </div>
+        
+        {/* Batch Controls */}
+        <BatchControls variant="compact" />
       </div>
       
       {/* Content */}
@@ -328,19 +331,19 @@ export const TaskList: React.FC<TaskListProps> = ({
         <ScrollArea className="h-full px-2 py-2">
           <div className="space-y-2">
             {/* Processing tasks first */}
-            {groupedTasks.processing.map(renderTaskItem)}
+            {groupedTasks.processing.map(task => <TaskItem key={task.id} task={task} />)}
             
             {/* Then pending tasks */}
             {groupedTasks.pending.length > 0 && groupedTasks.processing.length > 0 && (
               <Separator className="my-2" />
             )}
-            {groupedTasks.pending.map(renderTaskItem)}
+            {groupedTasks.pending.map(task => <TaskItem key={task.id} task={task} />)}
             
             {/* Then failed tasks */}
             {groupedTasks.failed.length > 0 && (groupedTasks.processing.length > 0 || groupedTasks.pending.length > 0) && (
               <Separator className="my-2" />
             )}
-            {groupedTasks.failed.map(renderTaskItem)}
+            {groupedTasks.failed.map(task => <TaskItem key={task.id} task={task} />)}
             
             {/* Finally completed tasks */}
             {showCompleted && groupedTasks.completed.length > 0 && (
@@ -348,7 +351,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                 {(groupedTasks.processing.length > 0 || groupedTasks.pending.length > 0 || groupedTasks.failed.length > 0) && (
                   <Separator className="my-2" />
                 )}
-                {groupedTasks.completed.map(renderTaskItem)}
+                {groupedTasks.completed.map(task => <TaskItem key={task.id} task={task} />)}
               </>
             )}
           </div>
