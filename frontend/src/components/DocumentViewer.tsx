@@ -58,6 +58,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     }
   }, [currentTaskId, currentResult, results]);
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
+  const [activeSearchQuery, setActiveSearchQuery] = useState(''); // 实际用于搜索的查询词
   const [selectedImage, setSelectedImage] = useState<ImageResource | null>(null);
   // 字号设置: 0=小(85%), 1=中(100%), 2=大(120%)
   const [fontSizeLevel, setFontSizeLevel] = useState(0);
@@ -81,20 +82,32 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
 
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
-    if (!currentResult?.markdown_content || !localSearchQuery.trim()) {
+    if (!currentResult?.markdown_content || !activeSearchQuery.trim()) {
       return currentResult?.markdown_content || '';
     }
 
-    const query = localSearchQuery.trim();
+    const query = activeSearchQuery.trim();
     const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     
-    return currentResult.markdown_content.replace(regex, '**$1**');
-  }, [currentResult?.markdown_content, localSearchQuery]);
+    return currentResult.markdown_content.replace(regex, '<mark class="search-highlight">$1</mark>');
+  }, [currentResult?.markdown_content, activeSearchQuery]);
 
   // Handle search input
   const handleSearchChange = (value: string) => {
     setLocalSearchQuery(value);
-    setSearchQuery(value);
+  };
+
+  // Handle search execution (on Enter key)
+  const handleSearchExecute = () => {
+    setActiveSearchQuery(localSearchQuery);
+    setSearchQuery(localSearchQuery);
+  };
+
+  // Handle search input key press
+  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearchExecute();
+    }
   };
 
   // Handle font size change
@@ -191,73 +204,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
-      {/* Header with controls - 紧凑设计 */}
-      <div className="border-b bg-muted/5">
-        <div className="p-3">
-          <div className="flex items-center gap-3">
-            {/* Left: Title and badge */}
-            <div className="flex items-center space-x-2 flex-shrink-0">
-              <h2 className="text-sm font-semibold">文档查看器</h2>
-              <Badge variant="outline" className="text-xs">
-                {currentTask.file_type}
-              </Badge>
-              {currentResult && (
-                <Badge variant="secondary" className="text-xs">
-                  {currentResult.metadata.extraction_type}
-                </Badge>
-              )}
-            </div>
-            
-            {/* Center: Search bar - fills remaining space */}
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-              <Input
-                placeholder="在文档内容中搜索..."
-                value={localSearchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-8 h-8 text-xs w-full"
-              />
-            </div>
-            
-            {/* Right: Action buttons */}
-            <div className="flex items-center space-x-1 flex-shrink-0">
-              {activeTab === 'content' && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleFontSizeChange}
-                  className="h-8 w-8 p-0"
-                  title={`字号: ${fontLabels[fontSizeLevel]}`}
-                >
-                  <Type className="w-3.5 h-3.5" />
-                </Button>
-              )}
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleCopyMarkdown}
-                className="h-8 w-8 p-0"
-                title="复制"
-              >
-                <Copy className="w-3.5 h-3.5" />
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleDownload}
-                className="h-8 w-8 p-0"
-                title="下载"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main content - 占满剩余空间 */}
+      {/* Main content - 占满全部空间 */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="h-full flex flex-col">
           <div className="border-b flex-shrink-0">
@@ -301,14 +248,80 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           {/* Content tab */}
           <TabsContent value="content" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
             {currentResult ? (
-              <div className="flex-1 p-3 overflow-hidden h-full">
-                <ScrollArea className="h-full w-full">
-                  <ModernMarkdownViewer 
-                    content={processedMarkdown}
-                    className="w-full"
-                    fontSize={markdownZoom}
-                  />
-                </ScrollArea>
+              <div className="flex-1 flex flex-col overflow-hidden h-full">
+                {/* Content tab toolbar */}
+                <div className="border-b bg-muted/5 flex-shrink-0">
+                  <div className="p-3">
+                    <div className="flex items-center gap-3">
+                      {/* Left: Title and badges */}
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        <h2 className="text-sm font-semibold">文档查看器</h2>
+                        <Badge variant="outline" className="text-xs">
+                          {currentTask.file_type}
+                        </Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          {currentResult.metadata.extraction_type}
+                        </Badge>
+                      </div>
+                      
+                      {/* Middle: Action buttons */}
+                      <div className="flex items-center space-x-1 flex-shrink-0">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleFontSizeChange}
+                          className="h-8 w-8 p-0"
+                          title={`字号: ${fontLabels[fontSizeLevel]}`}
+                        >
+                          <Type className="w-3.5 h-3.5" />
+                        </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleCopyMarkdown}
+                          className="h-8 w-8 p-0"
+                          title="复制"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleDownload}
+                          className="h-8 w-8 p-0"
+                          title="下载"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                      
+                      {/* Right: Search bar - fills remaining space */}
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                        <Input
+                          placeholder="在文档内容中搜索...（按回车搜索）"
+                          value={localSearchQuery}
+                          onChange={(e) => handleSearchChange(e.target.value)}
+                          onKeyPress={handleSearchKeyPress}
+                          className="pl-8 h-8 text-xs w-full"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Content area */}
+                <div className="flex-1 p-3 overflow-hidden">
+                  <ScrollArea className="h-full w-full">
+                    <ModernMarkdownViewer 
+                      content={processedMarkdown}
+                      className="w-full"
+                      fontSize={markdownZoom}
+                    />
+                  </ScrollArea>
+                </div>
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center">

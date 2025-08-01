@@ -3,7 +3,7 @@
  * Displays processing tasks with status, progress, and management controls
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Clock, 
   AlertCircle, 
@@ -11,9 +11,14 @@ import {
   Image, 
   RotateCcw, 
   Trash2,
-  Download
+  Download,
+  BookOpen
 } from 'lucide-react';
+import { Document, pdfjs } from 'react-pdf';
 import { Alert, AlertDescription } from './ui/alert';
+
+// Set up PDF.js worker (same as FilePreview component)
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { Button } from './ui/button';
 import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
@@ -42,6 +47,101 @@ export const TaskList: React.FC<TaskListProps> = ({
     results
   } = useAppStore();
   const { toast } = useToast();
+
+  // 计时器状态管理
+  const [timers, setTimers] = useState<{ [taskId: string]: number }>({});
+  // 最终处理时间缓存（任务完成后保留）
+  const [finalProcessingTimes, setFinalProcessingTimes] = useState<{ [taskId: string]: number }>({});
+  // PDF页数缓存
+  const [pdfPageCounts, setPdfPageCounts] = useState<{ [taskId: string]: number }>({});
+
+  // 计时器effect - 为处理中的任务更新计时
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers(prevTimers => {
+        const newTimers = { ...prevTimers };
+        
+        tasks.forEach(task => {
+          if (task.status === 'processing') {
+            const startTime = new Date(task.created_at).getTime();
+            const now = Date.now();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            newTimers[task.id] = elapsed;
+          } else if ((task.status === 'completed' || task.status === 'failed') && newTimers[task.id]) {
+            // 任务完成或失败时，保存最终处理时间并停止计时
+            setFinalProcessingTimes(prev => ({
+              ...prev,
+              [task.id]: newTimers[task.id]
+            }));
+            delete newTimers[task.id];
+          }
+        });
+        
+        return newTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [tasks]);
+
+  // PDF页数处理函数
+  const handlePdfLoadSuccess = (taskId: string, { numPages }: { numPages: number }) => {
+    setPdfPageCounts(prev => ({
+      ...prev,
+      [taskId]: numPages
+    }));
+  };
+
+  // 格式化时间显示
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${secs}s`;
+  };
+
+  // 获取任务处理时间（处理中显示实时时间，完成后显示最终时间）
+  const getTaskProcessingTime = (task: ProcessingTask): number | null => {
+    if (task.status === 'processing') {
+      return timers[task.id] || 0;
+    } else if (task.status === 'completed' || task.status === 'failed') {
+      return finalProcessingTimes[task.id] || null;
+    }
+    return null;
+  };
+
+  // 获取处理进度信息 (针对不同文件类型和状态)
+  const getProcessingInfo = (task: ProcessingTask): string | null => {
+    if (task.file_type === 'pdf') {
+      // 对于PDF文件，显示页码信息
+      const totalPages = pdfPageCounts[task.id] || results.get(task.id)?.metadata?.total_pages;
+      
+      if (totalPages && totalPages > 0) {
+        if (task.status === 'processing') {
+          // 处理中：显示当前页
+          const currentPage = Math.ceil((task.progress / 100) * totalPages);
+          return `第${Math.max(1, currentPage)} / ${totalPages}页`;
+        } else if (task.status === 'completed') {
+          // 完成后：显示总页数
+          return `共${totalPages}页`;
+        }
+      }
+      
+      // 如果没有页数信息或其他状态，显示百分比或空
+      if (task.status === 'processing') {
+        return `${task.progress}%`;
+      }
+    } else if (task.file_type === 'image') {
+      // 对于图片文件，处理中显示百分比
+      if (task.status === 'processing') {
+        return `${task.progress}%`;
+      }
+    }
+    
+    return null;
+  };
 
   // Filter tasks based on showCompleted prop
   const filteredTasks = showCompleted 
@@ -202,7 +302,49 @@ export const TaskList: React.FC<TaskListProps> = ({
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1">
                 <span className="flex-shrink-0 font-medium">{task.file_type.toUpperCase()}</span>
                 <span className="flex-shrink-0">•</span>
-                <span className="break-words">{formatTimeAgo(task.created_at)}</span>
+                {task.status === 'processing' ? (
+                  <div className="flex items-center gap-1.5">
+                    {/* 计时器显示 */}
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
+                    </div>
+                    {/* 处理进度显示 */}
+                    {getProcessingInfo(task) && (
+                      <>
+                        <span className="flex-shrink-0">•</span>
+                        <div className="flex items-center gap-1">
+                          {task.file_type === 'pdf' ? <BookOpen className="w-3 h-3" /> : <Image className="w-3 h-3" />}
+                          <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <span className="break-words">{formatTimeAgo(task.created_at)}</span>
+                    {/* 显示最终处理时间（如果有的话） */}
+                    {getTaskProcessingTime(task) && (
+                      <>
+                        <span className="flex-shrink-0">•</span>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span className="font-mono text-blue-600">{formatDuration(getTaskProcessingTime(task)!)}</span>
+                        </div>
+                      </>
+                    )}
+                    {/* 显示页码信息（如果有的话） */}
+                    {getProcessingInfo(task) && (
+                      <>
+                        <span className="flex-shrink-0">•</span>
+                        <div className="flex items-center gap-1">
+                          {task.file_type === 'pdf' ? <BookOpen className="w-3 h-3" /> : <Image className="w-3 h-3" />}
+                          <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
               
               {/* Action buttons - 同行右侧 */}
@@ -292,6 +434,25 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   return (
     <div className={`flex flex-col h-full ${className}`}>
+      {/* 隐藏的PDF Document组件用于获取页数 */}
+      <div style={{ display: 'none' }}>
+        {tasks.map(task => {
+          if (task.file_type === 'pdf' && task.original_file && !pdfPageCounts[task.id]) {
+            const fileUrl = URL.createObjectURL(task.original_file);
+            return (
+              <Document
+                key={`pdf-counter-${task.id}`}
+                file={fileUrl}
+                onLoadSuccess={(data) => handlePdfLoadSuccess(task.id, data)}
+                onLoadError={() => {
+                  console.warn(`Failed to load PDF for page count: ${task.filename}`);
+                }}
+              />
+            );
+          }
+          return null;
+        })}
+      </div>
       {/* Header */}
       <div className="border-b bg-muted/5 p-2">
         <div className="flex items-center justify-between mb-2">
