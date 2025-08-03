@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   WifiOff, 
-  Wifi, 
   AlertTriangle, 
   RefreshCw,
   X

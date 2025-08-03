@@ -110,9 +110,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
       }
     });
     setUploadQueue([]);
-    toast({
-      description: "已清空文件列表",
-    });
   };
 
   // Start upload process
@@ -140,7 +137,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
       });
       
       // Clear queue after successful upload
-      setTimeout(clearAll, 2000);
+      clearAll();
     } catch (error) {
       // Mark files as error
       setUploadQueue(prev => 
@@ -231,7 +228,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           <CardContent className="p-3 space-y-3">
             {/* Header with actions */}
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium">处理设置与文件列表 ({uploadQueue.length})</h4>
+              <h4 className="text-sm font-medium">任务配置 ({uploadQueue.length})</h4>
               <div className="flex items-center space-x-1">
                 <Button 
                   onClick={handleUpload}

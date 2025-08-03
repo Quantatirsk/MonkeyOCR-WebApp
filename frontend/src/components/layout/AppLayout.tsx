@@ -7,9 +7,13 @@ import { OfflineIndicator } from '../OfflineIndicator';
 export function AppLayout() {
   return (
     <div className="h-screen bg-background flex flex-col">
-      <Header />
+      <div style={{ flexShrink: 0, height: '48px' }}>
+        <Header />
+      </div>
       <OfflineIndicator />
-      <MainContent />
+      <div className="flex-1 min-h-0">
+        <MainContent />
+      </div>
       <Toaster />
     </div>
   );

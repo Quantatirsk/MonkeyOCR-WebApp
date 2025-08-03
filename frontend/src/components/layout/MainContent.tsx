@@ -3,42 +3,80 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UploadZone from '@/components/UploadZone';
 import TaskList from '@/components/TaskList';
 import DocumentViewer from '@/components/DocumentViewer';
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
+import { useAppStore } from '@/store/appStore';
+import { useState, useEffect } from 'react';
 
 export function MainContent() {
-  return (
-    <ResizablePanelGroup
-      direction="horizontal"
-      className="flex-1 overflow-hidden"
-    >
-      <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
-        <div className="h-full bg-muted/10 flex flex-col">
-          <div className="flex-shrink-0 p-3 pb-0">
-            <Card className="shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">上传文件</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0">
-                <UploadZone />
-              </CardContent>
-            </Card>
-          </div>
+  const { taskListVisible } = useAppStore();
+  const [minSizePercent, setMinSizePercent] = useState(22);
 
-          <div className="flex-1 p-3 pt-2 min-h-0">
-            <TaskList />
-          </div>
+  // 动态计算最小宽度百分比，确保不小于280px
+  useEffect(() => {
+    const updateMinSize = () => {
+      const windowWidth = window.innerWidth;
+      // 计算280px对应的百分比，并设置合理的边界
+      const minPercent = Math.max(20, Math.min(35, (280 / windowWidth) * 100));
+      setMinSizePercent(minPercent);
+    };
+
+    updateMinSize();
+    window.addEventListener('resize', updateMinSize);
+    return () => window.removeEventListener('resize', updateMinSize);
+  }, []);
+
+  // 🔧 修复：使用CSS Grid避免组件实例重新创建，保持DocumentViewer稳定
+  return (
+    <div 
+      className="flex-1 overflow-hidden transition-all duration-300 ease-in-out"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: taskListVisible ? `${25}% 4px 1fr` : '0px 0px 1fr',
+        height: '100%'
+      }}
+    >
+      {/* 任务列表区域 - 始终存在，通过Grid控制显示 */}
+      <div 
+        className={`bg-muted/10 flex flex-col transition-all duration-300 ease-in-out ${
+          taskListVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{
+          overflow: taskListVisible ? 'visible' : 'hidden',
+          minWidth: taskListVisible ? `${minSizePercent}%` : '0px'
+        }}
+      >
+        {/* 上传区域 */}
+        <div className="flex-shrink-0 p-4 pb-2">
+          <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">上传文件</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <UploadZone />
+            </CardContent>
+          </Card>
         </div>
-      </ResizablePanel>
+
+        {/* 任务列表 */}
+        <div className="flex-1 px-4 pb-4 min-h-0">
+          <TaskList />
+        </div>
+      </div>
       
-      <ResizableHandle withHandle />
+      {/* 分隔线 */}
+      <div 
+        className={`bg-border transition-all duration-300 ease-in-out ${
+          taskListVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          width: taskListVisible ? '4px' : '0px',
+          cursor: taskListVisible ? 'col-resize' : 'default'
+        }}
+      />
       
-      <ResizablePanel defaultSize={75}>
-        <DocumentViewer className="h-full" />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      {/* DocumentViewer区域 - 始终在相同的Grid位置，保持组件实例稳定 */}
+      <div>
+        <DocumentViewer key="stable-document-viewer" className="h-full" />
+      </div>
+    </div>
   );
 }

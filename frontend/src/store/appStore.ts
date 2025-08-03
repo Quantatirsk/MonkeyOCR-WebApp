@@ -53,6 +53,8 @@ const initialState: AppState = {
   isUploading: false,
   searchQuery: '',
   theme: 'light',
+  taskListVisible: true,
+  activeDocumentTab: 'preview',
   // Sync state (not persisted)
   syncStatus: null,
   isInitialized: false
@@ -179,6 +181,16 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
+      toggleTaskListVisible: () => {
+        set((state) => ({
+          taskListVisible: !state.taskListVisible
+        }));
+      },
+
+      setActiveDocumentTab: (tab) => {
+        set({ activeDocumentTab: tab });
+      },
+
       // File operations
       uploadFiles: async (files, options = {}) => {
         const { setUploading, pollTaskStatus } = get();
@@ -291,7 +303,12 @@ export const useAppStore = create<AppStore>()(
                   try {
                     await get().loadResult(task.id);
                   } catch (error) {
-                    console.error(`Failed to load result for task ${task.id}:`, error);
+                    // 如果是404错误，说明任务可能已被删除，静默处理
+                    if (error instanceof Error && error.message.includes('Resource not found')) {
+                      console.warn(`Task ${task.id} result not found, likely deleted`);
+                    } else {
+                      console.error(`Failed to load result for task ${task.id}:`, error);
+                    }
                   }
                 }
               }
@@ -374,7 +391,9 @@ export const useResultActions = () => useAppStore(state => ({
 export const useUIActions = () => useAppStore(state => ({
   setSearchQuery: state.setSearchQuery,
   setUploading: state.setUploading,
-  toggleTheme: state.toggleTheme
+  toggleTheme: state.toggleTheme,
+  toggleTaskListVisible: state.toggleTaskListVisible,
+  setActiveDocumentTab: state.setActiveDocumentTab
 }));
 
 export const useSyncActions = () => useAppStore(state => ({

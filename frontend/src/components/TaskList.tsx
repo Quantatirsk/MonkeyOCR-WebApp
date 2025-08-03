@@ -12,7 +12,7 @@ import {
   RotateCcw, 
   Trash2,
   Download,
-  BookOpen
+  X
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
@@ -20,6 +20,16 @@ import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
 import { Separator } from './ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import { useAppStore } from '../store/appStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
@@ -55,6 +65,10 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [pdfPageCounts, setPdfPageCounts] = useState<{ [taskId: string]: number }>({});
   // 组件初始化状态
   const [isInitialized, setIsInitialized] = useState(false);
+  // 删除确认弹窗状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
   // 组件初始化 - 恢复状态和同步
   useEffect(() => {
@@ -452,36 +466,104 @@ export const TaskList: React.FC<TaskListProps> = ({
   };
 
   // Handle task deletion
-  const handleDelete = async (taskId: string) => {
-    if (confirm('确定要删除这个任务吗？')) {
+  const handleDeleteClick = (taskId: string) => {
+    setTaskToDelete(taskId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!taskToDelete) return;
+    
+    try {
+      // Call backend API to delete the task
+      await apiClient.deleteTask(taskToDelete);
+      
+      // Remove from frontend state first
+      removeTask(taskToDelete);
+      
+      // Force a full sync with server to ensure consistency
+      // This will use the fixed mergeTasks logic that respects server as authority
+      await syncWithServer();
+      
+      toast({
+        description: "任务已删除",
+      });
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      toast({
+        variant: "destructive",
+        description: "删除任务失败，请重新尝试",
+      });
+      
+      // If deletion failed, sync to restore state
       try {
-        // Call backend API to delete the task
-        await apiClient.deleteTask(taskId);
-        
-        // Remove from frontend state first
-        removeTask(taskId);
-        
-        // Force a full sync with server to ensure consistency
-        // This will use the fixed mergeTasks logic that respects server as authority
         await syncWithServer();
-        
+      } catch (syncError) {
+        console.error('Failed to sync after delete error:', syncError);
+      }
+    } finally {
+      setDeleteDialogOpen(false);
+      setTaskToDelete(null);
+    }
+  };
+
+  // Handle clear all tasks
+  const handleClearAllClick = () => {
+    if (tasks.length === 0) return;
+    setClearAllDialogOpen(true);
+  };
+
+  const handleClearAllConfirm = async () => {
+    try {
+      toast({
+        description: "正在删除所有任务...",
+      });
+
+      // Delete all tasks in parallel
+      const deletePromises = tasks.map(task => apiClient.deleteTask(task.id));
+      const results = await Promise.allSettled(deletePromises);
+      
+      // Count successful deletions
+      const successCount = results.filter(result => result.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+      
+      // Remove all tasks from frontend state
+      tasks.forEach(task => removeTask(task.id));
+      
+      // Clear all local component state
+      setTimers({});
+      setFinalProcessingTimes({});
+      setPdfPageCounts({});
+      setLoadingPageCounts(new Set());
+      
+      // Force a full sync with server to ensure consistency
+      await syncWithServer();
+      
+      if (failedCount === 0) {
         toast({
-          description: "任务已删除",
+          description: `成功删除所有 ${successCount} 个任务`,
         });
-      } catch (error) {
-        console.error('Failed to delete task:', error);
+      } else {
         toast({
           variant: "destructive",
-          description: "删除任务失败，请重新尝试",
+          description: `删除完成：成功 ${successCount} 个，失败 ${failedCount} 个`,
         });
-        
-        // If deletion failed, sync to restore state
-        try {
-          await syncWithServer();
-        } catch (syncError) {
-          console.error('Failed to sync after delete error:', syncError);
-        }
       }
+    } catch (error) {
+      console.error('Failed to clear all tasks:', error);
+      toast({
+        variant: "destructive",
+        description: "批量删除失败，请重新尝试",
+      });
+      
+      // If deletion failed, sync to restore state
+      try {
+        await syncWithServer();
+      } catch (syncError) {
+        console.error('Failed to sync after clear all error:', syncError);
+      }
+    } finally {
+      setClearAllDialogOpen(false);
     }
   };
 
@@ -522,129 +604,119 @@ export const TaskList: React.FC<TaskListProps> = ({
     return (
       <div
         key={task.id}
-        className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-muted/50 hover:shadow-sm min-w-0 ${
+        className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-muted/50 hover:shadow-sm ${
           isSelected ? 'border-primary bg-primary/5 shadow-sm' : 'border-border'
         }`}
         onClick={() => handleTaskSelect(task)}
       >
-        {/* Main content area */}
-        <div className="flex items-start gap-3">
-          {/* File type icon */}
-          <div className="flex-shrink-0 mt-0.5">
-            {getFileTypeIcon(task.file_type)}
-          </div>
-          
-          {/* Task info - 占据剩余空间 */}
-          <div className="flex-1 min-w-0">
-            {/* First row: filename and status */}
-            <div className="flex items-start gap-2 mb-2">
-              <p className="text-sm font-medium flex-1 leading-tight break-words" title={task.filename} style={{ wordBreak: 'break-all' }}>
+        {/* 优化的卡片内容布局 */}
+        <div className="space-y-2">
+          {/* 第一行：文件名和状态 */}
+          <div className="flex items-start gap-2">
+            <div className="flex-shrink-0 mt-0.5">
+              {getFileTypeIcon(task.file_type)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-tight break-words line-clamp-2" title={task.filename}>
                 {task.filename}
               </p>
-              <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 flex-shrink-0">
-                {task.status === 'pending' ? '等待' :
-                 task.status === 'processing' ? '处理中' :
-                 task.status === 'completed' ? '完成' :
-                 task.status === 'failed' ? '失败' : task.status}
-              </Badge>
             </div>
+            <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 flex-shrink-0">
+              {task.status === 'pending' ? '等待' :
+               task.status === 'processing' ? '处理中' :
+               task.status === 'completed' ? '完成' :
+               task.status === 'failed' ? '失败' : task.status}
+            </Badge>
+          </div>
+          {/* 第二行：元信息 */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className="font-medium">{task.file_type.toUpperCase()}</span>
+            <span>•</span>
+            <span>{formatTimeAgo(task.created_at)}</span>
             
-            {/* Second row: file type, time and action buttons */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-1">
-                <span className="flex-shrink-0 font-medium">{task.file_type.toUpperCase()}</span>
-                <span className="flex-shrink-0">•</span>
-                {task.status === 'processing' ? (
-                  <div className="flex items-center gap-1.5">
-                    {/* 计时器显示 */}
+            {/* 处理时间或进度信息 */}
+            {task.status === 'processing' ? (
+              <>
+                <span>•</span>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
+                </div>
+                {getProcessingInfo(task) && (
+                  <>
+                    <span>•</span>
+                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {getTaskProcessingTime(task) && (
+                  <>
+                    <span>•</span>
                     <div className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
+                      <span className="font-mono text-blue-600">{formatDuration(getTaskProcessingTime(task)!)}</span>
                     </div>
-                    {/* 处理进度显示 */}
-                    {getProcessingInfo(task) && (
-                      <>
-                        <span className="flex-shrink-0">•</span>
-                        <div className="flex items-center gap-1">
-                          {task.file_type === 'pdf' ? <BookOpen className="w-3 h-3" /> : <Image className="w-3 h-3" />}
-                          <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <span className="break-words">{formatTimeAgo(task.created_at)}</span>
-                    {/* 显示最终处理时间（如果有的话） */}
-                    {getTaskProcessingTime(task) && (
-                      <>
-                        <span className="flex-shrink-0">•</span>
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span className="font-mono text-blue-600">{formatDuration(getTaskProcessingTime(task)!)}</span>
-                        </div>
-                      </>
-                    )}
-                    {/* 显示页码信息（如果有的话） */}
-                    {getProcessingInfo(task) && (
-                      <>
-                        <span className="flex-shrink-0">•</span>
-                        <div className="flex items-center gap-1">
-                          {task.file_type === 'pdf' ? <BookOpen className="w-3 h-3" /> : <Image className="w-3 h-3" />}
-                          <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  </>
                 )}
-              </div>
-              
-              {/* Action buttons - 同行右侧 */}
-              <div className="flex items-center gap-1 ml-2">
-                {task.status === 'completed' && hasResult && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(task);
-                    }}
-                    className="h-6 w-6 p-0 hover:bg-blue-50 hover:text-blue-600 rounded-md"
-                    title="下载结果"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
+                {getProcessingInfo(task) && (
+                  <>
+                    <span>•</span>
+                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                  </>
                 )}
-                
-                {task.status === 'failed' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRetry(task);
-                    }}
-                    className="h-6 w-6 p-0 hover:bg-orange-50 hover:text-orange-600 rounded-md"
-                    title="重试"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                  </Button>
-                )}
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(task.id);
-                  }}
-                  className="h-6 w-6 p-0 hover:bg-red-50 hover:text-red-600 rounded-md text-muted-foreground hover:text-red-600"
-                  title="删除"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
+              </>
+            )}
+          </div>
+
+          {/* 第三行：操作按钮 */}
+          <div className="flex items-center justify-end gap-1">
+            {task.status === 'completed' && hasResult && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownload(task);
+                }}
+                className="h-7 px-2 text-xs hover:bg-blue-50 hover:text-blue-600"
+                title="下载结果"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                下载
+              </Button>
+            )}
+            
+            {task.status === 'failed' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleRetry(task);
+                }}
+                className="h-7 px-2 text-xs hover:bg-orange-50 hover:text-orange-600"
+                title="重试"
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                重试
+              </Button>
+            )}
+            
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteClick(task.id);
+              }}
+              className="h-7 px-2 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
+              title="删除"
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              删除
+            </Button>
           </div>
         </div>
 
@@ -692,6 +764,18 @@ export const TaskList: React.FC<TaskListProps> = ({
           <h3 className="text-sm font-semibold">
             任务列表 ({filteredTasks.length})
           </h3>
+          {tasks.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearAllClick}
+              className="h-7 px-2 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
+              title="清空所有任务"
+            >
+              <X className="w-3 h-3 mr-1" />
+              清空
+            </Button>
+          )}
         </div>
         
         {/* Task summary badges */}
@@ -750,6 +834,47 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
         </ScrollArea>
       </div>
+
+      {/* Delete confirmation dialogs */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除任务</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这个任务吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={clearAllDialogOpen} onOpenChange={setClearAllDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清空所有任务</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除所有 {tasks.length} 个任务吗？此操作不可撤销，将会永久删除所有任务数据。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleClearAllConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              删除全部
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

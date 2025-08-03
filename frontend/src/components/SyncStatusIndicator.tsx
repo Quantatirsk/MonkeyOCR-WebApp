@@ -75,15 +75,11 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
     }
 
     if (syncStatus.sync_error) {
-      const retryInfo = syncStatus.retry_count > 0 
-        ? ` (重试 ${syncStatus.retry_count}/${syncStatus.max_retries})`
-        : '';
-      
       return {
         icon: <AlertCircle className="w-3 h-3" />,
         text: '同步错误',
         variant: 'destructive' as const,
-        description: `同步失败: ${syncStatus.sync_error}${retryInfo}`
+        description: `同步失败: ${syncStatus.sync_error}`
       };
     }
 
@@ -111,7 +107,7 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
         icon: <CheckCircle className="w-3 h-3" />,
         text: '已同步',
         variant: 'default' as const,
-        description: `最后同步: ${timeText}`
+        description: `${timeText} 最后同步`
       };
     }
 
@@ -126,25 +122,50 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   const syncInfo = getSyncInfo();
 
   if (compact) {
-    // Compact mode - just the icon with tooltip
+    // Compact mode - icon with sync time text and tooltip
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-6 w-6 p-0 ${className}`}
-              onClick={handleManualSync}
-              disabled={syncStatus?.is_syncing}
-            >
-              {syncInfo.icon}
-            </Button>
+            <div className={`flex items-center gap-1.5 ${className}`}>
+              {/* 显示同步时间信息 */}
+              {syncStatus?.last_sync && (
+                <span className="text-xs text-muted-foreground">
+                  {(() => {
+                    const lastSyncTime = new Date(syncStatus.last_sync);
+                    const now = new Date();
+                    const diffMs = now.getTime() - lastSyncTime.getTime();
+                    const diffMins = Math.floor(diffMs / 60000);
+                    
+                    if (diffMins < 1) {
+                      return '刚刚同步';
+                    } else if (diffMins < 60) {
+                      return `${diffMins}分钟前`;
+                    } else {
+                      const diffHours = Math.floor(diffMins / 60);
+                      if (diffHours < 24) {
+                        return `${diffHours}小时前`;
+                      } else {
+                        return lastSyncTime.toLocaleDateString('zh-CN');
+                      }
+                    }
+                  })()}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={handleManualSync}
+                disabled={syncStatus?.is_syncing}
+              >
+                {syncInfo.icon}
+              </Button>
+            </div>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="text-xs">{syncInfo.description}</p>
             {!syncStatus?.is_syncing && (
-              <p className="text-xs text-muted-foreground mt-1">点击手动同步</p>
+              <p className="text-xs">点击手动同步</p>
             )}
           </TooltipContent>
         </Tooltip>

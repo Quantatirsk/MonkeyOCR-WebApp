@@ -17,19 +17,161 @@ import {
   Maximize2,
   X,
   Type,
-  Monitor
+  Monitor,
+  ArrowLeftRight,
+  RotateCw
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'; // 不再使用，改为自定义标签页
 import { ScrollArea } from './ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Separator } from './ui/separator';
-import { useAppStore } from '../store/appStore';
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "./ui/resizable";
+import { useAppStore, useUIActions } from '../store/appStore';
 import { ImageResource } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
+
+// 独立的Markdown内容组件，防止PDF状态变化导致重渲染
+const MarkdownContentPanel = React.memo(({ 
+  processedMarkdown, 
+  markdownZoom 
+}: { 
+  processedMarkdown: string; 
+  markdownZoom: number; 
+}) => {
+  // 调试：监控重渲染
+  console.log('🔄 MarkdownContentPanel render', { markdownLength: processedMarkdown.length, markdownZoom });
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      <ScrollArea className="h-full w-full">
+        <div className="p-3 pr-4 min-w-0 w-full">
+          <ModernMarkdownViewer 
+            content={processedMarkdown}
+            className="w-full min-w-0"
+            fontSize={markdownZoom}
+          />
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // 严格比较：只有markdown内容或字体大小变化时才重渲染
+  const contentSame = prevProps.processedMarkdown === nextProps.processedMarkdown;
+  const zoomSame = prevProps.markdownZoom === nextProps.markdownZoom;
+  const shouldNotRerender = contentSame && zoomSame;
+  
+  if (!shouldNotRerender) {
+    console.log('📝 MarkdownContentPanel will re-render:', { 
+      contentSame, 
+      zoomSame,
+      prevZoom: prevProps.markdownZoom,
+      nextZoom: nextProps.markdownZoom
+    });
+  }
+  
+  return shouldNotRerender;
+});
+
+// 独立的PDF预览组件，防止任务列表展开/收起导致重渲染
+const PDFPreviewPanel = React.memo(({
+  task,
+  selectedPage,
+  onPageSelect,
+  onRotate,
+  externalPageRotations
+}: {
+  task: any;
+  selectedPage: number | null;
+  onPageSelect: (page: number) => void;
+  onRotate: (page: number) => void;
+  externalPageRotations: { [pageNumber: number]: number };
+}) => {
+  // 调试：监控重渲染
+  console.log('📄 PDFPreviewPanel render', { 
+    taskId: task.id, 
+    selectedPage, 
+    rotationsCount: Object.keys(externalPageRotations).length 
+  });
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      <FilePreview 
+        key={`shared-${task.id}`}
+        task={task} 
+        className="h-full" 
+        hideToolbar={true}
+        selectedPage={selectedPage}
+        onPageSelect={onPageSelect}
+        onRotate={onRotate}
+        externalPageRotations={externalPageRotations}
+      />
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // 严格比较：只有PDF相关状态变化时才重渲染
+  const taskSame = prevProps.task.id === nextProps.task.id && 
+                   prevProps.task.filename === nextProps.task.filename &&
+                   prevProps.task.status === nextProps.task.status;
+  const selectedPageSame = prevProps.selectedPage === nextProps.selectedPage;
+  const rotationsSame = JSON.stringify(prevProps.externalPageRotations) === JSON.stringify(nextProps.externalPageRotations);
+  const callbacksSame = prevProps.onPageSelect === nextProps.onPageSelect && 
+                        prevProps.onRotate === nextProps.onRotate;
+  
+  const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && callbacksSame;
+  
+  if (!shouldNotRerender) {
+    console.log('📄 PDFPreviewPanel will re-render:', { 
+      taskSame, 
+      selectedPageSame, 
+      rotationsSame,
+      callbacksSame,
+      taskId: nextProps.task.id,
+      selectedPage: nextProps.selectedPage
+    });
+  }
+  
+  return shouldNotRerender;
+});
+
+// 独立的标准预览组件，防止任务列表展开/收起导致重渲染
+const StandardPreviewPanel = React.memo(({
+  task
+}: {
+  task: any;
+}) => {
+  // 调试：监控重渲染
+  console.log('👁️ StandardPreviewPanel render', { taskId: task.id });
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      <FilePreview key={`shared-${task.id}`} task={task} className="h-full" />
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // 严格比较：只有任务相关属性变化时才重渲染
+  const taskSame = prevProps.task.id === nextProps.task.id && 
+                   prevProps.task.filename === nextProps.task.filename &&
+                   prevProps.task.status === nextProps.task.status &&
+                   prevProps.task.file_type === nextProps.task.file_type;
+  
+  if (!taskSame) {
+    console.log('👁️ StandardPreviewPanel will re-render:', { 
+      taskId: nextProps.task.id,
+      filename: nextProps.task.filename,
+      status: nextProps.task.status
+    });
+  }
+  
+  return taskSame;
+});
 
 import { getStaticFileUrl } from '../config';
 
@@ -38,8 +180,25 @@ interface DocumentViewerProps {
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult } = useAppStore();
+  const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult, activeDocumentTab } = useAppStore();
+  const { setActiveDocumentTab } = useUIActions();
   const { toast } = useToast();
+  
+  // PDF操作状态管理
+  const [pdfSelectedPage, setPdfSelectedPage] = useState<number | null>(null);
+  const [pdfPageRotations, setPdfPageRotations] = useState<{ [pageNumber: number]: number }>({});
+  
+  // PDF操作处理函数 - 使用useCallback稳定化
+  const handlePdfRotate = React.useCallback((pageNumber: number) => {
+    setPdfPageRotations(prev => ({
+      ...prev,
+      [pageNumber]: ((prev[pageNumber] || 0) + 90) % 360
+    }));
+  }, []);
+
+  const handlePdfPageSelect = React.useCallback((pageNumber: number) => {
+    setPdfSelectedPage(pageNumber);
+  }, []);
   
   // Calculate current result and task directly
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
@@ -65,7 +224,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const fontSizes = [85, 100, 120];
   const fontLabels = ['小', '中', '大'];
   const markdownZoom = fontSizes[fontSizeLevel];
-  const [activeTab, setActiveTab] = useState<'preview' | 'content' | 'images' | 'metadata'>('preview');
 
   // 自动加载OCR结果逻辑：当选择新任务且任务已完成但结果未加载时
   React.useEffect(() => {
@@ -213,44 +371,265 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     <div className={`h-full flex flex-col ${className}`}>
       {/* Main content - 占满全部空间 */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Tabs value={activeTab} onValueChange={(value: any) => setActiveTab(value)} className="h-full flex flex-col">
+        <div className="h-full flex flex-col">
+          {/* 标签页头部 */}
           <div className="border-b flex-shrink-0">
-            <TabsList className="grid w-full grid-cols-4 h-10">
-              <TabsTrigger value="preview" className="flex items-center space-x-1 text-xs">
+            <div className="grid w-full grid-cols-5 h-10">
+              <button 
+                onClick={() => setActiveDocumentTab('preview')}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors ${
+                  activeDocumentTab === 'preview' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
                 <Monitor className="w-3 h-3" />
                 <span>预览</span>
-              </TabsTrigger>
-              <TabsTrigger value="content" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
+              </button>
+              <button 
+                onClick={() => setActiveDocumentTab('compare')}
+                disabled={!currentResult}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDocumentTab === 'compare' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <ArrowLeftRight className="w-3 h-3" />
+                <span>对照</span>
+                {currentTask?.status === 'completed' && currentResult && (
+                  <span className="text-xs text-green-500 ml-1">✓</span>
+                )}
+              </button>
+              <button 
+                onClick={() => setActiveDocumentTab('content')}
+                disabled={!currentResult}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDocumentTab === 'content' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
                 <FileText className="w-3 h-3" />
                 <span>内容</span>
                 {currentTask?.status === 'completed' && currentResult && (
                   <span className="text-xs text-green-500 ml-1">✓</span>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="images" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
+              </button>
+              <button 
+                onClick={() => setActiveDocumentTab('images')}
+                disabled={!currentResult}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDocumentTab === 'images' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
                 <Image className="w-3 h-3" />
                 <span>图片 ({currentResult?.images.length || 0})</span>
                 {currentTask?.status === 'completed' && currentResult && (
                   <span className="text-xs text-green-500 ml-1">✓</span>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="metadata" className="flex items-center space-x-1 text-xs" disabled={!currentResult}>
+              </button>
+              <button 
+                onClick={() => setActiveDocumentTab('metadata')}
+                disabled={!currentResult}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDocumentTab === 'metadata' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
                 <Eye className="w-3 h-3" />
                 <span>详情</span>
                 {currentTask?.status === 'completed' && currentResult && (
                   <span className="text-xs text-green-500 ml-1">✓</span>
                 )}
-              </TabsTrigger>
-            </TabsList>
+              </button>
+            </div>
           </div>
 
-          {/* Preview tab */}
-          <TabsContent value="preview" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
-            {currentTask && <FilePreview task={currentTask} className="flex-1" />}
-          </TabsContent>
+          {/* 内容区域 - 所有标签页同时渲染，用CSS控制显示 */}
+          <div className="flex-1 relative overflow-hidden">
+            {/* Preview tab */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'preview' ? 'block' : 'hidden'
+              }`}
+            >
+              {currentTask && <StandardPreviewPanel task={currentTask} />}
+            </div>
 
-          {/* Content tab */}
-          <TabsContent value="content" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            {/* Compare tab - Split view */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'compare' ? 'block' : 'hidden'
+              }`}
+            >
+              {currentResult && currentTask ? (
+                <div className="flex-1 flex flex-col overflow-hidden h-full">
+                  {/* Split view content area - 移除统一工具栏 */}
+                  <div className="flex-1 overflow-hidden">
+                    <ResizablePanelGroup
+                      direction="horizontal"
+                      className="h-full"
+                    >
+                      {/* Left panel - Document Preview */}
+                      <ResizablePanel 
+                        defaultSize={50} 
+                        minSize={30}
+                        maxSize={70}
+                        collapsible={false}
+                      >
+                        <div className="h-full flex flex-col border-r">
+                          {/* 原始文档标题栏 - 包含文档相关信息和操作 */}
+                          <div className="bg-muted/5 px-3 py-2 border-b flex-shrink-0">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              {/* 左侧：文档信息 */}
+                              <div className="flex items-center space-x-2 min-w-0">
+                                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">原始文档</h3>
+                                <Badge variant="outline" className="text-xs">
+                                  {currentTask.file_type.toUpperCase()}
+                                </Badge>
+                                <Badge variant="secondary" className="text-xs">
+                                  {currentResult.metadata.extraction_type}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs truncate max-w-32">
+                                  {currentTask.filename}
+                                </Badge>
+                              </div>
+                              
+                              {/* 右侧：PDF相关操作按钮 */}
+                              <div className="flex items-center space-x-1 flex-shrink-0">
+                                <div className="text-xs text-muted-foreground whitespace-nowrap mr-2">
+                                  对照查看
+                                </div>
+                                
+                                {/* PDF旋转按钮 */}
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  onClick={() => pdfSelectedPage && handlePdfRotate(pdfSelectedPage)} 
+                                  title={pdfSelectedPage ? `旋转第${pdfSelectedPage}页` : "请先点击要旋转的页面"}
+                                  disabled={pdfSelectedPage === null}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <RotateCw className="w-3 h-3" />
+                                </Button>
+                                
+                                {/* 当前页面指示器 */}
+                                {pdfSelectedPage && (
+                                  <span className="text-xs text-muted-foreground border rounded px-2 py-1 whitespace-nowrap">
+                                    第{pdfSelectedPage}页
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <PDFPreviewPanel
+                            task={currentTask}
+                            selectedPage={pdfSelectedPage}
+                            onPageSelect={handlePdfPageSelect}
+                            onRotate={handlePdfRotate}
+                            externalPageRotations={pdfPageRotations}
+                          />
+                        </div>
+                      </ResizablePanel>
+                      
+                      <ResizableHandle withHandle />
+                      
+                      {/* Right panel - OCR Content */}
+                      <ResizablePanel 
+                        defaultSize={50}
+                        minSize={30}
+                        maxSize={70}
+                        collapsible={false}
+                      >
+                        <div className="h-full flex flex-col">
+                          {/* OCR识别内容标题栏 - 包含识别相关操作 */}
+                          <div className="bg-muted/5 px-3 py-2 border-b flex-shrink-0">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              {/* 左侧：标题 */}
+                              <div className="flex items-center space-x-2 flex-shrink-0">
+                                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">OCR识别内容</h3>
+                              </div>
+                              
+                              {/* 右侧：操作按钮和搜索 */}
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                                {/* 操作按钮组 */}
+                                <div className="flex items-center space-x-1 flex-shrink-0">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleFontSizeChange}
+                                    className="h-7 w-7 p-0"
+                                    title={`字号: ${fontLabels[fontSizeLevel]}`}
+                                  >
+                                    <Type className="w-3 h-3" />
+                                  </Button>
+                                  
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleCopyMarkdown}
+                                    className="h-7 w-7 p-0"
+                                    title="复制"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                  
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    onClick={handleDownload}
+                                    className="h-7 w-7 p-0"
+                                    title="下载"
+                                  >
+                                    <Download className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                
+                                {/* 搜索框 */}
+                                <div className="relative flex-1 min-w-0 sm:max-w-44">
+                                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                                  <Input
+                                    placeholder="搜索..."
+                                    value={localSearchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    onKeyPress={handleSearchKeyPress}
+                                    className="pl-7 h-7 text-xs w-full"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <MarkdownContentPanel 
+                            processedMarkdown={processedMarkdown}
+                            markdownZoom={markdownZoom}
+                          />
+                        </div>
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <ArrowLeftRight className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      等待OCR处理完成以查看对照视图
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Content tab */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'content' ? 'block' : 'hidden'
+              }`}
+            >
             {currentResult ? (
               <div className="flex-1 flex flex-col overflow-hidden h-full">
                 {/* Content tab toolbar */}
@@ -317,15 +696,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 </div>
                 
                 {/* Content area */}
-                <div className="flex-1 p-3 overflow-hidden">
-                  <ScrollArea className="h-full w-full">
-                    <ModernMarkdownViewer 
-                      content={processedMarkdown}
-                      className="w-full"
-                      fontSize={markdownZoom}
-                    />
-                  </ScrollArea>
-                </div>
+                <MarkdownContentPanel 
+                  processedMarkdown={processedMarkdown}
+                  markdownZoom={markdownZoom}
+                />
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center">
@@ -337,10 +711,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 </div>
               </div>
             )}
-          </TabsContent>
+            </div>
 
-          {/* Images tab */}
-          <TabsContent value="images" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            {/* Images tab */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'images' ? 'block' : 'hidden'
+              }`}
+            >
             {currentResult ? (
               <div className="flex-1 p-3 overflow-hidden h-full">
                 <ScrollArea className="h-full w-full">
@@ -389,10 +767,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 </div>
               </div>
             )}
-          </TabsContent>
+            </div>
 
-          {/* Metadata tab */}
-          <TabsContent value="metadata" className="flex-1 p-0 m-0 overflow-hidden data-[state=active]:flex data-[state=active]:flex-col data-[state=active]:h-full">
+            {/* Metadata tab */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'metadata' ? 'block' : 'hidden'
+              }`}
+            >
             {currentResult ? (
               <div className="flex-1 p-3 overflow-hidden h-full">
                 <ScrollArea className="h-full w-full">
@@ -471,9 +853,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 </div>
               </div>
             )}
-          </TabsContent>
-          </Tabs>
-        </div>
+            </div>
+          </div>
+          </div>
+      </div>
 
       {/* Image preview dialog */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>

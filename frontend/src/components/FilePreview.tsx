@@ -10,8 +10,6 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { 
-  ZoomIn, 
-  ZoomOut, 
   RotateCw,
   FileText,
   Image as ImageIcon,
@@ -30,16 +28,39 @@ pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 interface FilePreviewProps {
   task: ProcessingTask;
   className?: string;
+  hideToolbar?: boolean; // 是否隐藏工具栏
+  onRotate?: (pageNumber: number) => void; // 外部旋转控制
+  selectedPage?: number | null; // 外部选中页面状态
+  onPageSelect?: (pageNumber: number) => void; // 外部页面选择控制
+  externalPageRotations?: { [pageNumber: number]: number }; // 外部页面旋转状态
 }
 
-const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = '' }) => {
+const FilePreviewComponent: React.FC<FilePreviewProps> = ({ 
+  task, 
+  className = '', 
+  hideToolbar = false,
+  onRotate,
+  selectedPage: externalSelectedPage,
+  onPageSelect,
+  externalPageRotations
+}) => {
   const [numPages, setNumPages] = useState<number>(0);
-  const [scale, setScale] = useState<number>(1.0);
-  const [rotation, setRotation] = useState<number>(0);
+  const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({});
+  const [internalSelectedPage, setInternalSelectedPage] = useState<number | null>(null);
+  
+  // 修复Bug1: 正确判断是否使用外部状态 - 只有当外部明确提供了非空回调函数时才使用外部状态
+  const useExternalControl = onPageSelect !== undefined;
+  const selectedPage = useExternalControl ? externalSelectedPage : internalSelectedPage;
+  const setSelectedPage = useExternalControl ? onPageSelect : setInternalSelectedPage;
+  
+  // 修复Bug2: 避免状态污染 - 严格隔离内部和外部旋转状态
+  const currentPageRotations = useExternalControl ? (externalPageRotations || {}) : pageRotations;
   const [error, setError] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
   const [previewInfo, setPreviewInfo] = useState<any>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   
   // 从服务器获取文件预览URL和信息
   React.useEffect(() => {
@@ -73,15 +94,107 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
     loadFilePreview();
   }, [task.id]);
 
-  // 简单的缩放控制 - 移除所有复杂的优化
-  const zoomIn = () => setScale(prev => Math.min(3.0, prev + 0.1));
-  const zoomOut = () => setScale(prev => Math.max(0.3, prev - 0.1));
-  const resetZoom = () => setScale(1.0);
-  const rotate = () => setRotation(prev => (prev + 90) % 360);
+  // 简化的容器监听 - 仅用于触发CSS响应式更新
+  React.useLayoutEffect(() => {
+    const updateContainerSize = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        if (width > 0 && Math.abs(width - containerWidth) > 5) {
+          setContainerWidth(width);
+        }
+      }
+    };
 
-  // 简单的PDF事件处理 - 使用useCallback避免重新渲染
-  const onDocumentLoadSuccess = React.useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
+    // 初始化尺寸
+    updateContainerSize();
+
+    // 简单的ResizeObserver - 避免过度监听
+    const resizeObserver = new ResizeObserver(updateContainerSize);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+
+  
+  // 单页旋转控制 - 修复Bug2: 确保旋转操作使用正确的状态系统
+  const rotatePage = () => {
+    if (selectedPage !== null && selectedPage !== undefined) {
+      if (useExternalControl && onRotate) {
+        onRotate(selectedPage);
+      } else if (!useExternalControl) {
+        setPageRotations(prev => ({
+          ...prev,
+          [selectedPage]: ((prev[selectedPage] || 0) + 90) % 360
+        }));
+      }
+    }
+  };
+
+  // 添加CSS样式实现响应式PDF渲染
+  React.useLayoutEffect(() => {
+    const styleId = 'pdf-responsive-style';
+    let styleElement = document.getElementById(styleId) as HTMLStyleElement;
+    
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = styleId;
+      document.head.appendChild(styleElement);
+    }
+    
+    // 改进的CSS规则：实现真正的响应式PDF
+    styleElement.textContent = `
+      /* PDF页面容器响应式 */
+      .react-pdf__Page {
+        max-width: 100% !important;
+        margin: 0 auto !important;
+        display: flex !important;
+        justify-content: center !important;
+      }
+      
+      /* PDF Canvas响应式 - 关键规则 */
+      .react-pdf__Page__canvas {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
+      }
+      
+      /* 确保容器不会overflow */
+      .react-pdf__Document {
+        overflow: visible !important;
+      }
+      
+      /* SVG渲染也要响应式 */
+      .react-pdf__Page__svg {
+        max-width: 100% !important;
+        width: 100% !important;
+        height: auto !important;
+      }
+    `;
+    
+    return () => {
+      const element = document.getElementById(styleId);
+      if (element) {
+        element.remove();
+      }
+    };
+  }, []);
+
+  // 为图片设置默认选中页面（用于旋转功能）
+  React.useEffect(() => {
+    if (task.file_type === 'image' && fileUrl && selectedPage === null) {
+      setSelectedPage(1);
+    }
+  }, [task.file_type, fileUrl, selectedPage]);
+
+  // PDF文档加载成功回调
+  const onDocumentLoadSuccess = React.useCallback((pdf: any) => {
+    setNumPages(pdf.numPages);
     setError(null);
   }, []);
 
@@ -152,51 +265,48 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
   if (task.file_type === 'image') {
     return (
       <div className={`${className} h-full flex flex-col`}>
-        {/* Image Controls */}
-        <div className="border-b bg-muted/5 p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <ImageIcon className="w-4 h-4" />
-              <span className="text-sm font-medium">图片预览</span>
-              <Badge variant="outline" className="text-xs">
-                {task.filename}
-              </Badge>
-              <Badge variant="outline" className="text-xs text-muted-foreground">
-                缩放控制
-              </Badge>
-            </div>
-            
-            <div className="flex items-center space-x-1">
-              <Button variant="outline" size="sm" onClick={zoomOut} title="缩小">
-                <ZoomOut className="w-3.5 h-3.5" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={resetZoom} title="重置缩放">
-                <span className="text-xs">{Math.round(scale * 100)}%</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={zoomIn} title="放大">
-                <ZoomIn className="w-3.5 h-3.5" />
-              </Button>
-              <Button variant="outline" size="sm" onClick={rotate} title="旋转">
-                <RotateCw className="w-3.5 h-3.5" />
-              </Button>
+        {/* Image Controls - 响应式布局，可选显示 */}
+        {!hideToolbar && (
+          <div className="border-b bg-muted/5 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              {/* 左侧：标题和信息 */}
+              <div className="flex items-center space-x-2 flex-wrap">
+                <ImageIcon className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm font-medium whitespace-nowrap">图片预览</span>
+                <Badge variant="outline" className="text-xs truncate max-w-48">
+                  {task.filename}
+                </Badge>
+              </div>
+              
+              {/* 右侧：操作按钮 */}
+              <div className="flex items-center space-x-1 flex-shrink-0">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={rotatePage} 
+                  title="旋转图片"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Image Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden" ref={task.file_type === 'image' ? containerRef : undefined}>
           <ScrollArea className="h-full w-full">
             <div className="flex items-center justify-center min-h-full p-4">
               <img
                 src={fileUrl}
                 alt={task.filename}
-                className="max-w-full h-auto shadow-lg rounded-lg"
+                className="max-w-full h-auto shadow-lg rounded-lg transition-all duration-200"
                 style={{
-                  transform: `scale(${scale}) rotate(${rotation}deg)`,
-                  transformOrigin: 'center',
-                  transition: 'transform 0.2s ease'
+                  transform: `rotate(${currentPageRotations[1] || 0}deg)`,
+                  transformOrigin: 'center'
                 }}
                 onError={() => setError('无法加载图片文件')}
+                onClick={() => setSelectedPage(1)}
               />
             </div>
           </ScrollArea>
@@ -217,47 +327,50 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
   // Render PDF preview
   return (
     <div className={`${className} h-full flex flex-col`}>
-      {/* PDF Controls */}
-      <div className="border-b bg-muted/5 p-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <FileText className="w-4 h-4" />
-            <span className="text-sm font-medium">PDF预览</span>
-            <Badge variant="outline" className="text-xs">
-              {task.filename}
-            </Badge>
-            {numPages > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {numPages} 页
+      {/* PDF Controls - 响应式布局，可选显示 */}
+      {!hideToolbar && (
+        <div className="border-b bg-muted/5 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {/* 左侧：标题和信息 */}
+            <div className="flex items-center space-x-2 flex-wrap">
+              <FileText className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-medium whitespace-nowrap">PDF预览</span>
+              <Badge variant="outline" className="text-xs truncate max-w-48">
+                {task.filename}
               </Badge>
-            )}
-            <Badge variant="outline" className="text-xs text-muted-foreground">
-              滚动浏览
-            </Badge>
-          </div>
-          
-          <div className="flex items-center space-x-1">
-            {/* Zoom Controls */}
-            <Button variant="outline" size="sm" onClick={zoomOut} title="缩小">
-              <ZoomOut className="w-3.5 h-3.5" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={resetZoom} title="重置缩放">
-              <span className="text-xs">{Math.round(scale * 100)}%</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={zoomIn} title="放大">
-              <ZoomIn className="w-3.5 h-3.5" />
-            </Button>
+              {numPages > 0 && (
+                <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                  {numPages} 页
+                </Badge>
+              )}
+            </div>
             
-            {/* Rotation */}
-            <Button variant="outline" size="sm" onClick={rotate} title="旋转">
-              <RotateCw className="w-3.5 h-3.5" />
-            </Button>
+            {/* 右侧：操作按钮 */}
+            <div className="flex items-center space-x-1 flex-shrink-0">
+              {/* Rotation - only for selected page */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={rotatePage} 
+                title={selectedPage ? `旋转第${selectedPage}页` : "请先点击要旋转的页面"}
+                disabled={selectedPage === null}
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+              </Button>
+              
+              {/* Current page indicator */}
+              {selectedPage && (
+                <span className="text-xs text-muted-foreground border rounded px-2 py-1 whitespace-nowrap">
+                  第{selectedPage}页
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* PDF Content - 简化版 */}
-      <div className="flex-1 overflow-hidden">
+      {/* PDF Content - 高级响应式版本 */}
+      <div className="flex-1 overflow-hidden" ref={containerRef}>
         <ScrollArea className="h-full w-full">
           <div className="flex flex-col items-center p-4 space-y-4">
             <Document
@@ -266,19 +379,40 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
             >
-              {numPages > 0 && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
-                <div key={pageNum} className="relative">
-                  <div className="absolute top-2 left-2 bg-black/50 text-white px-2 py-1 rounded text-xs z-10">
-                    第 {pageNum} 页
+              {numPages > 0 && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
+                const pageRotation = currentPageRotations[pageNum] || 0;
+                const isSelected = selectedPage === pageNum;
+                // 简化：只使用globalScale用于手动缩放，CSS处理响应式
+                
+                return (
+                  <div 
+                    key={pageNum} 
+                    className={`relative cursor-pointer transition-all duration-200 mb-6 ${
+                      isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
+                    }`}
+                    onClick={() => setSelectedPage(pageNum)}
+                  >
+                    {/* 页码标签 */}
+                    <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs z-10 flex items-center gap-1">
+                      <span>第 {pageNum} 页</span>
+                      {pageRotation > 0 && (
+                        <span className="text-yellow-300">↻{pageRotation}°</span>
+                      )}
+                      {isSelected && (
+                        <span className="text-blue-300">●</span>
+                      )}
+                    </div>
+                    
+                    <Page
+                      pageNumber={pageNum}
+                      rotate={pageRotation}
+                      className="shadow-lg transition-all duration-300"
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
                   </div>
-                  <Page
-                    pageNumber={pageNum}
-                    scale={scale}
-                    rotate={rotation}
-                    className="shadow-lg mb-4"
-                  />
-                </div>
-              ))}
+                );
+              })}
             </Document>
           </div>
         </ScrollArea>
@@ -296,15 +430,21 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({ task, className = ''
   );
 };
 
-// 使用React.memo优化，只在相关属性变化时重新渲染
+// 修复Bug3: 简化React.memo比较，避免函数引用比较问题
 export const FilePreview = React.memo(FilePreviewComponent, (prevProps, nextProps) => {
-  // 只有文件相关的核心属性变化时才重新渲染
+  // 只比较关键的数据属性，避免函数引用比较
   return (
     prevProps.task.id === nextProps.task.id &&
     prevProps.task.filename === nextProps.task.filename &&
     prevProps.task.file_type === nextProps.task.file_type &&
     prevProps.task.status === nextProps.task.status &&
-    prevProps.className === nextProps.className
+    prevProps.className === nextProps.className &&
+    prevProps.hideToolbar === nextProps.hideToolbar &&
+    prevProps.selectedPage === nextProps.selectedPage &&
+    // 比较外部旋转状态对象
+    JSON.stringify(prevProps.externalPageRotations || {}) === JSON.stringify(nextProps.externalPageRotations || {}) &&
+    // 检查是否从外部控制模式切换到内部控制模式，或反之
+    (prevProps.onPageSelect !== undefined) === (nextProps.onPageSelect !== undefined)
   );
 });
 
