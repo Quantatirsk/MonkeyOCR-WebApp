@@ -30,7 +30,7 @@ export function MainContent() {
       className="flex-1 overflow-hidden transition-all duration-300 ease-in-out"
       style={{
         display: 'grid',
-        gridTemplateColumns: taskListVisible ? `${25}% 4px 1fr` : '0px 0px 1fr',
+        gridTemplateColumns: taskListVisible ? `${25}% 2px 1fr` : '0px 0px 1fr',
         height: '100%'
       }}
     >
@@ -68,7 +68,7 @@ export function MainContent() {
           taskListVisible ? 'opacity-100' : 'opacity-0'
         }`}
         style={{
-          width: taskListVisible ? '4px' : '0px',
+          width: taskListVisible ? '1px' : '0px',
           cursor: taskListVisible ? 'col-resize' : 'default'
         }}
       />

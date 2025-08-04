@@ -146,14 +146,14 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       document.head.appendChild(styleElement);
     }
     
-    // 改进的CSS规则：实现真正的响应式PDF
+    // 改进的CSS规则：实现真正的响应式PDF和正确的滚动
     styleElement.textContent = `
       /* PDF页面容器响应式 */
       .react-pdf__Page {
         max-width: 100% !important;
-        margin: 0 auto !important;
-        display: flex !important;
-        justify-content: center !important;
+        margin: 0 auto 24px auto !important;
+        display: block !important;
+        position: relative !important;
       }
       
       /* PDF Canvas响应式 - 关键规则 */
@@ -162,11 +162,15 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         width: 100% !important;
         height: auto !important;
         object-fit: contain !important;
+        display: block !important;
       }
       
-      /* 确保容器不会overflow */
+      /* 确保容器不干扰滚动 */
       .react-pdf__Document {
         overflow: visible !important;
+        height: auto !important;
+        min-height: auto !important;
+        display: block !important;
       }
       
       /* SVG渲染也要响应式 */
@@ -174,6 +178,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         max-width: 100% !important;
         width: 100% !important;
         height: auto !important;
+        display: block !important;
       }
     `;
     
@@ -372,7 +377,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       {/* PDF Content - 高级响应式版本 */}
       <div className="flex-1 overflow-hidden" ref={containerRef}>
         <ScrollArea className="h-full w-full">
-          <div className="flex flex-col items-center p-4 space-y-4">
+          <div className="flex flex-col items-center p-4 space-y-4 min-h-full">
             <Document
               key={`${task.id}-${fileUrl}`}
               file={fileUrl}

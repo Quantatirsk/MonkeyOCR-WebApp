@@ -151,8 +151,8 @@ const StandardPreviewPanel = React.memo(({
   console.log('👁️ StandardPreviewPanel render', { taskId: task.id });
   
   return (
-    <div className="flex-1 overflow-hidden">
-      <FilePreview key={`shared-${task.id}`} task={task} className="h-full" />
+    <div className="w-full h-full">
+      <FilePreview key={`shared-${task.id}`} task={task} className="w-full h-full" />
     </div>
   );
 }, (prevProps, nextProps) => {

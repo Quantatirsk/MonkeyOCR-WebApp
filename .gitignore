@@ -113,4 +113,4 @@ temp/
 
 # YoYo AI version control directory
 .yoyo/
-backend/data/tasks.json
+data/
