@@ -282,8 +282,10 @@ export function normalizeBlockData(blocks: ProcessingBlock[]): ProcessingBlock[]
       ...block,
       index: block.index ?? index, // Ensure index is set
       content: extractContentFromBlock(block),
-      // Ensure bbox is properly formatted
-      bbox: block.bbox && block.bbox.length === 4 ? block.bbox : [0, 0, 0, 0]
+      // Ensure bbox is properly formatted as tuple
+      bbox: block.bbox && block.bbox.length === 4 ? 
+        [block.bbox[0], block.bbox[1], block.bbox[2], block.bbox[3]] as [number, number, number, number] : 
+        [0, 0, 0, 0] as [number, number, number, number]
     }))
     .filter(block => block.content && block.content.length > 0); // Remove empty blocks
 }

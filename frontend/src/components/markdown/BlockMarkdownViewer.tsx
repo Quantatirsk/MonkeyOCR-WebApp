@@ -10,7 +10,6 @@ interface BlockMarkdownViewerProps {
   blockSyncState: BlockSyncState;
   onBlockClick: (blockIndex: number) => void;
   onBlockHover: (blockIndex: number | null) => void;
-  searchQuery?: string;
 }
 
 /**
@@ -22,11 +21,9 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   blocks,
   blockSyncState,
   onBlockClick,
-  onBlockHover,
-  searchQuery = ''
+  onBlockHover
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const blockRefsMap = useRef<Map<number, HTMLElement>>(new Map());
 
   // Process markdown content to inject block markers
   const processedContent = useMemo(() => {
@@ -41,7 +38,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     // Track used blocks to avoid duplicates
     const usedBlockIndexes = new Set<number>();
 
-    sections.forEach((section, sectionIndex) => {
+    sections.forEach((section) => {
       if (!section.trim()) {
         processedSections.push(section);
         return;
@@ -156,7 +153,6 @@ ${section}
     >
       <ModernMarkdownViewer
         content={processedContent}
-        searchQuery={searchQuery}
       />
     </div>
   );

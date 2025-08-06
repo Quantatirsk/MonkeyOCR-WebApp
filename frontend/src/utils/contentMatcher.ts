@@ -144,18 +144,21 @@ function findFuzzyMatches(
   remainingProcessedBlocks: string[],
   remainingProcessedSections: string[],
   originalBlocks: ProcessingBlock[],
-  originalSections: string[],
+  _originalSections: string[],
   threshold: number
 ): Map<number, MatchResult> {
   const matches = new Map<number, MatchResult>();
   
-  remainingProcessedBlocks.forEach((blockContent, relativeIndex) => {
-    if (!blockContent) return;
+  for (let blockIdx = 0; blockIdx < remainingProcessedBlocks.length; blockIdx++) {
+    const blockContent = remainingProcessedBlocks[blockIdx];
+    if (!blockContent) continue;
     
     let bestMatch: MatchResult | null = null;
+    let bestConfidence = 0;
     
-    remainingProcessedSections.forEach((sectionContent, sectionIndex) => {
-      if (!sectionContent) return;
+    for (let sectionIdx = 0; sectionIdx < remainingProcessedSections.length; sectionIdx++) {
+      const sectionContent = remainingProcessedSections[sectionIdx];
+      if (!sectionContent) continue;
       
       // Multiple similarity measures
       const jaccardSim = calculateJaccardSimilarity(blockContent, sectionContent);
@@ -165,27 +168,28 @@ function findFuzzyMatches(
       // Weighted combination of similarity scores
       const combinedSimilarity = (jaccardSim * 0.4) + (editDistSim * 0.3) + (wordOverlapSim * 0.3);
       
-      if (combinedSimilarity >= threshold) {
-        if (!bestMatch || combinedSimilarity > bestMatch.confidence) {
-          // Find original block index
-          const originalBlockIndex = originalBlocks.findIndex(
-            block => preprocessBlock(block) === blockContent
-          );
-          
+      if (combinedSimilarity >= threshold && combinedSimilarity > bestConfidence) {
+        // Find original block index
+        const originalBlockIndex = originalBlocks.findIndex(
+          block => preprocessBlock(block) === blockContent
+        );
+        
+        if (originalBlockIndex >= 0) {
           bestMatch = {
             blockIndex: originalBlockIndex,
-            sectionIndex,
+            sectionIndex: sectionIdx,
             confidence: combinedSimilarity,
             matchType: 'fuzzy'
           };
+          bestConfidence = combinedSimilarity;
         }
       }
-    });
+    }
     
     if (bestMatch) {
       matches.set(bestMatch.blockIndex, bestMatch);
     }
-  });
+  }
   
   return matches;
 }

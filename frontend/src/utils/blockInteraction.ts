@@ -270,7 +270,6 @@ export class BlockInteractionManager {
     
     // Calculate block position (this would need to be adapted based on actual rendering)
     const blockPosition = this.estimateBlockPosition(block, containerElement);
-    const blockHeight = Math.abs(block.bbox[3] - block.bbox[1]);
     
     // Position block in the upper third of the viewport for optimal readability
     const targetPosition = blockPosition - (containerHeight / 3);
