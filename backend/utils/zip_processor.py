@@ -7,8 +7,9 @@ import os
 import zipfile
 import shutil
 import re
+import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import aiofiles
 from models import ImageResource, DocumentResult, DocumentMetadata
 
@@ -284,3 +285,32 @@ class ZipProcessor:
         task_dir = self.static_dir / task_id
         if task_dir.exists():
             shutil.rmtree(task_dir)
+    
+    async def extract_block_data(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Extract block data from middle.json file if it exists
+        
+        Args:
+            task_id: Task ID to locate the extracted directory
+            
+        Returns:
+            Dictionary containing block data or None if not found
+        """
+        task_dir = self.static_dir / task_id
+        
+        # Look for middle.json files with pattern tmpXXX_middle.json
+        middle_json_files = list(task_dir.rglob("*_middle.json"))
+        
+        if not middle_json_files:
+            return None
+        
+        # Use the first middle.json file found
+        middle_json_path = middle_json_files[0]
+        
+        try:
+            async with aiofiles.open(middle_json_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                return json.loads(content)
+        except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
+            print(f"Error reading middle.json file {middle_json_path}: {e}")
+            return None

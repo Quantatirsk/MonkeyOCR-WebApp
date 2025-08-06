@@ -10,7 +10,8 @@ import {
   TaskStatusResponse,
   TaskResultResponse,
   TaskListResponse,
-  UploadResponse
+  UploadResponse,
+  BlockDataResponse
 } from '../types';
 
 import { APP_CONFIG, getStaticFileUrl } from '../config';
@@ -197,6 +198,19 @@ class ApiClient {
   }
 
   /**
+   * Get block data for a completed task (PDF-Markdown sync feature)
+   */
+  async getTaskBlockData(taskId: string): Promise<BlockDataResponse> {
+    try {
+      const response = await axiosInstance.get<BlockDataResponse>(`/api/tasks/${taskId}/blocks`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get block data for ${taskId}:`, error);
+      throw new Error(`Failed to get block data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
    * Get static file URL for images
    */
   getStaticFileUrl(filePath: string): string {
@@ -246,6 +260,7 @@ export const {
   downloadTaskResult,
   deleteTask,
   getHealthStatus,
+  getTaskBlockData,
   retryRequest
 } = apiClient;
 

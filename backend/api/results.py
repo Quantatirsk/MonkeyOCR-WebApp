@@ -174,3 +174,45 @@ async def get_task_markdown(task_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get markdown: {str(e)}")
+
+
+@router.get("/tasks/{task_id}/blocks")
+async def get_task_block_data(task_id: str):
+    """
+    Get the block data from middle.json file for PDF-Markdown sync feature
+    """
+    try:
+        # Check if task exists
+        persistence_manager = get_persistence_manager()
+        task = persistence_manager.get_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        if task.status != "completed":
+            raise HTTPException(
+                status_code=400,
+                detail="Task not completed yet"
+            )
+        
+        # Extract block data from middle.json
+        block_data = await zip_processor.extract_block_data(task_id)
+        
+        if block_data is None:
+            return {
+                "success": True,
+                "data": None,
+                "message": "No block data available for this task",
+                "error": None
+            }
+        
+        return {
+            "success": True,
+            "data": block_data,
+            "message": "Block data retrieved successfully",
+            "error": None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get block data: {str(e)}")

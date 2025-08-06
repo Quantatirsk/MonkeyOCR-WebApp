@@ -13,13 +13,16 @@ import {
   RotateCw,
   FileText,
   Image as ImageIcon,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
-import { ProcessingTask } from '../types';
+import { ProcessingTask, BlockData, BlockSelection } from '../types';
 import { syncManager } from '../utils/syncManager';
+import { PDFBlockOverlay } from './pdf/PDFBlockOverlay';
 
 // Set up PDF.js worker for Vite
 // Use local worker file copied by vite-plugin-static-copy
@@ -33,6 +36,14 @@ interface FilePreviewProps {
   selectedPage?: number | null; // 外部选中页面状态
   onPageSelect?: (pageNumber: number) => void; // 外部页面选择控制
   externalPageRotations?: { [pageNumber: number]: number }; // 外部页面旋转状态
+  
+  // PDF-Markdown sync feature props
+  blockData?: BlockData[]; // Block data for overlays
+  selectedBlock?: BlockSelection; // Currently selected block
+  highlightedBlocks?: number[]; // Highlighted block indices
+  syncEnabled?: boolean; // Whether sync features are enabled
+  onBlockClick?: (blockIndex: number, pageNumber: number) => void; // Block click handler
+  onBlockHover?: (blockIndex: number | null, pageNumber: number) => void; // Block hover handler
 }
 
 const FilePreviewComponent: React.FC<FilePreviewProps> = ({ 
@@ -42,11 +53,20 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   onRotate,
   selectedPage: externalSelectedPage,
   onPageSelect,
-  externalPageRotations
+  externalPageRotations,
+  
+  // PDF-Markdown sync props
+  blockData = [],
+  selectedBlock = { blockIndex: null, pageNumber: null, isActive: false },
+  highlightedBlocks = [],
+  syncEnabled = false,
+  onBlockClick,
+  onBlockHover
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({});
   const [internalSelectedPage, setInternalSelectedPage] = useState<number | null>(null);
+  const [showBlockOverlays, setShowBlockOverlays] = useState<boolean>(syncEnabled);
   
   // 修复Bug1: 正确判断是否使用外部状态 - 只有当外部明确提供了非空回调函数时才使用外部状态
   const useExternalControl = onPageSelect !== undefined;
@@ -196,6 +216,11 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       setSelectedPage(1);
     }
   }, [task.file_type, fileUrl, selectedPage]);
+
+  // Update block overlay visibility when sync is enabled/disabled
+  React.useEffect(() => {
+    setShowBlockOverlays(syncEnabled);
+  }, [syncEnabled]);
 
   // PDF文档加载成功回调
   const onDocumentLoadSuccess = React.useCallback((pdf: any) => {
@@ -352,6 +377,18 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
             
             {/* 右侧：操作按钮 */}
             <div className="flex items-center space-x-1 flex-shrink-0">
+              {/* Block overlay toggle - only show if sync is available */}
+              {syncEnabled && blockData.length > 0 && (
+                <Button 
+                  variant={showBlockOverlays ? "default" : "outline"} 
+                  size="sm" 
+                  onClick={() => setShowBlockOverlays(!showBlockOverlays)}
+                  title={showBlockOverlays ? "隐藏区块标记" : "显示区块标记"}
+                >
+                  {showBlockOverlays ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                </Button>
+              )}
+              
               {/* Rotation - only for selected page */}
               <Button 
                 variant="outline" 
@@ -367,6 +404,13 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
               {selectedPage && (
                 <span className="text-xs text-muted-foreground border rounded px-2 py-1 whitespace-nowrap">
                   第{selectedPage}页
+                </span>
+              )}
+              
+              {/* Block count indicator */}
+              {syncEnabled && blockData.length > 0 && (
+                <span className="text-xs text-muted-foreground border rounded px-2 py-1 whitespace-nowrap">
+                  {blockData.length} 区块
                 </span>
               )}
             </div>
@@ -398,7 +442,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                     onClick={() => setSelectedPage(pageNum)}
                   >
                     {/* 页码标签 */}
-                    <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs z-10 flex items-center gap-1">
+                    <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs z-20 flex items-center gap-1">
                       <span>第 {pageNum} 页</span>
                       {pageRotation > 0 && (
                         <span className="text-yellow-300">↻{pageRotation}°</span>
@@ -408,13 +452,31 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                       )}
                     </div>
                     
-                    <Page
-                      pageNumber={pageNum}
-                      rotate={pageRotation}
-                      className="shadow-lg transition-all duration-300"
-                      renderTextLayer={false}
-                      renderAnnotationLayer={false}
-                    />
+                    <div className="relative">
+                      <Page
+                        pageNumber={pageNum}
+                        rotate={pageRotation}
+                        className="shadow-lg transition-all duration-300"
+                        renderTextLayer={false}
+                        renderAnnotationLayer={false}
+                      />
+                      
+                      {/* Block Overlay */}
+                      {syncEnabled && blockData.length > 0 && showBlockOverlays && (
+                        <PDFBlockOverlay
+                          blocks={blockData}
+                          pageNumber={pageNum}
+                          pageSize={[595, 842]} // Default A4 size, should be dynamic
+                          scale={1} // Should be calculated based on actual page rendering
+                          selectedBlock={selectedBlock}
+                          highlightedBlocks={highlightedBlocks}
+                          syncEnabled={showBlockOverlays}
+                          onBlockClick={onBlockClick}
+                          onBlockHover={onBlockHover}
+                          className="z-10"
+                        />
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -446,6 +508,11 @@ export const FilePreview = React.memo(FilePreviewComponent, (prevProps, nextProp
     prevProps.className === nextProps.className &&
     prevProps.hideToolbar === nextProps.hideToolbar &&
     prevProps.selectedPage === nextProps.selectedPage &&
+    // 比较同步功能相关属性
+    prevProps.syncEnabled === nextProps.syncEnabled &&
+    JSON.stringify(prevProps.selectedBlock) === JSON.stringify(nextProps.selectedBlock) &&
+    JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks) &&
+    JSON.stringify(prevProps.blockData) === JSON.stringify(nextProps.blockData) &&
     // 比较外部旋转状态对象
     JSON.stringify(prevProps.externalPageRotations || {}) === JSON.stringify(nextProps.externalPageRotations || {}) &&
     // 检查是否从外部控制模式切换到内部控制模式，或反之
