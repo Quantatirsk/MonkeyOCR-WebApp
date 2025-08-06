@@ -340,6 +340,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   // 区块同步状态管理
   const [blockData, setBlockData] = useState<BlockData[]>([]);
   const [blockDataLoading, setBlockDataLoading] = useState(false);
+  const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null); // 跟踪已加载区块数据的任务ID
   
   // PDF操作处理函数 - 使用useCallback稳定化
   const handlePdfRotate = React.useCallback((pageNumber: number) => {
@@ -398,20 +399,39 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     loadTaskResult();
   }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
 
-  // 加载区块数据：当结果加载完成且处于对照标签页时
+  // 加载区块数据：当结果加载完成且处于对照标签页时，或切换任务时
   React.useEffect(() => {
     const loadBlockData = async () => {
-      if (currentResult && currentTaskId && activeDocumentTab === 'compare' && !blockDataLoading && blockData.length === 0) {
+      // 检查是否需要加载区块数据：
+      // 1. 有结果和任务ID
+      // 2. 处于对照标签页
+      // 3. 不在加载中
+      // 4. 任务ID发生变化（包括首次加载或切换文件）
+      const shouldLoad = currentResult && 
+                        currentTaskId && 
+                        activeDocumentTab === 'compare' && 
+                        !blockDataLoading && 
+                        loadedTaskId !== currentTaskId;
+
+      if (shouldLoad) {
         setBlockDataLoading(true);
+        
+        // 如果是切换任务，先清空之前的数据
+        if (loadedTaskId !== null && loadedTaskId !== currentTaskId) {
+          console.log(`🔄 Switching from task ${loadedTaskId} to ${currentTaskId}, clearing previous block data`);
+          setBlockData([]);
+        }
+        
         try {
           console.log(`🔄 Loading block data for task: ${currentTaskId}`);
           const response = await apiClient.getTaskBlockData(currentTaskId);
           if (response.success && response.data?.preproc_blocks) {
             setBlockData(response.data.preproc_blocks);
+            setLoadedTaskId(currentTaskId); // 记录已加载的任务ID
             
             // Debug: 验证index顺序和排序修复效果
             const blocks = response.data.preproc_blocks;
-            console.log(`✅ Loaded ${blocks.length} blocks`);
+            console.log(`✅ Loaded ${blocks.length} blocks for task ${currentTaskId}`);
             console.log('🔍 Block index verification:', blocks.map(b => ({
               index: b.index,
               page: b.page_num,
@@ -424,11 +444,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
             const isSequential = indices.every((val, i) => val === i + 1);
             console.log(`🎯 Index sequence check: ${isSequential ? '✅ SEQUENTIAL' : '❌ NOT SEQUENTIAL'}`, indices);
           } else {
-            console.warn('Block data not available for this document');
+            console.warn(`Block data not available for task ${currentTaskId}`);
+            // 即使没有区块数据，也要记录已尝试加载
+            setBlockData([]);
+            setLoadedTaskId(currentTaskId);
           }
         } catch (error) {
           console.error('Failed to load block data:', error);
-          // 不显示错误提示，因为不是所有文档都有区块数据
+          // 发生错误时也要记录已尝试加载，避免重复尝试
+          setBlockData([]);
+          setLoadedTaskId(currentTaskId);
         } finally {
           setBlockDataLoading(false);
         }
@@ -436,7 +461,29 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     };
     
     loadBlockData();
-  }, [currentResult, currentTaskId, activeDocumentTab, blockDataLoading, blockData.length]);
+  }, [currentResult, currentTaskId, activeDocumentTab, blockDataLoading, loadedTaskId]);
+
+  // 清理区块数据：当离开对照标签页时
+  React.useEffect(() => {
+    if (activeDocumentTab !== 'compare' && blockData.length > 0) {
+      console.log('📤 Leaving compare tab, clearing block data to free memory');
+      setBlockData([]);
+      // 注意：不清理loadedTaskId，这样回到对照页面时可以判断是否需要重新加载
+    }
+  }, [activeDocumentTab, blockData.length]);
+
+  // 重置状态：当任务切换时，确保相关状态被正确重置
+  React.useEffect(() => {
+    // 当任务切换时，重置PDF选择状态和旋转状态
+    setPdfSelectedPage(null);
+    setPdfPageRotations({});
+    
+    // 如果loadedTaskId与currentTaskId不匹配，说明需要重新加载数据
+    if (loadedTaskId && loadedTaskId !== currentTaskId) {
+      console.log(`🔄 Task changed from ${loadedTaskId} to ${currentTaskId}, will reload block data on next compare tab visit`);
+      // 不立即清空loadedTaskId，让区块数据加载逻辑去处理
+    }
+  }, [currentTaskId, loadedTaskId]);
 
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
@@ -473,10 +520,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   });
 
   // Markdown → PDF 滚动同步：监听区块选择变化并触发PDF滚动
-  // 添加用户手动滚动检测状态
-  const [isUserScrolling, setIsUserScrolling] = React.useState(false);
-  const userScrollTimeoutRef = React.useRef<NodeJS.Timeout>();
-
   // 跟踪最后一次Markdown点击的时间戳，用于区分用户操作和自动同步
   const lastMarkdownClickRef = React.useRef<number>(0);
 
@@ -502,41 +545,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     scrollSync.scrollToBlockInPdf(blockIndex);
   }, [blockSync.selectedBlock.blockIndex, blockSync.selectedBlock.isActive, blockSyncEnabled, scrollSync]);
 
-  // 检测用户手动滚动PDF
-  React.useEffect(() => {
-    const pdfContainer = scrollSync.pdfContainerRef.current;
-    if (!pdfContainer) return;
-
-    // 查找实际的可滚动元素
-    const scrollableElement = pdfContainer.querySelector('[data-radix-scroll-area-viewport]') || pdfContainer;
-
-    const handleUserScroll = () => {
-      // 设置用户正在滚动状态
-      setIsUserScrolling(true);
-      console.log(`👆 User manual scroll detected`);
-      
-      // 清除之前的超时
-      if (userScrollTimeoutRef.current) {
-        clearTimeout(userScrollTimeoutRef.current);
-      }
-      
-      // 设置超时，在用户停止滚动500ms后恢复自动滚动（大幅缩短等待时间）
-      userScrollTimeoutRef.current = setTimeout(() => {
-        setIsUserScrolling(false);
-        console.log(`✅ User scroll timeout, auto-scroll re-enabled`);
-      }, 500);
-    };
-
-    // 添加滚动事件监听器
-    (scrollableElement as HTMLElement).addEventListener('scroll', handleUserScroll, { passive: true });
-
-    return () => {
-      (scrollableElement as HTMLElement).removeEventListener('scroll', handleUserScroll);
-      if (userScrollTimeoutRef.current) {
-        clearTimeout(userScrollTimeoutRef.current);
-      }
-    };
-  }, [scrollSync.pdfContainerRef]);
 
   // 包装Markdown点击处理函数，记录点击时间戳并立即触发PDF滚动
   const handleMarkdownBlockClickWithTimestamp = React.useCallback((blockIndex: number) => {

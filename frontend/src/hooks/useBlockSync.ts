@@ -166,10 +166,12 @@ export const useBlockSync = ({
   const handlePdfBlockHover = useCallback((blockIndex: number | null, _pageNumber: number) => {
     setHoveredBlock(blockIndex);
     
-    if (blockIndex !== null && onBlockInteraction) {
-      onBlockInteraction(blockIndex, 'hover');
-    }
-  }, [onBlockInteraction]);
+    // Disable hover propagation to reduce re-renders
+    // Hover is only used for visual feedback, not for data updates
+    // if (blockIndex !== null && onBlockInteraction) {
+    //   onBlockInteraction(blockIndex, 'hover');
+    // }
+  }, []);
 
   // Markdown interaction handlers
   const handleMarkdownBlockClick = useCallback((blockIndex: number) => {
@@ -179,10 +181,12 @@ export const useBlockSync = ({
   const handleMarkdownBlockHover = useCallback((blockIndex: number | null) => {
     setHoveredBlock(blockIndex);
     
-    if (blockIndex !== null && onBlockInteraction) {
-      onBlockInteraction(blockIndex, 'hover');
-    }
-  }, [onBlockInteraction]);
+    // Disable hover propagation to reduce re-renders
+    // Hover is only used for visual feedback, not for data updates
+    // if (blockIndex !== null && onBlockInteraction) {
+    //   onBlockInteraction(blockIndex, 'hover');
+    // }
+  }, []);
 
   // Utility functions
   const getBlock = useCallback((blockIndex: number): BlockData | null => {

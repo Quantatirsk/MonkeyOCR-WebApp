@@ -312,8 +312,16 @@ class ZipProcessor:
                 content = await f.read()
                 raw_data = json.loads(content)
                 
+                # Store task_id context for image path processing
+                self._current_task_id = task_id
+                
                 # Transform raw data to frontend-compatible format
-                return self._transform_block_data(raw_data)
+                result = self._transform_block_data(raw_data)
+                
+                # Clear task_id context
+                self._current_task_id = None
+                
+                return result
         except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
             print(f"Error reading middle.json file {middle_json_path}: {e}")
             return None
@@ -334,55 +342,107 @@ class ZipProcessor:
                 'total_pages': 0
             }
         
-        all_blocks = []
         page_count = len(raw_data['pdf_info'])
-        global_block_index = 1  # 全文档连续编号，从1开始
         
         print(f"🔍 Processing {page_count} pages of block data...")
+        
+        # First, collect all blocks with their original positions and metadata
+        all_raw_blocks = []
+        processed_images = set()  # Track processed images to avoid duplication
         
         for page_idx, page_info in enumerate(raw_data['pdf_info']):
             page_num = page_idx + 1
             page_size = page_info.get('page_size', [595, 842])  # Default A4 size
             preproc_blocks = page_info.get('preproc_blocks', [])
+            images = page_info.get('images', [])
+            tables = page_info.get('tables', [])
             
+            # Collect preproc_blocks with processing metadata (excluding image and table blocks to avoid duplication)
             for block in preproc_blocks:
-                # Extract content from lines/spans structure
-                content = ""
-                if 'lines' in block and block['lines']:
-                    content_parts = []
-                    for line in block['lines']:
-                        if 'spans' in line and line['spans']:
-                            for span in line['spans']:
-                                if 'content' in span:
-                                    content_parts.append(span['content'])
-                    content = ' '.join(content_parts)
-                
-                # CRITICAL: Use sequential global index for consistent cross-page ordering
-                # Original MonkeyOCR index is per-page (0,1,2...), we need global continuous numbering
-                
-                # Create BlockData compatible structure with global continuous index
-                transformed_block = {
-                    'index': global_block_index,  # 使用全文档连续索引确保一致性
-                    'bbox': block.get('bbox', [0, 0, 0, 0]),
-                    'type': block.get('type', 'text'),
-                    'content': content,
+                # Skip image blocks from preproc_blocks to avoid duplication with images array
+                # Skip table blocks from preproc_blocks to avoid duplication with tables array
+                if block.get('type') not in ['image', 'table']:
+                    all_raw_blocks.append({
+                        'source_type': 'preproc',
+                        'data': block,
+                        'page_num': page_num,
+                        'page_size': page_size,
+                        'original_index': block.get('index', 0),
+                        'bbox': block.get('bbox', [0, 0, 0, 0])
+                    })
+            
+            # Collect image blocks with processing metadata and deduplication  
+            for image_block in images:
+                # Create unique identifier for image based on bbox and page
+                image_id = f"{page_num}_{image_block.get('bbox', [0,0,0,0])}"
+                if image_id not in processed_images:
+                    processed_images.add(image_id)
+                    all_raw_blocks.append({
+                        'source_type': 'image',
+                        'data': image_block,
+                        'page_num': page_num,
+                        'page_size': page_size,
+                        'original_index': image_block.get('index', 0),
+                        'bbox': image_block.get('bbox', [0, 0, 0, 0])
+                    })
+            
+            # Collect table blocks with processing metadata
+            for table_block in tables:
+                all_raw_blocks.append({
+                    'source_type': 'table',
+                    'data': table_block,
                     'page_num': page_num,
                     'page_size': page_size,
-                    # DEBUG: 保留原始数据结构供调试
-                    '_raw_index': block.get('index', None),
-                    '_global_index': global_block_index
-                }
-                
-                all_blocks.append(transformed_block)
-                
-                # Debug log for index assignment
-                raw_index = block.get('index')
-                if raw_index is not None:
-                    print(f"  📋 Block {global_block_index}: original={raw_index} → global={global_block_index} (page {page_num})")
-                else:
-                    print(f"  📋 Block {global_block_index}: no original → global={global_block_index} (page {page_num})")
-                
-                global_block_index += 1  # 递增全局索引
+                    'original_index': table_block.get('index', 0),
+                    'bbox': table_block.get('bbox', [0, 0, 0, 0])
+                })
+        
+        # Sort all blocks by page first, then by original reading order (Y position, then X position)
+        def get_sort_key(raw_block):
+            page_num = raw_block['page_num']
+            bbox = raw_block['bbox']
+            original_index = raw_block['original_index']
+            
+            # Primary: page number
+            # Secondary: original index from MonkeyOCR (semantic reading order)
+            # Tertiary: Y position (top to bottom)
+            # Quaternary: X position (left to right) 
+            return (page_num, original_index, bbox[1], bbox[0])
+        
+        sorted_raw_blocks = sorted(all_raw_blocks, key=get_sort_key)
+        
+        print(f"📋 Sorted block order: {[(rb['page_num'], rb['original_index'], rb['source_type']) for rb in sorted_raw_blocks]}")
+        
+        # Now process sorted blocks and assign sequential index
+        all_blocks = []
+        global_block_index = 1  # 全文档连续编号，从1开始
+        
+        for raw_block in sorted_raw_blocks:
+            source_type = raw_block['source_type']
+            data = raw_block['data']
+            page_num = raw_block['page_num']
+            page_size = raw_block['page_size']
+            
+            processed_blocks = []
+            if source_type == 'preproc':
+                processed_block = self._process_block(data, page_num, page_size, global_block_index)
+                if processed_block:
+                    processed_blocks.append(processed_block)
+                    global_block_index += 1
+            elif source_type == 'image':
+                processed_block = self._process_image_block(data, page_num, page_size, global_block_index)
+                if processed_block:
+                    processed_blocks.append(processed_block)
+                    global_block_index += 1
+            elif source_type == 'table':
+                # Process table block - table titles should be separate text/title blocks
+                # NOT extracted from the table HTML content
+                processed_block = self._process_table_block(data, page_num, page_size, global_block_index)
+                if processed_block:
+                    processed_blocks.append(processed_block)
+                    global_block_index += 1
+            
+            all_blocks.extend(processed_blocks)
         
         # Final debug: show the complete index sequence
         print(f"📊 Final block sequence: {[block['index'] for block in all_blocks]}")
@@ -397,3 +457,524 @@ class ZipProcessor:
                 'parse_type': raw_data.get('_parse_type', 'unknown')
             }
         }
+    
+    def _process_block(self, block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+        """
+        Process a regular block (text, title, or image from preproc_blocks)
+        """
+        block_type = block.get('type', 'text')
+        
+        if block_type == 'image':
+            # Handle image blocks with nested structure
+            return self._process_image_block_from_preproc(block, page_num, page_size, global_index)
+        else:
+            # Handle text and title blocks
+            content = self._extract_text_content(block)
+            
+            return {
+                'index': global_index,
+                'bbox': block.get('bbox', [0, 0, 0, 0]),
+                'type': block_type,
+                'content': content,
+                'page_num': page_num,
+                'page_size': page_size,
+                '_raw_index': block.get('index', None),
+                '_global_index': global_index
+            }
+    
+    def _process_image_block_from_preproc(self, block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+        """
+        Process image block from preproc_blocks (has nested blocks structure)
+        """
+        image_path = None
+        caption = ""
+        
+        # Extract image path and caption from blocks structure
+        if 'blocks' in block:
+            for sub_block in block['blocks']:
+                if sub_block.get('type') == 'image_body':
+                    # Extract image path from spans
+                    image_path = self._extract_image_path_from_spans(sub_block)
+                elif sub_block.get('type') == 'image_caption':
+                    # Only use the first caption that contains "Fig" for figure images
+                    extracted_caption = self._extract_text_content(sub_block)
+                    if caption == "":  # Use first caption if we don't have one yet
+                        caption = extracted_caption
+                    elif "Fig" in extracted_caption and "Fig" not in caption:
+                        # Prefer figure captions for images
+                        caption = extracted_caption
+        
+        if not image_path:
+            return None
+            
+        # Find the actual image file that matches the image_path
+        actual_image_path = self._find_matching_image_file(image_path, global_index)
+        
+        # Create markdown content for image (caption only in alt text to avoid duplication)
+        content = f"![{caption or 'Image'}]({actual_image_path})"
+        
+        return {
+            'index': global_index,
+            'bbox': block.get('bbox', [0, 0, 0, 0]),
+            'type': 'image',
+            'content': content,
+            'image_path': image_path,
+            'caption': caption,
+            'page_num': page_num,
+            'page_size': page_size,
+            '_raw_index': block.get('index', None),
+            '_global_index': global_index
+        }
+    
+    def _process_image_block(self, image_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+        """
+        Process image block from images array
+        """
+        image_path = None
+        caption = ""
+        
+        # Extract image path and caption
+        if 'blocks' in image_block:
+            for sub_block in image_block['blocks']:
+                if sub_block.get('type') == 'image_body':
+                    image_path = self._extract_image_path_from_spans(sub_block)
+                elif sub_block.get('type') == 'image_caption':
+                    # Only use the first caption that contains "Fig" for figure images
+                    # This avoids picking up table captions that might be nearby
+                    extracted_caption = self._extract_text_content(sub_block)
+                    if caption == "":  # Use first caption if we don't have one yet
+                        caption = extracted_caption
+                    elif "Fig" in extracted_caption and "Fig" not in caption:
+                        # Prefer figure captions for images
+                        caption = extracted_caption
+        
+        if not image_path:
+            return None
+        
+        # Find the actual image file that matches the image_path
+        actual_image_path = self._find_matching_image_file(image_path, global_index)
+        
+        # Create markdown content for image (caption only in alt text to avoid duplication)
+        content = f"![{caption or 'Image'}]({actual_image_path})"
+        
+        return {
+            'index': global_index,
+            'bbox': image_block.get('bbox', [0, 0, 0, 0]),
+            'type': 'image',
+            'content': content,
+            'image_path': image_path,
+            'caption': caption,
+            'page_num': page_num,
+            'page_size': page_size,
+            '_raw_index': image_block.get('index', None),
+            '_global_index': global_index
+        }
+    
+    def _process_table_block(self, table_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+        """
+        Process table block from tables array
+        """
+        html_content = None
+        image_path = None
+        
+        # Extract HTML and image path from table spans
+        if 'blocks' in table_block:
+            for sub_block in table_block['blocks']:
+                if sub_block.get('type') == 'table_body':
+                    if 'lines' in sub_block:
+                        for line in sub_block['lines']:
+                            if 'spans' in line:
+                                for span in line['spans']:
+                                    if span.get('type') == 'table' and 'html' in span:
+                                        html_content = span['html']
+                                        image_path = span.get('image_path')
+                                        break
+        
+        if not html_content:
+            return None
+        
+        # Convert HTML table to markdown WITHOUT any title extraction
+        # Titles should be separate blocks in the document
+        markdown_content = self._convert_html_table_to_markdown(html_content, extract_title=False)
+        
+        return {
+            'index': global_index,
+            'bbox': table_block.get('bbox', [0, 0, 0, 0]),
+            'type': 'table',
+            'content': markdown_content,
+            'html_content': html_content,
+            'image_path': image_path,
+            'page_num': page_num,
+            'page_size': page_size,
+            '_raw_index': table_block.get('index', None),
+            '_global_index': global_index
+        }
+    
+    def _process_table_with_title_extraction(self, table_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """
+        Process table block with title extraction as separate blocks
+        
+        Args:
+            table_block: Raw table block data
+            page_num: Page number
+            page_size: Page dimensions
+            global_index: Starting global index (will be used for title if present)
+            
+        Returns:
+            Tuple of (title_block, table_block) - either can be None
+        """
+        html_content = None
+        image_path = None
+        
+        # Extract HTML and image path from table spans
+        if 'blocks' in table_block:
+            for sub_block in table_block['blocks']:
+                if sub_block.get('type') == 'table_body':
+                    if 'lines' in sub_block:
+                        for line in sub_block['lines']:
+                            if 'spans' in line:
+                                for span in line['spans']:
+                                    if span.get('type') == 'table' and 'html' in span:
+                                        html_content = span['html']
+                                        image_path = span.get('image_path')
+                                        break
+        
+        if not html_content:
+            return None, None
+        
+        # Extract table title separately
+        title_block = None
+        table_title = self._extract_table_title_from_html(html_content)
+        if table_title:
+            # Create a separate title block that appears before the table
+            # Use the SAME bbox as the table to ensure proper reading order
+            # The global_index sequence will determine the order, not bbox positioning
+            table_bbox = table_block.get('bbox', [0, 0, 0, 0])
+            
+            title_block = {
+                'index': global_index,
+                'bbox': table_bbox,  # Use same bbox as table - order controlled by index
+                'type': 'title',
+                'content': table_title,
+                'page_num': page_num,
+                'page_size': page_size,
+                '_raw_index': table_block.get('index', None),
+                '_global_index': global_index,
+                '_table_title': True,  # Mark as extracted table title
+                '_table_order_priority': -1  # Ensure title appears before table in same position
+            }
+            print(f"📋 Created separate title block: '{table_title}' (index {global_index})")
+        
+        # Convert HTML table to markdown WITHOUT embedded title
+        markdown_content = self._convert_html_table_to_markdown(html_content, extract_title=False)
+        
+        # Create table block with updated index
+        table_index = global_index + (1 if title_block else 0)
+        processed_table_block = {
+            'index': table_index,
+            'bbox': table_block.get('bbox', [0, 0, 0, 0]),
+            'type': 'table',
+            'content': markdown_content,
+            'html_content': html_content,
+            'image_path': image_path,
+            'page_num': page_num,
+            'page_size': page_size,
+            '_raw_index': table_block.get('index', None),
+            '_global_index': table_index,
+            '_table_order_priority': 0  # Normal table priority
+        }
+        
+        print(f"🔄 Processed table block (index {table_index})")
+        
+        return title_block, processed_table_block
+    
+    def _extract_table_title_from_html_if_present(self, table_block: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract table title from table block's HTML content if present
+        
+        Args:
+            table_block: Raw table block data containing HTML
+            
+        Returns:
+            Table title string or None if not found
+        """
+        # Extract HTML content from table block
+        html_content = None
+        if 'blocks' in table_block:
+            for sub_block in table_block['blocks']:
+                if sub_block.get('type') == 'table_body':
+                    if 'lines' in sub_block:
+                        for line in sub_block['lines']:
+                            if 'spans' in line:
+                                for span in line['spans']:
+                                    if span.get('type') == 'table' and 'html' in span:
+                                        html_content = span['html']
+                                        break
+        
+        if not html_content:
+            return None
+        
+        return self._extract_table_title_from_html(html_content)
+    
+    def _extract_table_title_from_html(self, html_content: str) -> Optional[str]:
+        """
+        Extract table title from HTML content
+        
+        Args:
+            html_content: HTML table content
+            
+        Returns:
+            Table title string or None if not found
+        """
+        import re
+        
+        # Extract table title from HTML (first colspan header)
+        title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
+        title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
+        
+        if title_match:
+            table_title = self._clean_table_cell_content(title_match.group(1))
+            if table_title.strip():
+                return table_title.strip()
+        
+        return None
+    
+    def _extract_text_content(self, block: Dict[str, Any]) -> str:
+        """
+        Extract text content from lines/spans structure
+        """
+        content_parts = []
+        if 'lines' in block and block['lines']:
+            for line in block['lines']:
+                if 'spans' in line and line['spans']:
+                    for span in line['spans']:
+                        if 'content' in span and span['content'].strip():
+                            content_parts.append(span['content'].strip())
+        return ' '.join(content_parts)
+    
+    def _extract_image_path_from_spans(self, block: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract image_path from spans structure
+        """
+        if 'lines' in block and block['lines']:
+            for line in block['lines']:
+                if 'spans' in line and line['spans']:
+                    for span in line['spans']:
+                        if span.get('type') == 'image' and 'image_path' in span:
+                            return span['image_path']
+        return None
+    
+    def _convert_html_table_to_markdown(self, html_content: str, extract_title: bool = False) -> str:
+        """
+        Convert HTML table to Markdown format with enhanced robustness
+        
+        Args:
+            html_content: HTML table content to convert
+            extract_title: Whether to extract and embed table title (default True for backward compatibility)
+        """
+        import re
+        from html import unescape
+        
+        # Clean up the HTML content
+        html_content = unescape(html_content)
+        print(f"🔄 Converting table HTML to Markdown: {html_content[:200]}...")
+        
+        markdown_lines = []
+        
+        # Extract table title from HTML (first colspan header) only if requested
+        title_extracted = False
+        if extract_title:
+            title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
+            title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
+            if title_match:
+                table_title = self._clean_table_cell_content(title_match.group(1))
+                if table_title.strip():
+                    # Add table title as a separate heading
+                    markdown_lines.append(f"### {table_title}")
+                    markdown_lines.append("")  # Empty line after title
+                    title_extracted = True
+                    print(f"📋 Extracted table title: {table_title}")
+        
+        # More flexible header detection - try multiple patterns
+        header_patterns = [
+            r'<tr[^>]*>\s*<th(?![^>]*colspan)[^>]*>(.*?)</th>.*?</tr>',  # Standard th header
+            r'<tr[^>]*>\s*<td[^>]*(?:class="[^"]*header[^"]*"|style="[^"]*font-weight[^"]*bold[^"]*")[^>]*>(.*?)</td>.*?</tr>',  # Styled header
+        ]
+        
+        headers_found = False
+        for header_pattern in header_patterns:
+            header_match = re.search(header_pattern, html_content, re.DOTALL | re.IGNORECASE)
+            if header_match:
+                header_row = header_match.group(0)
+                
+                # Skip if this is the title row (contains colspan)
+                if 'colspan' in header_row:
+                    continue
+                    
+                # Extract all header cells from the matched row
+                header_cells = re.findall(r'<th(?![^>]*colspan)[^>]*>(.*?)</th>', header_row, re.DOTALL)
+                if not header_cells:
+                    # Try td cells as headers
+                    header_cells = re.findall(r'<td[^>]*>(.*?)</td>', header_row, re.DOTALL)
+                
+                if header_cells:
+                    # Clean header cells
+                    clean_headers = []
+                    for cell in header_cells:
+                        clean_cell = self._clean_table_cell_content(cell)
+                        clean_headers.append(clean_cell if clean_cell else ' ')
+                    
+                    # Create markdown header
+                    markdown_lines.append('| ' + ' | '.join(clean_headers) + ' |')
+                    markdown_lines.append('| ' + ' | '.join(['---'] * len(clean_headers)) + ' |')
+                    headers_found = True
+                    print(f"✅ Found table headers: {clean_headers}")
+                    break
+        
+        # Extract table body rows - try with and without tbody
+        body_content = html_content
+        tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_content, re.DOTALL)
+        if tbody_match:
+            body_content = tbody_match.group(1)
+            print(f"📋 Found tbody section")
+        else:
+            # If no tbody, process all rows but skip title and header rows
+            remaining_content = html_content
+            
+            # Skip title row if extracted
+            if title_extracted:
+                title_row_match = re.search(r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>.*?</tr>', remaining_content, re.DOTALL)
+                if title_row_match:
+                    title_row_end = title_row_match.end()
+                    remaining_content = remaining_content[title_row_end:]
+                    print(f"📋 Skipped title row in body processing")
+            
+            # Skip header row if found
+            if headers_found:
+                # Find first non-colspan header row
+                for pattern in header_patterns:
+                    header_match = re.search(pattern, remaining_content, re.DOTALL | re.IGNORECASE)
+                    if header_match and 'colspan' not in header_match.group(0):
+                        header_row_end = header_match.end()
+                        remaining_content = remaining_content[header_row_end:]
+                        print(f"📋 Skipped header row in body processing")
+                        break
+            
+            body_content = remaining_content
+            print(f"📋 No tbody found, processing remaining rows after title/header")
+        
+        # Extract all rows from body content
+        row_pattern = r'<tr[^>]*>(.*?)</tr>'
+        rows = re.findall(row_pattern, body_content, re.DOTALL)
+        
+        print(f"📊 Found {len(rows)} table body rows")
+        
+        for row_idx, row in enumerate(rows):
+            # Extract cells from each row - handle both td and th
+            cell_patterns = [
+                r'<td[^>]*>(.*?)</td>',  # Standard data cells
+                r'<th[^>]*>(.*?)</th>',  # Header cells (might be in body)
+            ]
+            
+            cells = []
+            for pattern in cell_patterns:
+                found_cells = re.findall(pattern, row, re.DOTALL)
+                cells.extend(found_cells)
+            
+            if cells:
+                # Clean cell content
+                clean_cells = []
+                for cell in cells:
+                    clean_cell = self._clean_table_cell_content(cell)
+                    clean_cells.append(clean_cell if clean_cell else ' ')
+                
+                # Create markdown row
+                markdown_row = '| ' + ' | '.join(clean_cells) + ' |'
+                markdown_lines.append(markdown_row)
+                
+                if row_idx == 0 and not headers_found:
+                    # If no headers were found, treat first row as headers
+                    separator = '| ' + ' | '.join(['---'] * len(clean_cells)) + ' |'
+                    markdown_lines.append(separator)
+                    headers_found = True
+                    print(f"✅ Using first row as headers: {clean_cells}")
+            else:
+                print(f"⚠️ No cells found in row {row_idx}: {row[:100]}...")
+        
+        result = '\n'.join(markdown_lines)
+        print(f"📝 Generated markdown table ({len(markdown_lines)} lines): {result[:200]}...")
+        
+        if not result.strip():
+            print(f"❌ Table conversion failed, returning fallback")
+            return "| Content | \n| --- |\n| Table conversion failed |" 
+        
+        return result
+    
+    def _clean_table_cell_content(self, cell_content: str) -> str:
+        """
+        Clean individual table cell content while preserving formatting
+        """
+        # Remove HTML tags but preserve some formatting
+        clean_cell = re.sub(r'<i[^>]*>(.*?)</i>', r'*\1*', cell_content)  # Italic
+        clean_cell = re.sub(r'<em[^>]*>(.*?)</em>', r'*\1*', clean_cell)  # Emphasis
+        clean_cell = re.sub(r'<b[^>]*>(.*?)</b>', r'**\1**', clean_cell)  # Bold
+        clean_cell = re.sub(r'<strong[^>]*>(.*?)</strong>', r'**\1**', clean_cell)  # Strong
+        clean_cell = re.sub(r'<sup[^>]*>(.*?)</sup>', r'^\1^', clean_cell)  # Superscript
+        clean_cell = re.sub(r'<sub[^>]*>(.*?)</sub>', r'~\1~', clean_cell)  # Subscript
+        clean_cell = re.sub(r'<[^>]+>', '', clean_cell)  # Remove remaining tags
+        clean_cell = clean_cell.replace('\n', ' ').replace('\r', ' ')  # Clean line breaks
+        clean_cell = re.sub(r'\s+', ' ', clean_cell)  # Normalize whitespace
+        clean_cell = clean_cell.strip()
+        
+        return clean_cell
+    
+    def _find_matching_image_file(self, image_path: str, global_index: int) -> str:
+        """
+        Find the actual image file that matches the given image_path
+        
+        Args:
+            image_path: The image path from middle.json (usually just filename)
+            global_index: Global index for fallback identification
+            
+        Returns:
+            Corrected image path with proper directory structure
+        """
+        # Store task_id for this processing context
+        task_id = getattr(self, '_current_task_id', None)
+        if not task_id:
+            # If no task_id context, just return as-is with absolute path
+            return f"/static/{task_id or 'unknown'}/images/{image_path}"
+        
+        task_dir = self.static_dir / task_id
+        
+        # Try common image directories
+        potential_dirs = ['images', 'img', 'assets', '']
+        
+        for dir_name in potential_dirs:
+            if dir_name:
+                search_dir = task_dir / dir_name
+            else:
+                search_dir = task_dir
+            
+            if not search_dir.exists():
+                continue
+                
+            # Try exact filename match first
+            exact_file = search_dir / image_path
+            if exact_file.exists():
+                if dir_name:
+                    return f"/static/{task_id}/{dir_name}/{image_path}"
+                else:
+                    return f"/static/{task_id}/{image_path}"
+            
+            # Try files that end with the given filename (handle prefix mismatch)
+            for existing_file in search_dir.glob("*"):
+                if existing_file.is_file() and existing_file.name.endswith(image_path):
+                    if dir_name:
+                        return f"/static/{task_id}/{dir_name}/{existing_file.name}"
+                    else:
+                        return f"/static/{task_id}/{existing_file.name}"
+        
+        # Fallback: return the path as-is with images directory and absolute path
+        print(f"⚠️ Could not find matching image file for: {image_path}")
+        return f"/static/{task_id}/images/{image_path}"

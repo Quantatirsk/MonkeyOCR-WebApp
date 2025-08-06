@@ -5,11 +5,15 @@
 
 import React, { useMemo, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
-import rehypeSanitize from 'rehype-sanitize';
+import rehypeKatex from 'rehype-katex';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
-import { BlockMarkdownGenerator } from '../../utils/blockMarkdownGenerator';
+import { getStaticFileUrl } from '../../config';
 import './block-styles.css';
 
 export interface BlockMarkdownViewerProps {
@@ -25,7 +29,7 @@ export interface BlockMarkdownViewerProps {
   syncEnabled?: boolean;
   /** Callback for block click */
   onBlockClick?: (blockIndex: number) => void;
-  /** Callback for block hover */
+  /** Callback for block hover - deprecated, kept for compatibility */
   onBlockHover?: (blockIndex: number | null) => void;
   /** Font size multiplier */
   fontSize?: number;
@@ -36,8 +40,107 @@ export interface BlockMarkdownViewerProps {
 interface BlockMapping {
   blockIndex: number;
   paragraphIndex: number;
-  blockType: 'text' | 'title' | 'image';
+  blockType: 'text' | 'title' | 'image' | 'table';
 }
+
+// 处理表格单元格内的完整内容（数学公式 + 格式标记）
+function processTableCellContent(text: string): React.ReactNode {
+  if (!text || typeof text !== 'string') return text;
+  
+  // 首先处理数学公式，然后处理其他格式标记
+  return processWithMathAndFormatting(text);
+}
+
+// 综合处理数学公式和格式标记
+function processWithMathAndFormatting(text: string): React.ReactNode {
+  if (!text || typeof text !== 'string') return text;
+  
+  // 先处理数学公式，再处理格式标记
+  const mathAndFormatRegex = /(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
+  const parts = text.split(mathAndFormatRegex);
+  
+  if (parts.length === 1) {
+    return text; // 没有特殊标记
+  }
+  
+  return parts.map((part, index) => {
+    if (!part) return null;
+    
+    // 块级数学公式 $$...$$
+    if (part.match(/^\$\$[^$]+\$\$$/)) {
+      const mathContent = part.slice(2, -2);
+      try {
+        const html = katex.renderToString(mathContent, {
+          throwOnError: false,
+          displayMode: true,
+          output: 'html',
+          strict: false,
+        });
+        return (
+          <div 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ 
+              background: 'transparent', 
+              textAlign: 'center', 
+              margin: '0.5em 0' 
+            }} 
+          />
+        );
+      } catch (error) {
+        console.error('KaTeX render error:', error);
+        return <span key={index}>{part}</span>;
+      }
+    }
+    // 内联数学公式 $...$
+    else if (part.match(/^\$[^$]+\$$/)) {
+      const mathContent = part.slice(1, -1);
+      try {
+        const html = katex.renderToString(mathContent, {
+          throwOnError: false,
+          displayMode: false,
+          output: 'html',
+          strict: false,
+        });
+        return (
+          <span 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ background: 'transparent' }} 
+          />
+        );
+      } catch (error) {
+        console.error('KaTeX render error:', error);
+        return <span key={index}>{part}</span>;
+      }
+    }
+    // 粗体 **text**
+    else if (part.match(/^\*\*[^*]+\*\*$/)) {
+      const content = part.slice(2, -2);
+      return <strong key={index}>{content}</strong>;
+    }
+    // 斜体 *text*
+    else if (part.match(/^\*[^*]+\*$/) && !part.match(/^\*\*.*\*\*$/)) {
+      const content = part.slice(1, -1);
+      return <em key={index}>{content}</em>;
+    }
+    // 上标 ^text^
+    else if (part.match(/^\^[^^]+\^$/)) {
+      const content = part.slice(1, -1);
+      return <sup key={index}>{content}</sup>;
+    }
+    // 下标 ~text~
+    else if (part.match(/^~[^~]+~$/)) {
+      const content = part.slice(1, -1);
+      return <sub key={index}>{content}</sub>;
+    }
+    // 普通文本
+    else {
+      return part ? <span key={index}>{part}</span> : null;
+    }
+  }).filter(Boolean);
+}
+
 
 export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   content,
@@ -46,39 +149,24 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   highlightedBlocks = [],
   syncEnabled = false,
   onBlockClick,
-  onBlockHover,
+  onBlockHover, // Kept for compatibility but not used - hover is handled by CSS
   fontSize = 100,
   className = ''
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [hoveredBlock, setHoveredBlock] = React.useState<number | null>(null);
+  // Removed hoveredBlock state - using pure CSS :hover instead for performance
 
-  // Create block-to-paragraph mapping - now 1:1 since content is generated from blocks
+  // Create block-to-paragraph mapping
   const blockMappings = useMemo<BlockMapping[]>(() => {
     if (!syncEnabled || blockData.length === 0) return [];
 
     // Check if this content was generated by BlockMarkdownGenerator
-    // If so, use direct 1:1 mapping, otherwise fall back to content matching
-    const isGeneratedContent = content.includes('---') || content.length < 50000; // Heuristic
+    // If so, blocks have explicit data-block-index attributes and don't need mapping
+    const isGeneratedContent = content.includes('block-container') || content.includes('---');
     
     if (isGeneratedContent) {
-      // Use direct mapping from BlockMarkdownGenerator
-      const directMapping = BlockMarkdownGenerator.createBlockMapping(blockData);
-      const mappings: BlockMapping[] = [];
-      
-      directMapping.forEach((paragraphIndex, blockIndex) => {
-        const block = BlockProcessor.findBlockByIndex(blockData, blockIndex);
-        if (block) {
-          mappings.push({
-            blockIndex,
-            paragraphIndex,
-            blockType: block.type
-          });
-        }
-      });
-      
-      console.log('🎯 Using direct block mapping:', mappings.length, 'mappings');
-      return mappings.sort((a, b) => a.paragraphIndex - b.paragraphIndex);
+      // Blocks are self-identifying through data-block-index attributes
+      return []; // No mapping needed
     } else {
       // Fall back to content matching for original markdown
       const blockToMarkdownMap = ContentMatcher.matchBlocksToMarkdown(blockData, content);
@@ -95,7 +183,6 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
         }
       });
       
-      console.log('🔍 Using content matching:', mappings.length, 'mappings');
       return mappings.sort((a, b) => a.paragraphIndex - b.paragraphIndex);
     }
   }, [blockData, content, syncEnabled]);
@@ -107,55 +194,72 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
 
   // Map rendered elements to block indices after render
   const markElementsWithBlockData = React.useCallback(() => {
-    if (!syncEnabled || !containerRef.current || blockMappings.length === 0) return;
+    if (!syncEnabled || !containerRef.current) return;
 
     const container = containerRef.current;
-    const paragraphs = container.querySelectorAll('.markdown-paragraph, .markdown-heading');
     
-    // Clear existing data attributes
-    paragraphs.forEach(el => {
-      el.removeAttribute('data-block-index');
-      el.removeAttribute('data-block-type');
-    });
-
-    // Map paragraphs to blocks based on their order
-    let renderedParagraphIndex = 0;
-    let skippedSeparators = 0;
+    // Check if we have block containers (generated content)
+    const blockContainers = container.querySelectorAll('.block-container[data-block-index]');
     
-    paragraphs.forEach((paragraph) => {
-      // Skip if this is a page separator or empty
-      const textContent = paragraph.textContent?.trim();
-      if (!textContent || textContent === '---') {
-        skippedSeparators++;
-        console.log(`⏭️  Skipping page separator ${skippedSeparators} (not counted in mapping)`);
-        return;
-      }
+    if (blockContainers.length > 0) {
+      // Use block containers directly - they already have data-block-index
+      blockContainers.forEach((blockContainer) => {
+        const blockIndex = parseInt(blockContainer.getAttribute('data-block-index') || '-1', 10);
+        
+        if (blockIndex >= 0) {
+          // Add CSS classes for styling (excluding hover which is handled separately)
+          const isSelected = selectedBlock.blockIndex === blockIndex && selectedBlock.isActive;
+          const isHighlighted = highlightedBlocks.includes(blockIndex);
 
-      const mapping = blockMappings.find(m => m.paragraphIndex === renderedParagraphIndex);
-      if (mapping) {
-        paragraph.setAttribute('data-block-index', mapping.blockIndex.toString());
-        paragraph.setAttribute('data-block-type', mapping.blockType);
-        
-        console.log(`✅ Mapped paragraph ${renderedParagraphIndex} → block ${mapping.blockIndex} (${mapping.blockType})`);
-        
-        // Add CSS classes for styling
-        const isSelected = selectedBlock.blockIndex === mapping.blockIndex && selectedBlock.isActive;
-        const isHighlighted = highlightedBlocks.includes(mapping.blockIndex);
-        const isHovered = hoveredBlock === mapping.blockIndex;
-
-        paragraph.classList.remove('block-selected', 'block-highlighted', 'block-hovered');
-        paragraph.classList.add('block-paragraph', `block-type-${mapping.blockType}`);
-        
-        if (isSelected) paragraph.classList.add('block-selected');
-        if (isHighlighted) paragraph.classList.add('block-highlighted');  
-        if (isHovered) paragraph.classList.add('block-hovered');
-      } else {
-        console.warn(`❌ No mapping found for paragraph ${renderedParagraphIndex}`);
-      }
+          blockContainer.classList.remove('block-selected', 'block-highlighted');
+          
+          if (isSelected) blockContainer.classList.add('block-selected');
+          if (isHighlighted) blockContainer.classList.add('block-highlighted');
+        }
+      });
+    } else if (blockMappings.length > 0) {
+      // Fallback to paragraph mapping for original content
+      const paragraphs = container.querySelectorAll('.markdown-paragraph, .markdown-heading, .markdown-table, .simulated-list-item');
       
-      renderedParagraphIndex++;
-    });
-  }, [syncEnabled, blockMappings, selectedBlock, highlightedBlocks, hoveredBlock]);
+      // Clear existing data attributes
+      paragraphs.forEach(el => {
+        el.removeAttribute('data-block-index');
+        el.removeAttribute('data-block-type');
+      });
+
+      // Map paragraphs to blocks based on their order
+      let renderedParagraphIndex = 0;
+      let skippedSeparators = 0;
+      
+      paragraphs.forEach((paragraph) => {
+        
+        // Skip if this is a page separator or empty
+        const textContent = paragraph.textContent?.trim();
+        if (!textContent || textContent === '---') {
+          skippedSeparators++;
+          return;
+        }
+
+        const mapping = blockMappings.find(m => m.paragraphIndex === renderedParagraphIndex);
+        if (mapping) {
+          paragraph.setAttribute('data-block-index', mapping.blockIndex.toString());
+          paragraph.setAttribute('data-block-type', mapping.blockType);
+          
+          // Add CSS classes for styling (excluding hover which is handled separately)
+          const isSelected = selectedBlock.blockIndex === mapping.blockIndex && selectedBlock.isActive;
+          const isHighlighted = highlightedBlocks.includes(mapping.blockIndex);
+
+          paragraph.classList.remove('block-selected', 'block-highlighted');
+          paragraph.classList.add('block-paragraph', `block-type-${mapping.blockType}`);
+          
+          if (isSelected) paragraph.classList.add('block-selected');
+          if (isHighlighted) paragraph.classList.add('block-highlighted');
+        }
+        
+        renderedParagraphIndex++;
+      });
+    }
+  }, [syncEnabled, blockMappings, selectedBlock, highlightedBlocks]);
 
   // Handle block interactions
   const handleBlockClick = React.useCallback((event: MouseEvent) => {
@@ -170,34 +274,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     }
   }, [onBlockClick]);
 
-  const handleBlockHover = React.useCallback((event: MouseEvent) => {
-    const target = event.target as HTMLElement;
-    const blockElement = target.closest('[data-block-index]');
-    
-    if (blockElement) {
-      const blockIndex = parseInt(blockElement.getAttribute('data-block-index') || '-1', 10);
-      if (blockIndex >= 0 && blockIndex !== hoveredBlock) {
-        setHoveredBlock(blockIndex);
-        if (onBlockHover) {
-          onBlockHover(blockIndex);
-        }
-      }
-    } else if (hoveredBlock !== null) {
-      setHoveredBlock(null);
-      if (onBlockHover) {
-        onBlockHover(null);
-      }
-    }
-  }, [hoveredBlock, onBlockHover]);
-
-  const handleMouseLeave = React.useCallback(() => {
-    if (hoveredBlock !== null) {
-      setHoveredBlock(null);
-      if (onBlockHover) {
-        onBlockHover(null);
-      }
-    }
-  }, [hoveredBlock, onBlockHover]);
+  // Removed hover event handlers - using CSS :hover for better performance
 
   // Attach event listeners
   useEffect(() => {
@@ -205,20 +282,18 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     if (!container || !syncEnabled) return;
 
     container.addEventListener('click', handleBlockClick);
-    container.addEventListener('mouseover', handleBlockHover);
-    container.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
       container.removeEventListener('click', handleBlockClick);
-      container.removeEventListener('mouseover', handleBlockHover);
-      container.removeEventListener('mouseleave', handleMouseLeave);
     };
-  }, [handleBlockClick, handleBlockHover, handleMouseLeave, syncEnabled]);
+  }, [handleBlockClick, syncEnabled]);
 
   // Effect to mark elements after render
   useEffect(() => {
     markElementsWithBlockData();
   }, [markElementsWithBlockData]);
+  
+  // Removed hover effect - using CSS :hover for better performance
 
   // Scroll to selected block
   useEffect(() => {
@@ -227,7 +302,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     const container = containerRef.current;
     if (!container) return;
 
-    const targetElement = container.querySelector(`[data-block-index="${selectedBlock.blockIndex}"]`);
+    // First try to find a block container, then fallback to any element with data-block-index
+    let targetElement = container.querySelector(`.block-container[data-block-index="${selectedBlock.blockIndex}"]`);
+    if (!targetElement) {
+      targetElement = container.querySelector(`[data-block-index="${selectedBlock.blockIndex}"]`);
+    }
+    
     if (targetElement) {
       targetElement.scrollIntoView({
         behavior: 'smooth',
@@ -238,12 +318,43 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
 
   // Markdown components with custom renderers
   const components = useMemo(() => ({
+    // Custom div renderer for block containers
+    div: ({ children, className, ...props }: any) => {
+      // Check if this is a block container
+      if (className === 'block-container') {
+        // Preserve the data attributes
+        return (
+          <div {...props} className="block-container">
+            {children}
+          </div>
+        );
+      }
+      // Default div rendering
+      return <div className={className} {...props}>{children}</div>;
+    },
+    
     // Custom paragraph renderer
-    p: ({ children, ...props }: any) => (
-      <p {...props} className="markdown-paragraph">
-        {children}
-      </p>
-    ),
+    p: ({ children, ...props }: any) => {
+      // Check if children contains an image (which would have a div.markdown-image-container)
+      // If so, render as div instead of p to avoid nesting issues
+      const hasImage = React.Children.toArray(children).some((child: any) => 
+        child?.props?.className === 'markdown-image-container'
+      );
+      
+      if (hasImage) {
+        return (
+          <div {...props} className="markdown-paragraph">
+            {children}
+          </div>
+        );
+      }
+      
+      return (
+        <p {...props} className="markdown-paragraph">
+          {children}
+        </p>
+      );
+    },
     
     // Custom heading renderers
     h1: ({ children, ...props }: any) => (
@@ -276,20 +387,27 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
         {children}
       </h6>
     ),
+    
+    
 
     // Custom image renderer
-    img: ({ src, alt, ...props }: any) => (
-      <div className="markdown-image-container">
-        <img 
-          {...props} 
-          src={src} 
-          alt={alt}
-          className="markdown-image"
-          loading="lazy"
-        />
-        {alt && <figcaption className="markdown-image-caption">{alt}</figcaption>}
-      </div>
-    ),
+    img: ({ src, alt, ...props }: any) => {
+      // Convert relative static paths to full URLs
+      const imageSrc = src?.startsWith('/static/') ? getStaticFileUrl(src.slice(8)) : src;
+      
+      return (
+        <div className="markdown-image-container">
+          <img 
+            {...props} 
+            src={imageSrc} 
+            alt={alt}
+            className="markdown-image"
+            loading="lazy"
+          />
+          {alt && <figcaption className="markdown-image-caption">{alt}</figcaption>}
+        </div>
+      );
+    },
 
     // Custom code block renderer
     pre: ({ children, ...props }: any) => (
@@ -312,22 +430,6 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
       </blockquote>
     ),
 
-    // Custom list renderers
-    ul: ({ children, ...props }: any) => (
-      <ul {...props} className="markdown-list markdown-unordered-list">
-        {children}
-      </ul>
-    ),
-    ol: ({ children, ...props }: any) => (
-      <ol {...props} className="markdown-list markdown-ordered-list">
-        {children}
-      </ol>
-    ),
-    li: ({ children, ...props }: any) => (
-      <li {...props} className="markdown-list-item">
-        {children}
-      </li>
-    ),
 
     // Custom table renderers
     table: ({ children, ...props }: any) => (
@@ -352,16 +454,50 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
         {children}
       </tr>
     ),
-    th: ({ children, ...props }: any) => (
-      <th {...props} className="markdown-table-header-cell">
-        {children}
-      </th>
-    ),
-    td: ({ children, ...props }: any) => (
-      <td {...props} className="markdown-table-cell">
-        {children}
-      </td>
-    )
+    th: ({ children, ...props }: any) => {
+      const processChildren = (children: any): any => {
+        if (typeof children === 'string') {
+          return processTableCellContent(children);
+        }
+        if (Array.isArray(children)) {
+          return children.map((child, index) => {
+            if (typeof child === 'string') {
+              return <span key={index}>{processTableCellContent(child)}</span>;
+            }
+            return child;
+          });
+        }
+        return children;
+      };
+      
+      return (
+        <th {...props} className="markdown-table-header-cell">
+          {processChildren(children)}
+        </th>
+      );
+    },
+    td: ({ children, ...props }: any) => {
+      const processChildren = (children: any): any => {
+        if (typeof children === 'string') {
+          return processTableCellContent(children);
+        }
+        if (Array.isArray(children)) {
+          return children.map((child, index) => {
+            if (typeof child === 'string') {
+              return <span key={index}>{processTableCellContent(child)}</span>;
+            }
+            return child;
+          });
+        }
+        return children;
+      };
+      
+      return (
+        <td {...props} className="markdown-table-cell">
+          {processChildren(children)}
+        </td>
+      );
+    }
   }), []);
 
   return (
@@ -383,7 +519,31 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
       {/* Markdown content */}
       <ReactMarkdown
         components={components}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        remarkPlugins={[
+          remarkGfm,
+          [remarkMath, {
+            singleDollarTextMath: true,
+            inlineMathDouble: false,
+          }]
+        ]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeKatex, {
+            strict: false,
+            throwOnError: false,
+            errorColor: '#cc0000',
+            output: 'html',
+            displayMode: false,
+            macros: {
+              "\\RR": "\\mathbb{R}",
+              "\\NN": "\\mathbb{N}",
+              "\\ZZ": "\\mathbb{Z}",
+              "\\QQ": "\\mathbb{Q}",
+              "\\CC": "\\mathbb{C}",
+            },
+            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+          }]
+        ]}
         className="markdown-content"
       >
         {processedContent}
