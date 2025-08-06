@@ -109,7 +109,7 @@ export const OfflineIndicator: React.FC = () => {
           toast({
             description: "连接已恢复，数据已同步",
           });
-        } catch (syncError) {
+        } catch {
           toast({
             variant: "destructive",
             description: "连接已恢复，但数据同步失败",
@@ -121,7 +121,7 @@ export const OfflineIndicator: React.FC = () => {
           description: "服务器仍然不可用",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         description: "重试失败，请检查网络连接",

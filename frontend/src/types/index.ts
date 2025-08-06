@@ -194,6 +194,8 @@ export interface ProcessingBlock {
   lines: BlockLine[];
   index: number;
   content?: string; // Extracted content for matching
+  page_num?: number; // Page number for coordinate conversion
+  page_size?: [number, number]; // Page dimensions [width, height]
 }
 
 export interface PageInfo {

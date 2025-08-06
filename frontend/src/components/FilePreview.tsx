@@ -18,8 +18,10 @@ import {
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
-import { ProcessingTask } from '../types';
+import { ProcessingTask, ProcessingBlock, BlockSyncState } from '../types';
 import { syncManager } from '../utils/syncManager';
+import PDFBlockOverlay from './pdf/PDFBlockOverlay';
+import { PageDimensions } from '../utils/pdfCoordinates';
 
 // Set up PDF.js worker for Vite
 // Use local worker file copied by vite-plugin-static-copy
@@ -33,6 +35,12 @@ interface FilePreviewProps {
   selectedPage?: number | null; // 外部选中页面状态
   onPageSelect?: (pageNumber: number) => void; // 外部页面选择控制
   externalPageRotations?: { [pageNumber: number]: number }; // 外部页面旋转状态
+  // 区块叠加相关props
+  blocks?: ProcessingBlock[]; // 处理块数据
+  blockSyncState?: BlockSyncState; // 区块同步状态
+  onBlockClick?: (blockIndex: number) => void; // 区块点击回调
+  onBlockHover?: (blockIndex: number | null) => void; // 区块悬停回调
+  enableBlockOverlay?: boolean; // 是否启用区块叠加
 }
 
 const FilePreviewComponent: React.FC<FilePreviewProps> = ({ 
@@ -42,7 +50,13 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   onRotate,
   selectedPage: externalSelectedPage,
   onPageSelect,
-  externalPageRotations
+  externalPageRotations,
+  // 区块叠加相关props
+  blocks = [],
+  blockSyncState,
+  onBlockClick,
+  onBlockHover,
+  enableBlockOverlay = false
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({});
@@ -61,6 +75,10 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   const [previewInfo, setPreviewInfo] = useState<any>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  
+  // PDF区块叠加相关状态
+  const [pageDimensions, setPageDimensions] = useState<Map<number, PageDimensions>>(new Map());
+  const [pdfScale, setPdfScale] = useState<number>(1);
   
   // 从服务器获取文件预览URL和信息
   React.useEffect(() => {
@@ -201,12 +219,64 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   const onDocumentLoadSuccess = React.useCallback((pdf: any) => {
     setNumPages(pdf.numPages);
     setError(null);
-  }, []);
+    
+    // 获取页面尺寸信息用于区块叠加
+    if (enableBlockOverlay && pdf.numPages > 0) {
+      const newPageDimensions = new Map<number, PageDimensions>();
+      
+      // 异步获取所有页面的尺寸
+      Promise.all(
+        Array.from({ length: pdf.numPages }, (_, i) => 
+          pdf.getPage(i + 1).then((page: any) => {
+            const viewport = page.getViewport({ scale: 1.0 });
+            return {
+              pageNumber: i + 1,
+              dimensions: {
+                width: viewport.width,
+                height: viewport.height
+              }
+            };
+          })
+        )
+      ).then(pageInfos => {
+        pageInfos.forEach(({ pageNumber, dimensions }) => {
+          newPageDimensions.set(pageNumber, dimensions);
+        });
+        setPageDimensions(newPageDimensions);
+      }).catch(console.error);
+    }
+  }, [enableBlockOverlay]);
 
   const onDocumentLoadError = React.useCallback((error: Error) => {
     console.error('PDF load error:', error);
     setError('无法加载PDF文件');
   }, []);
+
+  // PDF页面加载成功回调，用于获取页面缩放比例
+  const onPageLoadSuccess = React.useCallback((page: any, pageNumber: number) => {
+    if (enableBlockOverlay) {
+      // 延迟获取元素，确保DOM已经渲染
+      setTimeout(() => {
+        const pageElement = document.querySelector(`[data-page-number="${pageNumber}"]`);
+        if (pageElement) {
+          const canvas = pageElement.querySelector('canvas');
+          if (canvas) {
+            const viewport = page.getViewport({ scale: 1.0 });
+            // 使用显示尺寸计算缩放比例，而不是内部分辨率
+            const rect = canvas.getBoundingClientRect();
+            const displayScale = rect.width / viewport.width;
+            setPdfScale(displayScale);
+            console.log('PDF Scale calculated:', {
+              pageNumber,
+              viewportSize: [viewport.width, viewport.height],
+              canvasDisplaySize: [rect.width, rect.height],
+              calculatedScale: displayScale
+            });
+          }
+        }
+      }, 100); // 给DOM渲染时间
+    }
+  }, [enableBlockOverlay]);
 
   // Loading state
   if (isLoadingFile) {
@@ -396,6 +466,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                       isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
                     }`}
                     onClick={() => setSelectedPage(pageNum)}
+                    data-page-number={pageNum}
                   >
                     {/* 页码标签 */}
                     <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded text-xs z-10 flex items-center gap-1">
@@ -414,7 +485,22 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                       className="shadow-lg transition-all duration-300"
                       renderTextLayer={false}
                       renderAnnotationLayer={false}
+                      onLoadSuccess={(page) => onPageLoadSuccess(page, pageNum)}
                     />
+                    
+                    {/* PDF区块叠加层 */}
+                    {enableBlockOverlay && blocks && blocks.length > 0 && blockSyncState && pageDimensions.has(pageNum) && (
+                      <PDFBlockOverlay
+                        blocks={blocks}
+                        pageNumber={pageNum}
+                        pageDimensions={pageDimensions.get(pageNum)!}
+                        scale={pdfScale}
+                        blockSyncState={blockSyncState}
+                        onBlockClick={onBlockClick}
+                        onBlockHover={onBlockHover}
+                        className="z-20"
+                      />
+                    )}
                   </div>
                 );
               })}

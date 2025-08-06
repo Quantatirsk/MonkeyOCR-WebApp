@@ -51,7 +51,7 @@ function rehypeTableMath() {
                       },
                       children: []
                     });
-                  } catch (error) {
+                  } catch {
                     // Fallback to original text if rendering fails
                     newChildren.push({
                       type: 'text',
@@ -104,7 +104,7 @@ function rehypeTableMath() {
                       },
                       children: []
                     });
-                  } catch (error) {
+                  } catch {
                     // Fallback to original text if rendering fails
                     newChildren.push({
                       type: 'text',
@@ -331,7 +331,7 @@ function useCopyCodeBlock(containerRef: React.RefObject<HTMLDivElement>) {
             const successful = document.execCommand('copy');
             document.body.removeChild(textArea);
             return successful;
-          } catch (err) {
+          } catch {
             document.body.removeChild(textArea);
             return false;
           }
@@ -492,7 +492,7 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
     if (!content) return '';
 
     // 只替换图片路径，LaTeX处理交给remarkMath和rehypeKatex
-    let processed = content.replace(
+    const processed = content.replace(
       /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
       (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );

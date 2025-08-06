@@ -33,7 +33,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
 
     // Split content into paragraphs/sections
     const sections = content.split(/\n\n+/);
-    let processedSections: string[] = [];
+    const processedSections: string[] = [];
 
     // Track used blocks to avoid duplicates
     const usedBlockIndexes = new Set<number>();

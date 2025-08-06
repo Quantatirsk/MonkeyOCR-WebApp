@@ -92,8 +92,7 @@ const SyncMarkdownContentPanel = React.memo(({
   blocks,
   blockSyncState,
   onBlockClick,
-  onBlockHover,
-  searchQuery
+  onBlockHover
 }: { 
   processedMarkdown: string; 
   markdownZoom: number;
@@ -101,7 +100,6 @@ const SyncMarkdownContentPanel = React.memo(({
   blockSyncState: any;
   onBlockClick: (blockIndex: number) => void;
   onBlockHover: (blockIndex: number | null) => void;
-  searchQuery: string;
 }) => {
   console.log('🔄 SyncMarkdownContentPanel render', { 
     markdownLength: processedMarkdown.length, 
@@ -121,14 +119,12 @@ const SyncMarkdownContentPanel = React.memo(({
               blockSyncState={blockSyncState}
               onBlockClick={onBlockClick}
               onBlockHover={onBlockHover}
-              searchQuery={searchQuery}
             />
           ) : (
             <ModernMarkdownViewer 
               content={processedMarkdown}
               className="w-full min-w-0"
               fontSize={markdownZoom}
-              searchQuery={searchQuery}
             />
           )}
         </div>
@@ -140,17 +136,15 @@ const SyncMarkdownContentPanel = React.memo(({
   const zoomSame = prevProps.markdownZoom === nextProps.markdownZoom;
   const blocksSame = prevProps.blocks.length === nextProps.blocks.length &&
     prevProps.blocks.every((block, i) => block.index === nextProps.blocks[i]?.index);
-  const searchSame = prevProps.searchQuery === nextProps.searchQuery;
   const syncStateSame = prevProps.blockSyncState?.selectedBlockId === nextProps.blockSyncState?.selectedBlockId;
   
-  const shouldNotRerender = contentSame && zoomSame && blocksSame && searchSame && syncStateSame;
+  const shouldNotRerender = contentSame && zoomSame && blocksSame && syncStateSame;
   
   if (!shouldNotRerender) {
     console.log('📝 SyncMarkdownContentPanel will re-render:', { 
       contentSame, 
       zoomSame,
       blocksSame,
-      searchSame,
       syncStateSame
     });
   }
@@ -164,19 +158,33 @@ const PDFPreviewPanel = React.memo(({
   selectedPage,
   onPageSelect,
   onRotate,
-  externalPageRotations
+  externalPageRotations,
+  // 区块叠加相关props
+  blocks,
+  blockSyncState,
+  onBlockClick,
+  onBlockHover,
+  enableBlockOverlay
 }: {
   task: any;
   selectedPage: number | null;
   onPageSelect: (page: number) => void;
   onRotate: (page: number) => void;
   externalPageRotations: { [pageNumber: number]: number };
+  // 区块叠加相关props
+  blocks?: ProcessingBlock[];
+  blockSyncState?: any;
+  onBlockClick?: (blockIndex: number) => void;
+  onBlockHover?: (blockIndex: number | null) => void;
+  enableBlockOverlay?: boolean;
 }) => {
   // 调试：监控重渲染
   console.log('📄 PDFPreviewPanel render', { 
     taskId: task.id, 
     selectedPage, 
-    rotationsCount: Object.keys(externalPageRotations).length 
+    rotationsCount: Object.keys(externalPageRotations).length,
+    blocksCount: blocks?.length || 0,
+    blockOverlayEnabled: enableBlockOverlay
   });
   
   return (
@@ -190,6 +198,12 @@ const PDFPreviewPanel = React.memo(({
         onPageSelect={onPageSelect}
         onRotate={onRotate}
         externalPageRotations={externalPageRotations}
+        // 传递区块叠加相关props
+        blocks={blocks}
+        blockSyncState={blockSyncState}
+        onBlockClick={onBlockClick}
+        onBlockHover={onBlockHover}
+        enableBlockOverlay={enableBlockOverlay}
       />
     </div>
   );
@@ -203,7 +217,15 @@ const PDFPreviewPanel = React.memo(({
   const callbacksSame = prevProps.onPageSelect === nextProps.onPageSelect && 
                         prevProps.onRotate === nextProps.onRotate;
   
-  const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && callbacksSame;
+  // 比较区块叠加相关props
+  const blocksSame = prevProps.blocks === nextProps.blocks;
+  const blockSyncStateSame = prevProps.blockSyncState === nextProps.blockSyncState;
+  const blockCallbacksSame = prevProps.onBlockClick === nextProps.onBlockClick && 
+                            prevProps.onBlockHover === nextProps.onBlockHover;
+  const blockOverlaySame = prevProps.enableBlockOverlay === nextProps.enableBlockOverlay;
+  
+  const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && callbacksSame && 
+                           blocksSame && blockSyncStateSame && blockCallbacksSame && blockOverlaySame;
   
   if (!shouldNotRerender) {
     console.log('📄 PDFPreviewPanel will re-render:', { 
@@ -270,6 +292,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const [blockSyncEnabled, setBlockSyncEnabled] = useState(true);
   const [interactionManager] = useState(() => createBlockInteractionManager());
   
+  // Calculate current result and task directly - must be before using them
+  const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
+  const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
+  
   // Extract blocks from middle data
   const blocks = useMemo(() => {
     if (!currentResult?.middle_data || !validateMiddleData(currentResult.middle_data)) {
@@ -288,16 +314,20 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     }
   });
   
-  const scrollSync = useScrollSync({
+  // Scroll synchronization hook - currently passive but available for future use
+  const _scrollSync = useScrollSync({
     enabled: blockSyncEnabled && blockSync.blockSyncState.scrollSyncEnabled,
     blockSyncState: blockSync.blockSyncState,
     blocks,
-    onBlockInView: (blockIndex) => {
+    onBlockInView: () => {
       // Optionally highlight the block that's currently in view
       // blockSync.highlightBlock(blockIndex, true);
     },
     throttleMs: 150
   });
+  
+  // Prevent unused variable warning
+  void _scrollSync;
   
   // PDF操作处理函数 - 使用useCallback稳定化
   const handlePdfRotate = React.useCallback((pageNumber: number) => {
@@ -343,9 +373,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     blockSync.toggleScrollSync();
   }, [blockSync]);
   
-  // Calculate current result and task directly
-  const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
-  const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
   
   // Debug logging (双重渲染是React.StrictMode的正常开发行为)
   React.useEffect(() => {
@@ -682,6 +709,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             onPageSelect={handlePdfPageSelect}
                             onRotate={handlePdfRotate}
                             externalPageRotations={pdfPageRotations}
+                            // 区块叠加相关props
+                            blocks={blocks}
+                            blockSyncState={blockSync.blockSyncState}
+                            onBlockClick={handleBlockClick}
+                            onBlockHover={handleBlockHover}
+                            enableBlockOverlay={blockSyncEnabled}
                           />
                         </div>
                       </ResizablePanel>
@@ -771,7 +804,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             blockSyncState={blockSync.blockSyncState}
                             onBlockClick={handleBlockClick}
                             onBlockHover={handleBlockHover}
-                            searchQuery={activeSearchQuery}
                           />
                         </div>
                       </ResizablePanel>

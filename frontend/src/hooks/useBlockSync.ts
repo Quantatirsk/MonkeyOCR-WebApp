@@ -46,7 +46,7 @@ export const useBlockSync = ({
   markdownContent,
   onBlockChange,
   onSyncStateChange,
-  enableScrollSync = true,
+  enableScrollSync: _enableScrollSync = true,
   debounceMs = 100
 }: UseBlockSyncOptions): UseBlockSyncReturn => {
   

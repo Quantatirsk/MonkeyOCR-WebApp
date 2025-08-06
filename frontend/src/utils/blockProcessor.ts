@@ -16,13 +16,23 @@ export function extractBlocksFromMiddleData(middleData: MiddleData): ProcessingB
 
   const allBlocks: ProcessingBlock[] = [];
 
-  middleData.pdf_info.forEach((pageInfo: PageInfo) => {
-    if (pageInfo.preproc_blocks) {
+  middleData.pdf_info.forEach((pageInfo: PageInfo, pageIndex: number) => {
+    if (pageInfo && pageInfo.preproc_blocks && Array.isArray(pageInfo.preproc_blocks)) {
+      const pageNumber = pageInfo.page_num || (pageIndex + 1); // 使用实际页码或从索引推断
+      
       pageInfo.preproc_blocks.forEach((block: ProcessingBlock) => {
-        // Enhance block with extracted content for matching
+        // Skip invalid blocks
+        if (!block || !block.lines || !Array.isArray(block.lines)) {
+          return;
+        }
+        
+        // Enhance block with extracted content and page information
         const processedBlock: ProcessingBlock = {
           ...block,
-          content: extractContentFromBlock(block)
+          content: extractContentFromBlock(block),
+          // 重要：添加页面信息用于坐标转换
+          page_num: pageNumber,
+          page_size: pageInfo.page_size
         };
         
         allBlocks.push(processedBlock);
@@ -31,34 +41,58 @@ export function extractBlocksFromMiddleData(middleData: MiddleData): ProcessingB
   });
 
   // Sort blocks by their natural reading order
-  return allBlocks.sort((a, b) => {
-    // First by vertical position (assuming top-to-bottom reading)
-    const aTopY = Math.min(...a.lines.map(line => line.bbox[1]));
-    const bTopY = Math.min(...b.lines.map(line => line.bbox[1]));
-    
-    if (Math.abs(aTopY - bTopY) > 10) { // 10px tolerance for same-line elements
-      return aTopY - bTopY;
-    }
-    
-    // Then by horizontal position (left-to-right)
-    const aLeftX = Math.min(...a.lines.map(line => line.bbox[0]));
-    const bLeftX = Math.min(...b.lines.map(line => line.bbox[0]));
-    
-    return aLeftX - bLeftX;
-  });
+  return allBlocks
+    .filter(block => block && block.lines && block.lines.length > 0)
+    .sort((a, b) => {
+      // 首先按页面编号排序
+      const aPageNum = a.page_num || 1;
+      const bPageNum = b.page_num || 1;
+      
+      if (aPageNum !== bPageNum) {
+        return aPageNum - bPageNum;
+      }
+      
+      // 同一页面内，按垂直位置排序 (从上到下)
+      const aLines = a.lines.filter(line => line && line.bbox && line.bbox.length >= 2);
+      const bLines = b.lines.filter(line => line && line.bbox && line.bbox.length >= 2);
+      
+      if (aLines.length === 0 || bLines.length === 0) {
+        return 0; // Keep original order if no valid lines
+      }
+      
+      // 使用区块的bbox而不是行的bbox来获得更准确的位置
+      const aTopY = a.bbox ? a.bbox[1] : Math.min(...aLines.map(line => line.bbox[1]));
+      const bTopY = b.bbox ? b.bbox[1] : Math.min(...bLines.map(line => line.bbox[1]));
+      
+      if (Math.abs(aTopY - bTopY) > 10) { // 10px tolerance for same-line elements
+        return aTopY - bTopY;
+      }
+      
+      // 然后按水平位置排序 (从左到右)
+      const aLeftX = a.bbox ? a.bbox[0] : Math.min(...aLines.map(line => line.bbox[0]));
+      const bLeftX = b.bbox ? b.bbox[0] : Math.min(...bLines.map(line => line.bbox[0]));
+      
+      return aLeftX - bLeftX;
+    })
+    .map((block, index) => ({
+      ...block,
+      index // 重新分配索引以确保连续性
+    }));
 }
 
 /**
  * Extract readable content from a block's lines and spans
  */
 export function extractContentFromBlock(block: ProcessingBlock): string {
-  if (!block.lines || block.lines.length === 0) {
+  if (!block || !block.lines || block.lines.length === 0) {
     return '';
   }
 
   const content = block.lines
+    .filter(line => line && line.spans && Array.isArray(line.spans))
     .map(line => 
       line.spans
+        .filter(span => span && span.content)
         .map(span => span.content || '')
         .join(' ')
     )
@@ -267,7 +301,14 @@ export function validateMiddleData(data: any): data is MiddleData {
       Array.isArray(block.bbox) &&
       block.bbox.length === 4 &&
       Array.isArray(block.lines) &&
-      typeof block.index === 'number'
+      typeof block.index === 'number' &&
+      // Validate lines structure
+      block.lines.every((line: any) => 
+        line &&
+        Array.isArray(line.spans) &&
+        Array.isArray(line.bbox) &&
+        line.bbox.length === 4
+      )
     )
   );
 }

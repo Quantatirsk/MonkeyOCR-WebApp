@@ -255,7 +255,7 @@ function preprocessBlock(block: ProcessingBlock): string {
 function preprocessSection(section: string): string {
   // Remove markdown formatting
   const cleanSection = section
-    .replace(/[#*_`\[\]]/g, '') // Remove markdown markers
+    .replace(/[#*_`[\]]/g, '') // Remove markdown markers
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // Remove image references
     .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
     .replace(/```[\s\S]*?```/g, '') // Remove code blocks

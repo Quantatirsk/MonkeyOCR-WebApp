@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "created_at": "2025-08-06T14:39:31.411445",
+  "tasks": {
+    "c7b6fc31-1a6c-4b8a-9a77-103285623164": {
+      "id": "c7b6fc31-1a6c-4b8a-9a77-103285623164",
+      "filename": "demo.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-06T14:39:31.410704",
+      "completed_at": "2025-08-06T14:39:36.181245",
+      "error_message": null,
+      "result_url": "/api/download/c7b6fc31-1a6c-4b8a-9a77-103285623164",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 1,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-06T14:39:36.181259"
+    }
+  }
+}
