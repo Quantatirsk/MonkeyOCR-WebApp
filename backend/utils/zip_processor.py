@@ -7,8 +7,9 @@ import os
 import zipfile
 import shutil
 import re
+import json
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import aiofiles
 from models import ImageResource, DocumentResult, DocumentMetadata
 
@@ -62,6 +63,9 @@ class ZipProcessor:
             async with aiofiles.open(main_md_file, 'w', encoding='utf-8') as f:
                 await f.write(processed_markdown)
             
+            # Process middle.json for block synchronization
+            middle_data = await self._extract_middle_data(task_dir)
+            
             # Generate metadata
             metadata = self._generate_metadata(
                 zip_path, 
@@ -75,7 +79,8 @@ class ZipProcessor:
                 markdown_content=processed_markdown,
                 images=images,
                 download_url=f"/api/download/{task_id}",
-                metadata=metadata
+                metadata=metadata,
+                middle_data=middle_data
             )
             
             return result
@@ -142,6 +147,57 @@ class ZipProcessor:
                 ))
         
         return images
+    
+    async def _extract_middle_data(self, task_dir: Path) -> Optional[Dict[str, Any]]:
+        """
+        Extract and parse middle.json data for block synchronization
+        
+        Args:
+            task_dir: Directory containing extracted files
+            
+        Returns:
+            Parsed middle.json data or None if not found
+        """
+        
+        try:
+            # Look for middle.json files
+            middle_json_files = list(task_dir.rglob("*middle.json"))
+            
+            if not middle_json_files:
+                print(f"No middle.json file found in {task_dir}")
+                return None
+            
+            # Use the first middle.json file found
+            middle_json_file = middle_json_files[0]
+            print(f"Found middle.json: {middle_json_file}")
+            
+            # Read and parse the JSON data
+            async with aiofiles.open(middle_json_file, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                middle_data = json.loads(content)
+                
+            # Validate basic structure
+            if not isinstance(middle_data, dict):
+                print("Invalid middle.json structure: not a dictionary")
+                return None
+                
+            if 'pdf_info' not in middle_data:
+                print("Invalid middle.json structure: missing pdf_info")
+                return None
+                
+            if not isinstance(middle_data['pdf_info'], list):
+                print("Invalid middle.json structure: pdf_info is not a list")
+                return None
+            
+            print(f"Successfully parsed middle.json with {len(middle_data['pdf_info'])} pages")
+            return middle_data
+            
+        except json.JSONDecodeError as e:
+            print(f"Failed to parse middle.json: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"Error extracting middle.json data: {str(e)}")
+            return None
     
     def _fix_image_paths(self, markdown_content: str, task_id: str) -> str:
         """

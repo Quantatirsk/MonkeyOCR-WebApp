@@ -174,6 +174,56 @@ export type ProcessingStatus = ProcessingTask['status'];
 export type ExtractionType = DocumentMetadata['extraction_type'];
 export type FileType = ProcessingTask['file_type'];
 
+// Block data interfaces for PDF-Markdown sync functionality
+export interface BlockSpan {
+  bbox: [number, number, number, number]; // [x1, y1, x2, y2]
+  score: number;
+  content: string;
+  type: string;
+}
+
+export interface BlockLine {
+  bbox: [number, number, number, number];
+  spans: BlockSpan[];
+  index: number;
+}
+
+export interface ProcessingBlock {
+  type: 'text' | 'title' | 'image';
+  bbox: [number, number, number, number];
+  lines: BlockLine[];
+  index: number;
+  content?: string; // Extracted content for matching
+}
+
+export interface PageInfo {
+  preproc_blocks: ProcessingBlock[];
+  page_num: number;
+  page_size?: [number, number];
+}
+
+export interface MiddleData {
+  pdf_info: PageInfo[];
+}
+
+// Extended DocumentResult to include block data
+export interface DocumentResult {
+  task_id: string;
+  markdown_content: string;
+  images: ImageResource[];
+  download_url: string;
+  metadata: DocumentMetadata;
+  middle_data?: MiddleData; // Block synchronization data
+}
+
+// Block synchronization state
+export interface BlockSyncState {
+  selectedBlockId: string | null;
+  highlightedBlocks: Set<string>;
+  scrollSyncEnabled: boolean;
+  blockMappings: Map<string, string>; // JSON block index -> Markdown section mapping
+}
+
 // API endpoint types
 export interface TaskStatusResponse extends APIResponse<ProcessingTask> {}
 export interface TaskResultResponse extends APIResponse<DocumentResult> {}

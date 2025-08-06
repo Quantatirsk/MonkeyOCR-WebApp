@@ -70,6 +70,7 @@ class DocumentResult(BaseModel):
     images: List[ImageResource]
     download_url: str
     metadata: DocumentMetadata
+    middle_data: Optional[Dict[str, Any]] = Field(None, description="Block synchronization data from middle.json")
 
 
 class APIResponse(BaseModel, Generic[T]):

@@ -3,8 +3,9 @@
  * Displays OCR results with markdown rendering, image gallery, and search functionality
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
+import { BlockMarkdownViewer } from './markdown/BlockMarkdownViewer';
 import { FilePreview } from './FilePreview';
 import './markdown/markdown-styles.css';
 import { 
@@ -34,9 +35,13 @@ import {
   ResizableHandle,
 } from "./ui/resizable";
 import { useAppStore, useUIActions } from '../store/appStore';
-import { ImageResource } from '../types';
+import { ImageResource, ProcessingBlock } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
+import { useBlockSync } from '../hooks/useBlockSync';
+import { useScrollSync } from '../hooks/useScrollSync';
+import { createBlockInteractionManager } from '../utils/blockInteraction';
+import { extractBlocksFromMiddleData, validateMiddleData } from '../utils/blockProcessor';
 
 // 独立的Markdown内容组件，防止PDF状态变化导致重渲染
 const MarkdownContentPanel = React.memo(({ 
@@ -74,6 +79,79 @@ const MarkdownContentPanel = React.memo(({
       zoomSame,
       prevZoom: prevProps.markdownZoom,
       nextZoom: nextProps.markdownZoom
+    });
+  }
+  
+  return shouldNotRerender;
+});
+
+// Enhanced Markdown panel with block synchronization support
+const SyncMarkdownContentPanel = React.memo(({ 
+  processedMarkdown,
+  markdownZoom,
+  blocks,
+  blockSyncState,
+  onBlockClick,
+  onBlockHover,
+  searchQuery
+}: { 
+  processedMarkdown: string; 
+  markdownZoom: number;
+  blocks: ProcessingBlock[];
+  blockSyncState: any;
+  onBlockClick: (blockIndex: number) => void;
+  onBlockHover: (blockIndex: number | null) => void;
+  searchQuery: string;
+}) => {
+  console.log('🔄 SyncMarkdownContentPanel render', { 
+    markdownLength: processedMarkdown.length, 
+    markdownZoom,
+    blocksCount: blocks.length,
+    blockSyncEnabled: !!blockSyncState
+  });
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      <ScrollArea className="h-full w-full">
+        <div className="p-3 pr-4 min-w-0 w-full">
+          {blocks.length > 0 && blockSyncState ? (
+            <BlockMarkdownViewer
+              content={processedMarkdown}
+              blocks={blocks}
+              blockSyncState={blockSyncState}
+              onBlockClick={onBlockClick}
+              onBlockHover={onBlockHover}
+              searchQuery={searchQuery}
+            />
+          ) : (
+            <ModernMarkdownViewer 
+              content={processedMarkdown}
+              className="w-full min-w-0"
+              fontSize={markdownZoom}
+              searchQuery={searchQuery}
+            />
+          )}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  const contentSame = prevProps.processedMarkdown === nextProps.processedMarkdown;
+  const zoomSame = prevProps.markdownZoom === nextProps.markdownZoom;
+  const blocksSame = prevProps.blocks.length === nextProps.blocks.length &&
+    prevProps.blocks.every((block, i) => block.index === nextProps.blocks[i]?.index);
+  const searchSame = prevProps.searchQuery === nextProps.searchQuery;
+  const syncStateSame = prevProps.blockSyncState?.selectedBlockId === nextProps.blockSyncState?.selectedBlockId;
+  
+  const shouldNotRerender = contentSame && zoomSame && blocksSame && searchSame && syncStateSame;
+  
+  if (!shouldNotRerender) {
+    console.log('📝 SyncMarkdownContentPanel will re-render:', { 
+      contentSame, 
+      zoomSame,
+      blocksSame,
+      searchSame,
+      syncStateSame
     });
   }
   
@@ -188,6 +266,39 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const [pdfSelectedPage, setPdfSelectedPage] = useState<number | null>(null);
   const [pdfPageRotations, setPdfPageRotations] = useState<{ [pageNumber: number]: number }>({});
   
+  // Block synchronization state
+  const [blockSyncEnabled, setBlockSyncEnabled] = useState(true);
+  const [interactionManager] = useState(() => createBlockInteractionManager());
+  
+  // Extract blocks from middle data
+  const blocks = useMemo(() => {
+    if (!currentResult?.middle_data || !validateMiddleData(currentResult.middle_data)) {
+      return [];
+    }
+    return extractBlocksFromMiddleData(currentResult.middle_data);
+  }, [currentResult?.middle_data]);
+  
+  // Block synchronization hooks
+  const blockSync = useBlockSync({
+    blocks,
+    markdownContent: currentResult?.markdown_content || '',
+    enableScrollSync: blockSyncEnabled,
+    onBlockChange: (blockId) => {
+      console.log('Block changed:', blockId);
+    }
+  });
+  
+  const scrollSync = useScrollSync({
+    enabled: blockSyncEnabled && blockSync.blockSyncState.scrollSyncEnabled,
+    blockSyncState: blockSync.blockSyncState,
+    blocks,
+    onBlockInView: (blockIndex) => {
+      // Optionally highlight the block that's currently in view
+      // blockSync.highlightBlock(blockIndex, true);
+    },
+    throttleMs: 150
+  });
+  
   // PDF操作处理函数 - 使用useCallback稳定化
   const handlePdfRotate = React.useCallback((pageNumber: number) => {
     setPdfPageRotations(prev => ({
@@ -199,6 +310,38 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const handlePdfPageSelect = React.useCallback((pageNumber: number) => {
     setPdfSelectedPage(pageNumber);
   }, []);
+  
+  // Block interaction handlers
+  const handleBlockClick = useCallback(async (blockIndex: number) => {
+    if (!interactionManager) return;
+    
+    await interactionManager.handleBlockClick(
+      blockIndex,
+      'markdown',
+      (targetBlockIndex, targetSource) => {
+        if (targetSource === 'pdf') {
+          blockSync.selectBlock(targetBlockIndex);
+        }
+      },
+      blockSync.blockSyncState
+    );
+  }, [interactionManager, blockSync]);
+  
+  const handleBlockHover = useCallback((blockIndex: number | null) => {
+    if (!interactionManager) return;
+    
+    interactionManager.handleBlockHover(
+      blockIndex,
+      'markdown',
+      blockSync.blockSyncState
+    );
+  }, [interactionManager, blockSync]);
+  
+  // Toggle block synchronization
+  const toggleBlockSync = useCallback(() => {
+    setBlockSyncEnabled(prev => !prev);
+    blockSync.toggleScrollSync();
+  }, [blockSync]);
   
   // Calculate current result and task directly
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
@@ -244,6 +387,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     
     loadTaskResult();
   }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
+  
+  // Cleanup interaction manager on unmount
+  useEffect(() => {
+    return () => {
+      interactionManager?.cleanup();
+    };
+  }, [interactionManager]);
 
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
@@ -558,6 +708,17 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2 min-w-0">
                                 {/* 操作按钮组 */}
                                 <div className="flex items-center space-x-1 flex-shrink-0">
+                                  {/* Block sync toggle button */}
+                                  <Button 
+                                    variant={blockSyncEnabled ? "default" : "outline"}
+                                    size="sm" 
+                                    onClick={toggleBlockSync}
+                                    className="h-7 w-7 p-0"
+                                    title={blockSyncEnabled ? "关闭区块同步" : "开启区块同步"}
+                                  >
+                                    <ArrowLeftRight className="w-3 h-3" />
+                                  </Button>
+                                  
                                   <Button 
                                     variant="outline" 
                                     size="sm" 
@@ -603,9 +764,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               </div>
                             </div>
                           </div>
-                          <MarkdownContentPanel 
+                          <SyncMarkdownContentPanel 
                             processedMarkdown={processedMarkdown}
                             markdownZoom={markdownZoom}
+                            blocks={blocks}
+                            blockSyncState={blockSync.blockSyncState}
+                            onBlockClick={handleBlockClick}
+                            onBlockHover={handleBlockHover}
+                            searchQuery={activeSearchQuery}
                           />
                         </div>
                       </ResizablePanel>
