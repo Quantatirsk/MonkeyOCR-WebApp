@@ -1,0 +1,401 @@
+/* Translation Components CSS Styles */
+
+/* Translation Toolbar Styles */
+.translation-toolbar {
+  background: linear-gradient(135deg, #f6f8ff 0%, #e8f0fe 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+}
+
+.translation-toolbar:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.translation-toolbar .language-selector {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.translation-toolbar .language-selector:hover {
+  border-color: #3b82f6;
+}
+
+.translation-toolbar .language-selector:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Translation Status Badge */
+.translation-status-badge {
+  animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.02);
+  }
+}
+
+/* Translated Content Styles */
+.translated-content {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.translated-content:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.translated-content::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.translated-content-header {
+  background: linear-gradient(135deg, #f8faff 0%, #e8f0fe 100%);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 12px 16px;
+}
+
+.translated-content-body {
+  padding: 16px;
+}
+
+/* Original Text Block */
+.original-text-block {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #6b7280;
+  position: relative;
+}
+
+.original-text-block::before {
+  content: 'Original';
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Translated Text Block */
+.translated-text-block {
+  background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1e40af;
+  position: relative;
+}
+
+.translated-text-block::before {
+  content: 'Translation';
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Language Indicator Styles */
+.language-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  font-size: 12px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.language-indicator .flag {
+  font-size: 14px;
+}
+
+/* Translation Progress Styles */
+.translation-progress {
+  background: linear-gradient(135deg, #fef3cd 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  animation: translation-pulse 1.5s infinite;
+}
+
+@keyframes translation-pulse {
+  0%, 100% {
+    background: linear-gradient(135deg, #fef3cd 0%, #fde68a 100%);
+  }
+  50% {
+    background: linear-gradient(135deg, #fde68a 0%, #fbbf24 100%);
+  }
+}
+
+.translation-progress .spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Action Button Styles */
+.translation-action-btn {
+  transition: all 0.2s ease;
+  border-radius: 6px;
+}
+
+.translation-action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.translation-action-btn:active {
+  transform: translateY(0);
+}
+
+.translate-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.translate-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+}
+
+.retranslate-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  color: white;
+}
+
+.retranslate-btn:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+}
+
+.remove-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  border: none;
+  color: white;
+}
+
+.remove-btn:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+}
+
+/* Quick Language Selector Styles */
+.quick-language-selector {
+  background: #fafbfc;
+  border: 1px solid #e1e5e9;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.quick-language-btn {
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: white;
+}
+
+.quick-language-btn:hover {
+  border-color: #3b82f6;
+  background: #f8faff;
+  transform: translateY(-1px);
+}
+
+.quick-language-btn.active {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.language-swap-btn {
+  color: #6b7280;
+  font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  border-radius: 16px;
+  transition: all 0.2s ease;
+}
+
+.language-swap-btn:hover {
+  color: #3b82f6;
+  border-color: #3b82f6;
+  background: #f8faff;
+}
+
+/* Model Selection Styles */
+.model-selector {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+}
+
+.model-option {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .translation-toolbar {
+    padding: 12px;
+  }
+  
+  .translation-toolbar .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .translated-content-header {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .translated-content-body {
+    padding: 12px;
+  }
+  
+  .original-text-block,
+  .translated-text-block {
+    padding: 10px;
+    font-size: 13px;
+  }
+  
+  .language-indicator {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+  
+  .quick-language-selector .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Accessibility Improvements */
+.translation-component:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.screen-reader-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Print Styles */
+@media print {
+  .translation-toolbar,
+  .translation-action-btn {
+    display: none;
+  }
+  
+  .translated-content {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+  
+  .original-text-block,
+  .translated-text-block {
+    background: white;
+    border: 1px solid #ccc;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .translation-toolbar {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-color: #374151;
+  }
+  
+  .translated-content {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+  
+  .translated-content-header {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    border-color: #4b5563;
+  }
+  
+  .original-text-block {
+    background: #374151;
+    border-color: #4b5563;
+    color: #d1d5db;
+  }
+  
+  .translated-text-block {
+    background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    border-color: #3b82f6;
+    color: #dbeafe;
+  }
+  
+  .language-indicator {
+    background: #374151;
+    color: #d1d5db;
+  }
+}

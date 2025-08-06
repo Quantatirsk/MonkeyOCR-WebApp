@@ -1,8 +1,9 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState, useCallback } from 'react';
 import MarkdownPreview from '@uiw/react-markdown-preview';
 import '@uiw/react-markdown-preview/markdown.css';
 import 'katex/dist/katex.min.css';
 import './markdown-styles.css';
+import '../translation/translation-styles.css';
 import { getStaticFileUrl } from '../../config';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
@@ -10,11 +11,15 @@ import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import { visit } from 'unist-util-visit';
 import katex from 'katex';
+import { TranslationBlock } from '../translation/TranslatedContent';
+import { useTranslationActions, useTranslationState } from '../../store/appStore';
 
 interface ModernMarkdownViewerProps {
   content: string;
   className?: string;
   fontSize?: number; // 字号百分比
+  enableTranslation?: boolean; // Enable translation features
+  taskId?: string; // Task ID for translation context
 }
 
 // Rehype plugin to handle table math expressions
@@ -296,6 +301,90 @@ function useForceTextWrap(containerRef: React.RefObject<HTMLDivElement>) {
   }, [containerRef]);
 }
 
+// Translation helper functions
+function extractTranslatableBlocks(content: string): Array<{
+  id: string;
+  text: string;
+  type: 'paragraph' | 'heading' | 'list' | 'blockquote';
+  startIndex: number;
+  endIndex: number;
+}> {
+  const blocks: Array<{
+    id: string;
+    text: string;
+    type: 'paragraph' | 'heading' | 'list' | 'blockquote';
+    startIndex: number;
+    endIndex: number;
+  }> = [];
+
+  // Split content into blocks (paragraphs, headings, lists, etc.)
+  const lines = content.split('\n');
+  let currentBlock = '';
+  let blockType: 'paragraph' | 'heading' | 'list' | 'blockquote' = 'paragraph';
+  let blockStartIndex = 0;
+  let lineIndex = 0;
+
+  const processCurrentBlock = () => {
+    const trimmedBlock = currentBlock.trim();
+    if (trimmedBlock && 
+        !trimmedBlock.startsWith('![') && // Skip images
+        !trimmedBlock.startsWith('```') && // Skip code blocks
+        !trimmedBlock.includes('$$') && // Skip math blocks
+        trimmedBlock.length > 10 // Only translate substantial content
+    ) {
+      const blockId = `block-${blocks.length}-${Date.now()}`;
+      blocks.push({
+        id: blockId,
+        text: trimmedBlock,
+        type: blockType,
+        startIndex: blockStartIndex,
+        endIndex: lineIndex
+      });
+    }
+  };
+
+  for (lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex].trim();
+    
+    if (!line) {
+      // Empty line - end current block
+      if (currentBlock.trim()) {
+        processCurrentBlock();
+        currentBlock = '';
+        blockStartIndex = lineIndex + 1;
+      }
+      continue;
+    }
+    
+    // Determine block type
+    let newBlockType: 'paragraph' | 'heading' | 'list' | 'blockquote' = 'paragraph';
+    if (line.startsWith('#')) newBlockType = 'heading';
+    else if (line.startsWith('- ') || line.startsWith('* ') || line.match(/^\d+\./)) newBlockType = 'list';
+    else if (line.startsWith('>')) newBlockType = 'blockquote';
+    
+    // If block type changed, process current block first
+    if (currentBlock && newBlockType !== blockType) {
+      processCurrentBlock();
+      currentBlock = '';
+      blockStartIndex = lineIndex;
+    }
+    
+    blockType = newBlockType;
+    currentBlock += (currentBlock ? '\n' : '') + lines[lineIndex];
+  }
+  
+  // Process final block
+  if (currentBlock.trim()) {
+    processCurrentBlock();
+  }
+  
+  return blocks;
+}
+
+function generateBlockId(taskId: string, blockIndex: number): string {
+  return `${taskId}-block-${blockIndex}`;
+}
+
 // 简化的复制功能 hook
 function useCopyCodeBlock(containerRef: React.RefObject<HTMLDivElement>) {
   const handleClick = (event: MouseEvent) => {
@@ -367,14 +456,75 @@ function useCopyCodeBlock(containerRef: React.RefObject<HTMLDivElement>) {
   }, [containerRef]);
 }
 
-export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }: ModernMarkdownViewerProps) {
+export function ModernMarkdownViewer({ 
+  content, 
+  className = '', 
+  fontSize = 100, 
+  enableTranslation = false,
+  taskId = 'default'
+}: ModernMarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [translatableBlocks, setTranslatableBlocks] = useState<Array<{
+    id: string;
+    text: string;
+    type: 'paragraph' | 'heading' | 'list' | 'blockquote';
+    startIndex: number;
+    endIndex: number;
+  }>>([]);
+  
+  // Translation hooks
+  const { translateBlock } = useTranslationActions();
+  const { 
+    translations, 
+    currentTranslationTask, 
+    translationSettings,
+    isTranslating 
+  } = useTranslationState();
   
   // 启用强制文本换行
   useForceTextWrap(containerRef);
   
   // 启用代码块复制功能
   useCopyCodeBlock(containerRef);
+  
+  // Extract translatable blocks when content changes
+  const blocks = useMemo(() => {
+    if (!enableTranslation || !content) return [];
+    return extractTranslatableBlocks(content);
+  }, [content, enableTranslation]);
+  
+  // Update translatable blocks state
+  React.useEffect(() => {
+    setTranslatableBlocks(blocks);
+  }, [blocks]);
+  
+  // Translation handlers
+  const handleTranslateBlock = useCallback(async (blockIndex: number) => {
+    const block = translatableBlocks[blockIndex];
+    if (!block) return;
+    
+    const blockId = generateBlockId(taskId, blockIndex);
+    try {
+      await translateBlock(blockId, block.text);
+    } catch (error) {
+      console.error('Failed to translate block:', error);
+    }
+  }, [translatableBlocks, taskId, translateBlock]);
+  
+  const handleRetranslateBlock = useCallback(async (blockIndex: number) => {
+    const block = translatableBlocks[blockIndex];
+    if (!block) return;
+    
+    const blockId = generateBlockId(taskId, blockIndex);
+    try {
+      await translateBlock(blockId, block.text);
+    } catch (error) {
+      console.error('Failed to retranslate block:', error);
+    }
+  }, [translatableBlocks, taskId, translateBlock]);
+  
+  // Translation actions outside of render
+  const { removeTranslation } = useTranslationActions();
   
   // 动态注入最强CSS规则 - 一次性注入
   React.useEffect(() => {
@@ -504,6 +654,198 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
 
     return processed;
   }, [content]);
+  
+  // Split content into paragraphs for translation
+  const contentParts = useMemo(() => {
+    if (!enableTranslation || !content) {
+      return [{ type: 'markdown' as const, content: processedContent }];
+    }
+    
+    const parts: Array<{ type: 'markdown' | 'translation', content: string, blockIndex?: number }> = [];
+    const lines = content.split('\n');
+    let currentContent = '';
+    let lineIndex = 0;
+    
+    for (const block of translatableBlocks) {
+      // Add content before this block
+      while (lineIndex < block.startIndex && lineIndex < lines.length) {
+        currentContent += (currentContent ? '\n' : '') + lines[lineIndex];
+        lineIndex++;
+      }
+      
+      if (currentContent.trim()) {
+        parts.push({ 
+          type: 'markdown', 
+          content: currentContent.replace(
+            /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
+            (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
+          ) 
+        });
+        currentContent = '';
+      }
+      
+      // Add the translatable block content
+      let blockContent = '';
+      for (let i = block.startIndex; i <= block.endIndex && i < lines.length; i++) {
+        blockContent += (blockContent ? '\n' : '') + lines[i];
+        lineIndex = Math.max(lineIndex, i + 1);
+      }
+      
+      if (blockContent.trim()) {
+        parts.push({ 
+          type: 'markdown', 
+          content: blockContent.replace(
+            /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
+            (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
+          ) 
+        });
+        parts.push({ 
+          type: 'translation', 
+          content: block.text, 
+          blockIndex: translatableBlocks.indexOf(block) 
+        });
+      }
+    }
+    
+    // Add remaining content
+    while (lineIndex < lines.length) {
+      currentContent += (currentContent ? '\n' : '') + lines[lineIndex];
+      lineIndex++;
+    }
+    
+    if (currentContent.trim()) {
+      parts.push({ 
+        type: 'markdown', 
+        content: currentContent.replace(
+          /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
+          (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
+        ) 
+      });
+    }
+    
+    return parts;
+  }, [content, processedContent, translatableBlocks, enableTranslation]);
+
+  // Create common markdown props
+  const markdownProps = {
+    style: {
+      backgroundColor: 'transparent',
+      color: 'inherit',
+      fontFamily: 'inherit',
+      fontSize: `${fontSize}%`,
+    },
+    wrapperElement: {
+      'data-color-mode': 'light'
+    },
+    rehypePlugins: [
+      rehypeRaw, // 处理HTML表格中的原始HTML
+      rehypeTableMath, // 处理表格内的数学公式
+      [rehypeKatex, {
+        strict: false,
+        throwOnError: false,
+        errorColor: '#cc0000',
+        output: 'html',
+        displayMode: false,
+        macros: {
+          "\\RR": "\\mathbb{R}",
+          "\\NN": "\\mathbb{N}",
+          "\\ZZ": "\\mathbb{Z}",
+          "\\QQ": "\\mathbb{Q}",
+          "\\CC": "\\mathbb{C}",
+        },
+        trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+      }]
+    ],
+    remarkPlugins: [
+      remarkGfm,
+      [remarkMath, {
+        singleDollarTextMath: true,
+        inlineMathDouble: false,
+      }]
+    ],
+    components: {
+      // 自定义表格单元格渲染器，处理数学公式
+      td: ({ children, ...props }: any) => {
+        const processChildren = (children: any): any => {
+          if (typeof children === 'string') {
+            return processTableCellMath(children);
+          }
+          if (Array.isArray(children)) {
+            return children.map((child, index) => {
+              if (typeof child === 'string') {
+                return <span key={index}>{processTableCellMath(child)}</span>;
+              }
+              return child;
+            });
+          }
+          return children;
+        };
+        
+        return <td {...props}>{processChildren(children)}</td>;
+      },
+      
+      th: ({ children, ...props }: any) => {
+        const processChildren = (children: any): any => {
+          if (typeof children === 'string') {
+            return processTableCellMath(children);
+          }
+          if (Array.isArray(children)) {
+            return children.map((child, index) => {
+              if (typeof child === 'string') {
+                return <span key={index}>{processTableCellMath(child)}</span>;
+              }
+              return child;
+            });
+          }
+          return children;
+        };
+        
+        return <th {...props}>{processChildren(children)}</th>;
+      },
+      
+      // 自定义渲染器来处理内联数学公式
+      code: ({ children = [], className, ...props }: any) => {
+        const text = String(children);
+        
+        // 处理内联数学公式 $...$
+        if (typeof text === 'string' && /^\$([^$]+)\$$/.test(text)) {
+          const mathContent = text.replace(/^\$([^$]+)\$$/, '$1');
+          try {
+            const html = katex.renderToString(mathContent, {
+              throwOnError: false,
+              displayMode: false,
+              output: 'html',
+              strict: false,
+            });
+            return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent' }} />;
+          } catch (error) {
+            console.error('KaTeX render error:', error);
+            return <code {...props}>{children}</code>;
+          }
+        }
+        
+        // 处理块级数学公式 $$...$$
+        if (typeof text === 'string' && /^\$\$([^$]+)\$\$$/.test(text)) {
+          const mathContent = text.replace(/^\$\$([^$]+)\$\$$/, '$1');
+          try {
+            const html = katex.renderToString(mathContent, {
+              throwOnError: false,
+              displayMode: true,
+              output: 'html',
+              strict: false,
+            });
+            return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '1em 0' }} />;
+          } catch (error) {
+            console.error('KaTeX render error:', error);
+            return <code {...props}>{children}</code>;
+          }
+        }
+        
+        // 其他代码块正常处理
+        return <code className={className} {...props}>{children}</code>;
+      }
+    }
+  };
 
   return (
     <div 
@@ -518,126 +860,46 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
         overflowY: 'visible',
       }}
     >
-      <MarkdownPreview
-        source={processedContent}
-        style={{
-          backgroundColor: 'transparent',
-          color: 'inherit',
-          fontFamily: 'inherit',
-          fontSize: `${fontSize}%`,
-        }}
-        wrapperElement={{
-          'data-color-mode': 'light'
-        }}
-        rehypePlugins={[
-          rehypeRaw, // 处理HTML表格中的原始HTML
-          rehypeTableMath, // 处理表格内的数学公式
-          [rehypeKatex, {
-            strict: false,
-            throwOnError: false,
-            errorColor: '#cc0000',
-            output: 'html',
-            displayMode: false,
-            macros: {
-              "\\RR": "\\mathbb{R}",
-              "\\NN": "\\mathbb{N}",
-              "\\ZZ": "\\mathbb{Z}",
-              "\\QQ": "\\mathbb{Q}",
-              "\\CC": "\\mathbb{C}",
-            },
-            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
-          }]
-        ]}
-        remarkPlugins={[
-          remarkGfm,
-          [remarkMath, {
-            singleDollarTextMath: true,
-            inlineMathDouble: false,
-          }]
-        ]}
-        components={{
-          // 自定义表格单元格渲染器，处理数学公式
-          td: ({ children, ...props }: any) => {
-            const processChildren = (children: any): any => {
-              if (typeof children === 'string') {
-                return processTableCellMath(children);
-              }
-              if (Array.isArray(children)) {
-                return children.map((child, index) => {
-                  if (typeof child === 'string') {
-                    return <span key={index}>{processTableCellMath(child)}</span>;
-                  }
-                  return child;
-                });
-              }
-              return children;
-            };
-            
-            return <td {...props}>{processChildren(children)}</td>;
-          },
+      {/* Render content parts with translation blocks */}
+      {contentParts.map((part, index) => {
+        if (part.type === 'markdown') {
+          return (
+            <MarkdownPreview
+              key={index}
+              source={part.content}
+              {...markdownProps}
+            />
+          );
+        } else if (part.type === 'translation' && typeof part.blockIndex === 'number') {
+          const blockId = generateBlockId(taskId, part.blockIndex);
+          const translation = translations.get(blockId);
+          const isBlockTranslating = currentTranslationTask === blockId && isTranslating;
           
-          th: ({ children, ...props }: any) => {
-            const processChildren = (children: any): any => {
-              if (typeof children === 'string') {
-                return processTableCellMath(children);
-              }
-              if (Array.isArray(children)) {
-                return children.map((child, index) => {
-                  if (typeof child === 'string') {
-                    return <span key={index}>{processTableCellMath(child)}</span>;
-                  }
-                  return child;
-                });
-              }
-              return children;
-            };
-            
-            return <th {...props}>{processChildren(children)}</th>;
-          },
-          
-          // 自定义渲染器来处理内联数学公式
-          code: ({ children = [], className, ...props }: any) => {
-            const text = String(children);
-            
-            // 处理内联数学公式 $...$
-            if (typeof text === 'string' && /^\$([^$]+)\$$/.test(text)) {
-              const mathContent = text.replace(/^\$([^$]+)\$$/, '$1');
-              try {
-                const html = katex.renderToString(mathContent, {
-                  throwOnError: false,
-                  displayMode: false,
-                  output: 'html',
-                  strict: false,
-                });
-                return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent' }} />;
-              } catch (error) {
-                console.error('KaTeX render error:', error);
-                return <code {...props}>{children}</code>;
-              }
-            }
-            
-            // 处理块级数学公式 $$...$$
-            if (typeof text === 'string' && /^\$\$([^$]+)\$\$$/.test(text)) {
-              const mathContent = text.replace(/^\$\$([^$]+)\$\$$/, '$1');
-              try {
-                const html = katex.renderToString(mathContent, {
-                  throwOnError: false,
-                  displayMode: true,
-                  output: 'html',
-                  strict: false,
-                });
-                return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '1em 0' }} />;
-              } catch (error) {
-                console.error('KaTeX render error:', error);
-                return <code {...props}>{children}</code>;
-              }
-            }
-            
-            // 其他代码块正常处理
-            return <code className={className} {...props}>{children}</code>;
-          }
-        }}
-      />
+          return (
+            <TranslationBlock
+              key={`translation-${index}`}
+              blockId={blockId}
+              originalText={part.content}
+              translation={translation}
+              isTranslating={isBlockTranslating}
+              onTranslate={() => handleTranslateBlock(part.blockIndex!)}
+              onRetranslate={() => handleRetranslateBlock(part.blockIndex!)}
+              onRemoveTranslation={() => removeTranslation(blockId)}
+              showOriginal={translationSettings.showOriginal}
+              className="my-4"
+            />
+          );
+        }
+        return null;
+      })}
+      
+      {/* Fallback: render original content if no translation parts */}
+      {!enableTranslation && (
+        <MarkdownPreview
+          source={processedContent}
+          {...markdownProps}
+        />
+      )}
     </div>
   );
 }

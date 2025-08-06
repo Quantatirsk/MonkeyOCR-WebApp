@@ -111,8 +111,17 @@ export interface AppActions {
   initializeSync: () => void;
 }
 
+// Translation actions interface
+export interface TranslationActions {
+  translateBlock: (blockId: string, text: string, targetLanguage?: string) => Promise<void>;
+  updateTranslationSettings: (settings: Partial<TranslationSettings>) => void;
+  clearTranslations: () => void;
+  removeTranslation: (blockId: string) => void;
+  loadAvailableModels: () => Promise<string[]>;
+}
+
 // Combined store interface
-export interface AppStore extends AppState, AppActions {
+export interface AppStore extends AppState, AppActions, TranslationState, TranslationActions {
   // Computed properties
   currentTask: ProcessingTask | null;
   currentResult: DocumentResult | null;
@@ -223,3 +232,55 @@ export interface TaskResultResponse extends APIResponse<DocumentResult> {}
 export interface TaskListResponse extends APIResponse<ProcessingTask[]> {}
 export interface UploadResponse extends APIResponse<ProcessingTask> {}
 export interface BlockDataResponse extends APIResponse<BlockProcessingData> {}
+
+// Translation-related types
+export interface TranslationRequest {
+  text: string;
+  source_language: string;
+  target_language: string;
+  model?: string;
+}
+
+export interface TranslationResult {
+  original_text: string;
+  translated_text: string;
+  source_language: string;
+  target_language: string;
+  model: string;
+  confidence?: number;
+  is_complete?: boolean;
+}
+
+export interface SupportedLanguage {
+  code: string;
+  name: string;
+  native_name: string;
+  flag?: string;
+}
+
+export interface TranslationSettings {
+  sourceLanguage: string;
+  targetLanguage: string;
+  model?: string;
+  enableStreaming: boolean;
+  showOriginal: boolean;
+  autoDetectLanguage: boolean;
+}
+
+export interface BlockTranslation {
+  blockId: string;
+  original_text: string;
+  translated_text: string;
+  source_language: string;
+  target_language: string;
+  timestamp: number;
+  model: string;
+}
+
+export interface TranslationState {
+  translations: Map<string, BlockTranslation>;
+  currentTranslationTask: string | null;
+  translationSettings: TranslationSettings;
+  isTranslating: boolean;
+  availableModels: string[];
+}

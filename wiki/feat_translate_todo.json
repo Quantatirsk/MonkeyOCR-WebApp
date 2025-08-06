@@ -1,0 +1,333 @@
+{
+  "feature": "LLM Translation Integration",
+  "description": "Add LLM-powered translation functionality to the MonkeyOCR WebApp, allowing users to translate OCR-extracted markdown content in the document viewer.",
+  "requirements": {
+    "frontend": {
+      "translation_ui": "Add translation controls to DocumentViewer with language selection and toggle",
+      "service_layer": "Create llmwrapper.ts service for translation API calls",
+      "markdown_integration": "Display translated content below original blocks in markdown viewer",
+      "state_management": "Extend Zustand store with translation state"
+    },
+    "backend": {
+      "api_endpoints": "Create /api/llm/* endpoints compatible with OpenAI SDK",
+      "streaming_support": "Support both streaming and non-streaming via stream parameter",
+      "model_management": "Endpoint to list available models",
+      "configuration": "Use .env file for LLM base_url and api_key"
+    }
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Backend LLM Infrastructure",
+      "description": "Set up backend LLM API endpoints and configuration",
+      "tasks": [
+        {
+          "id": "P1-T001",
+          "name": "Create backend .env configuration",
+          "description": "Add LLM_BASE_URL and LLM_API_KEY to backend/.env template",
+          "files_to_modify": ["backend/.env.example"],
+          "files_to_create": ["backend/.env"],
+          "status": "pending",
+          "estimated_time": "10 minutes"
+        },
+        {
+          "id": "P1-T002", 
+          "name": "Install OpenAI SDK dependencies",
+          "description": "Add openai and related dependencies to backend/requirements.txt",
+          "files_to_modify": ["backend/requirements.txt"],
+          "status": "pending",
+          "estimated_time": "5 minutes"
+        },
+        {
+          "id": "P1-T003",
+          "name": "Create LLM client wrapper",
+          "description": "Create backend/utils/llm_client.py with OpenAI SDK integration",
+          "files_to_create": ["backend/utils/llm_client.py"],
+          "features": [
+            "OpenAI client initialization from env vars",
+            "Model listing functionality", 
+            "Chat completion (streaming/non-streaming)",
+            "Error handling and retry logic"
+          ],
+          "status": "pending",
+          "estimated_time": "30 minutes"
+        },
+        {
+          "id": "P1-T004",
+          "name": "Create LLM API endpoints",
+          "description": "Create backend/api/llm.py with FastAPI endpoints",
+          "files_to_create": ["backend/api/llm.py"],
+          "endpoints": [
+            "GET /api/llm/models - List available models",
+            "POST /api/llm/chat - Chat completion with stream parameter",
+            "POST /api/llm/translate - Translation-specific endpoint"
+          ],
+          "status": "pending",
+          "estimated_time": "45 minutes"
+        },
+        {
+          "id": "P1-T005",
+          "name": "Register LLM routes in main app",
+          "description": "Add LLM router to backend/main.py",
+          "files_to_modify": ["backend/main.py"],
+          "status": "pending",
+          "estimated_time": "5 minutes"
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Frontend Translation Service",
+      "description": "Create frontend service layer for LLM integration",
+      "tasks": [
+        {
+          "id": "P2-T001",
+          "name": "Extend existing LLM wrapper",
+          "description": "Add translation methods to existing frontend/src/lib/llmwrapper.ts",
+          "files_to_modify": ["frontend/src/lib/llmwrapper.ts"],
+          "new_methods": [
+            "translateText(text, sourceLang, targetLang, options)",
+            "streamTranslateText(text, sourceLang, targetLang, onChunk)",
+            "getAvailableModels()",
+            "detectLanguage(text)"
+          ],
+          "status": "pending",
+          "estimated_time": "30 minutes"
+        },
+        {
+          "id": "P2-T002",
+          "name": "Create translation types",
+          "description": "Add translation-related TypeScript interfaces",
+          "files_to_modify": ["frontend/src/types/index.ts"],
+          "new_types": [
+            "TranslationRequest",
+            "TranslationResult", 
+            "SupportedLanguage",
+            "TranslationSettings"
+          ],
+          "status": "pending",
+          "estimated_time": "15 minutes"
+        },
+        {
+          "id": "P2-T003",
+          "name": "Extend app store for translation",
+          "description": "Add translation state management to Zustand store",
+          "files_to_modify": ["frontend/src/store/appStore.ts"],
+          "new_state": [
+            "translationResults: Map<string, TranslationResult>",
+            "translationSettings: TranslationSettings",
+            "currentTranslationTask: string | null"
+          ],
+          "new_actions": [
+            "translateBlock", "updateTranslationSettings", "clearTranslations"
+          ],
+          "status": "pending",
+          "estimated_time": "25 minutes"
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Translation UI Components",
+      "description": "Create user interface for translation functionality",
+      "tasks": [
+        {
+          "id": "P3-T001",
+          "name": "Create TranslationToolbar component",
+          "description": "Add translation controls to DocumentViewer toolbar",
+          "files_to_create": ["frontend/src/components/translation/TranslationToolbar.tsx"],
+          "features": [
+            "Language selector (source/target)",
+            "Translate button with loading state",
+            "Translation settings dropdown",
+            "Clear translations action"
+          ],
+          "status": "pending",
+          "estimated_time": "40 minutes"
+        },
+        {
+          "id": "P3-T002",
+          "name": "Create TranslatedContent component", 
+          "description": "Component to display translated text below original content",
+          "files_to_create": ["frontend/src/components/translation/TranslatedContent.tsx"],
+          "features": [
+            "Markdown rendering for translated content",
+            "Copy translated text functionality",
+            "Show/hide translation toggle",
+            "Translation confidence indicator"
+          ],
+          "status": "pending",
+          "estimated_time": "35 minutes"
+        },
+        {
+          "id": "P3-T003",
+          "name": "Create LanguageSelector component",
+          "description": "Reusable language selection component",
+          "files_to_create": ["frontend/src/components/translation/LanguageSelector.tsx"],
+          "features": [
+            "Dropdown with common languages",
+            "Search/filter functionality", 
+            "Flag icons for languages",
+            "Auto-detect option for source language"
+          ],
+          "status": "pending",
+          "estimated_time": "30 minutes"
+        },
+        {
+          "id": "P3-T004",
+          "name": "Add translation styles",
+          "description": "Create CSS styles for translation components",
+          "files_to_create": ["frontend/src/components/translation/translation-styles.css"],
+          "features": [
+            "Translation block styling",
+            "Language indicator styling",
+            "Loading states and animations",
+            "Responsive design for mobile"
+          ],
+          "status": "pending",
+          "estimated_time": "20 minutes"
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "Integration with Document Viewer",
+      "description": "Integrate translation functionality into existing markdown viewer",
+      "tasks": [
+        {
+          "id": "P4-T001",
+          "name": "Enhance ModernMarkdownViewer",
+          "description": "Add translation support to markdown rendering",
+          "files_to_modify": ["frontend/src/components/markdown/ModernMarkdownViewer.tsx"],
+          "enhancements": [
+            "Render translation blocks below original content",
+            "Skip image blocks during translation",
+            "Add translation controls per text block",
+            "Handle streaming translation updates"
+          ],
+          "status": "pending",
+          "estimated_time": "50 minutes"
+        },
+        {
+          "id": "P4-T002",
+          "name": "Update DocumentViewer integration",
+          "description": "Add translation toolbar and controls to DocumentViewer",
+          "files_to_modify": ["frontend/src/components/DocumentViewer.tsx"],
+          "changes": [
+            "Import and integrate TranslationToolbar",
+            "Add translation state management",
+            "Handle translation workflow",
+            "Update tab interface if needed"
+          ],
+          "status": "pending",
+          "estimated_time": "30 minutes"
+        },
+        {
+          "id": "P4-T003",
+          "name": "Implement block-level translation",
+          "description": "Add translation functionality that works with existing block system",
+          "files_to_modify": [
+            "frontend/src/utils/blockProcessor.ts",
+            "frontend/src/utils/blockMarkdownGenerator.ts"
+          ],
+          "features": [
+            "Identify translatable text blocks",
+            "Preserve markdown formatting in translations", 
+            "Handle code blocks and math formulas appropriately",
+            "Maintain block IDs for PDF sync compatibility"
+          ],
+          "status": "pending",
+          "estimated_time": "45 minutes"
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Testing and Polish",
+      "description": "Test functionality and add finishing touches",
+      "tasks": [
+        {
+          "id": "P5-T001",
+          "name": "Create translation workflow test",
+          "description": "Test complete translation workflow end-to-end",
+          "test_scenarios": [
+            "Basic text translation",
+            "Streaming translation with progress",
+            "Language auto-detection",
+            "Error handling for API failures",
+            "Translation of documents with images",
+            "Translation persistence across sessions"
+          ],
+          "status": "pending",
+          "estimated_time": "60 minutes"
+        },
+        {
+          "id": "P5-T002",
+          "name": "Add translation configuration UI",
+          "description": "Create settings interface for translation preferences",
+          "files_to_create": ["frontend/src/components/translation/TranslationSettings.tsx"],
+          "features": [
+            "Default language preferences",
+            "Translation quality settings", 
+            "API model selection",
+            "Translation cache management"
+          ],
+          "status": "pending",
+          "estimated_time": "40 minutes"
+        },
+        {
+          "id": "P5-T003",
+          "name": "Add error handling and user feedback",
+          "description": "Implement comprehensive error handling and user notifications",
+          "enhancements": [
+            "Toast notifications for translation status",
+            "Error messages for API failures",
+            "Loading indicators for long translations",
+            "Retry mechanisms for failed translations"
+          ],
+          "status": "pending",
+          "estimated_time": "30 minutes"
+        },
+        {
+          "id": "P5-T004",
+          "name": "Documentation and README updates",
+          "description": "Update project documentation with translation feature",
+          "files_to_modify": ["README.md", "CLAUDE.md"],
+          "documentation": [
+            "Translation feature overview",
+            "Configuration instructions",
+            "Usage examples",
+            "API endpoint documentation"
+          ],
+          "status": "pending",
+          "estimated_time": "25 minutes"
+        }
+      ]
+    }
+  ],
+  "implementation_notes": {
+    "architecture_decisions": {
+      "frontend_service_layer": "Extend existing llmwrapper.ts to maintain consistency with current LLM integration patterns",
+      "backend_endpoints": "Create dedicated /api/llm/* endpoints separate from OCR processing to maintain clean separation of concerns",
+      "translation_display": "Show translations below original content blocks rather than replacing them to maintain original OCR context",
+      "state_management": "Use existing Zustand patterns for translation state to integrate seamlessly with current app state"
+    },
+    "technical_considerations": {
+      "streaming_support": "Implement streaming for long document translations to provide real-time feedback",
+      "image_handling": "Skip image blocks during translation as specified in requirements",
+      "performance": "Use translation caching to avoid repeated API calls for same content",
+      "mobile_responsiveness": "Ensure translation UI works well on mobile devices"
+    },
+    "integration_points": {
+      "existing_components": "DocumentViewer, ModernMarkdownViewer, appStore",
+      "existing_services": "Current LLM wrapper, API client patterns",
+      "existing_utilities": "Block processing system for PDF-markdown sync compatibility"
+    }
+  },
+  "estimated_total_time": "8-10 hours",
+  "priority": "high",
+  "dependencies": {
+    "external": ["OpenAI SDK", "LLM service API access"],
+    "internal": ["Existing LLM wrapper", "DocumentViewer", "Zustand store"]
+  }
+}

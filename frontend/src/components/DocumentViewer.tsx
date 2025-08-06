@@ -7,6 +7,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
 import { BlockMarkdownViewer } from './markdown/BlockMarkdownViewer';
 import { FilePreview } from './FilePreview';
+import { TranslationToolbar } from './translation/TranslationToolbar';
 import './markdown/markdown-styles.css';
 import { 
   Search, 
@@ -20,7 +21,8 @@ import {
   Type,
   Monitor,
   ArrowLeftRight,
-  RotateCw
+  RotateCw,
+  Languages
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -34,7 +36,7 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "./ui/resizable";
-import { useAppStore, useUIActions } from '../store/appStore';
+import { useAppStore, useUIActions, useTranslationActions, useTranslationState } from '../store/appStore';
 import { ImageResource, BlockData } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
@@ -45,10 +47,14 @@ import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
 // 独立的Markdown内容组件，防止PDF状态变化导致重渲染
 const MarkdownContentPanel = React.memo(({ 
   processedMarkdown, 
-  markdownZoom 
+  markdownZoom,
+  enableTranslation = false,
+  taskId
 }: { 
   processedMarkdown: string; 
-  markdownZoom: number; 
+  markdownZoom: number;
+  enableTranslation?: boolean;
+  taskId?: string;
 }) => {
   // 调试：监控重渲染
   // MarkdownContentPanel render
@@ -61,6 +67,8 @@ const MarkdownContentPanel = React.memo(({
             content={processedMarkdown}
             className="w-full min-w-0"
             fontSize={markdownZoom}
+            enableTranslation={enableTranslation}
+            taskId={taskId}
           />
         </div>
       </ScrollArea>
@@ -70,12 +78,16 @@ const MarkdownContentPanel = React.memo(({
   // 严格比较：只有markdown内容或字体大小变化时才重渲染
   const contentSame = prevProps.processedMarkdown === nextProps.processedMarkdown;
   const zoomSame = prevProps.markdownZoom === nextProps.markdownZoom;
-  const shouldNotRerender = contentSame && zoomSame;
+  const translationSame = prevProps.enableTranslation === nextProps.enableTranslation;
+  const taskIdSame = prevProps.taskId === nextProps.taskId;
+  const shouldNotRerender = contentSame && zoomSame && translationSame && taskIdSame;
   
   if (!shouldNotRerender) {
     console.log('📝 MarkdownContentPanel will re-render:', { 
       contentSame, 
       zoomSame,
+      translationSame,
+      taskIdSame,
       prevZoom: prevProps.markdownZoom,
       nextZoom: nextProps.markdownZoom
     });
@@ -304,6 +316,8 @@ interface DocumentViewerProps {
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
   const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult, activeDocumentTab } = useAppStore();
   const { setActiveDocumentTab } = useUIActions();
+  const { clearTranslations } = useTranslationActions();
+  const { translations } = useTranslationState();
   const { toast } = useToast();
   
   // PDF操作状态管理
@@ -314,6 +328,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const [blockData, setBlockData] = useState<BlockData[]>([]);
   const [blockDataLoading, setBlockDataLoading] = useState(false);
   const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null); // 跟踪已加载区块数据的任务ID
+  
+  // Translation state
+  const [translationEnabled, setTranslationEnabled] = useState(false);
   
   // PDF操作处理函数 - 使用useCallback稳定化
   const handlePdfRotate = React.useCallback((pageNumber: number) => {
@@ -326,6 +343,39 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const handlePdfPageSelect = React.useCallback((pageNumber: number) => {
     setPdfSelectedPage(pageNumber);
   }, []);
+  
+  // Translation handlers
+  const handleTranslationToggle = React.useCallback(() => {
+    setTranslationEnabled(prev => !prev);
+    if (translationEnabled) {
+      // Clear translations when disabling
+      clearTranslations();
+    }
+  }, [translationEnabled, clearTranslations]);
+  
+  // Handle translate all functionality
+  const handleTranslateAll = React.useCallback(() => {
+    if (!currentResult?.markdown_content) return;
+    
+    // This would be called from TranslationToolbar
+    // Individual blocks will handle their own translation via the ModernMarkdownViewer
+    toast({
+      title: "Translation started",
+      description: "Starting to translate the document...",
+    });
+  }, [currentResult, toast]);
+  
+  // Get translation count for current task
+  const currentTranslationCount = React.useMemo(() => {
+    if (!currentTaskId) return 0;
+    let count = 0;
+    for (const [blockId] of translations) {
+      if (blockId.startsWith(currentTaskId + '-')) {
+        count++;
+      }
+    }
+    return count;
+  }, [translations, currentTaskId]);
   
   // Calculate current result and task directly
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
@@ -663,9 +713,46 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       {/* Main content - 占满全部空间 */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-full flex flex-col">
+          {/* Translation Controls */}
+          {translationEnabled && currentResult && (
+            <div className="border-b bg-blue-50/30 p-2 flex-shrink-0">
+              <TranslationToolbar
+                onTranslate={handleTranslateAll}
+                isTranslating={false}
+                hasTranslations={currentTranslationCount > 0}
+                className="max-w-4xl mx-auto"
+              />
+            </div>
+          )}
+          
           {/* 标签页头部 */}
           <div className="border-b flex-shrink-0">
-            <div className="grid w-full grid-cols-5 h-10">
+            <div className="flex items-center">
+              {/* Translation Toggle */}
+              <div className="flex items-center px-2 border-r">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleTranslationToggle}
+                  className={`flex items-center space-x-1 text-xs ${
+                    translationEnabled 
+                      ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  disabled={!currentResult}
+                >
+                  <Languages className="w-3 h-3" />
+                  <span>翻译</span>
+                  {currentTranslationCount > 0 && (
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                      {currentTranslationCount}
+                    </Badge>
+                  )}
+                </Button>
+              </div>
+              
+              {/* Main Tabs */}
+              <div className="grid flex-1 grid-cols-5 h-10">
               <button 
                 onClick={() => setActiveDocumentTab('preview')}
                 className={`flex items-center justify-center space-x-1 text-xs transition-colors ${
@@ -919,6 +1006,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             <MarkdownContentPanel 
                               processedMarkdown={processedMarkdown}
                               markdownZoom={markdownZoom}
+                              enableTranslation={translationEnabled}
+                              taskId={currentTaskId}
                             />
                           )}
                         </div>
@@ -1013,6 +1102,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 <MarkdownContentPanel 
                   processedMarkdown={processedMarkdown}
                   markdownZoom={markdownZoom}
+                  enableTranslation={translationEnabled}
+                  taskId={currentTaskId}
                 />
               </div>
             ) : (

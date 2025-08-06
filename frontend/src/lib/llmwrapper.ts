@@ -67,6 +67,30 @@ export interface ModelsResponse {
   data: ModelInfo[]
 }
 
+export interface TranslationRequest {
+  text: string
+  source_language: string
+  target_language: string
+  model?: string
+}
+
+export interface TranslationResult {
+  original_text: string
+  translated_text: string
+  source_language: string
+  target_language: string
+  model: string
+  confidence?: number
+  is_complete?: boolean
+}
+
+export interface SupportedLanguage {
+  code: string
+  name: string
+  native_name: string
+  flag?: string
+}
+
 export class LLMWrapper {
   private baseUrl: string
 
@@ -416,6 +440,212 @@ ${JSON.stringify(filesInfo, null, 2)}
               reader.releaseLock()
             } catch (e) {
               console.warn('Error releasing original reader:', e)
+            }
+          }
+        }
+        
+        processStream()
+      }
+    })
+  }
+
+  /**
+   * Translate text using LLM (non-streaming)
+   */
+  async translateText(request: TranslationRequest): Promise<TranslationResult> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/translate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: request.text,
+          source_language: request.source_language,
+          target_language: request.target_language,
+          model: request.model
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+
+      const result = await response.json() as TranslationResult
+      return result
+    } catch (error) {
+      console.error('Translation failed:', error)
+      throw new Error(`Translation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Stream translate text using LLM
+   */
+  async streamTranslateText(request: TranslationRequest): Promise<ReadableStream<TranslationResult>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/translate?stream=true`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: request.text,
+          source_language: request.source_language,
+          target_language: request.target_language,
+          model: request.model
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+
+      return this.createTranslationStreamProcessor(response)
+    } catch (error) {
+      console.error('Streaming translation failed:', error)
+      throw new Error(`Streaming translation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Detect language of given text
+   */
+  async detectLanguage(text: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/detect-language`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+
+      const result = await response.json()
+      return result.language
+    } catch (error) {
+      console.error('Language detection failed:', error)
+      return 'unknown'
+    }
+  }
+
+  /**
+   * Get available models from the LLM API
+   */
+  async getAvailableModels(): Promise<ModelInfo[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/models`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `HTTP ${response.status}`)
+      }
+
+      const models = await response.json() as ModelInfo[]
+      return models
+    } catch (error) {
+      console.error('Failed to get available models:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get supported languages for translation
+   */
+  getSupportedLanguages(): SupportedLanguage[] {
+    return [
+      { code: 'auto', name: 'Auto Detect', native_name: 'Auto Detect' },
+      { code: 'en', name: 'English', native_name: 'English', flag: '🇺🇸' },
+      { code: 'zh', name: 'Chinese', native_name: '中文', flag: '🇨🇳' },
+      { code: 'ja', name: 'Japanese', native_name: '日本語', flag: '🇯🇵' },
+      { code: 'ko', name: 'Korean', native_name: '한국어', flag: '🇰🇷' },
+      { code: 'es', name: 'Spanish', native_name: 'Español', flag: '🇪🇸' },
+      { code: 'fr', name: 'French', native_name: 'Français', flag: '🇫🇷' },
+      { code: 'de', name: 'German', native_name: 'Deutsch', flag: '🇩🇪' },
+      { code: 'it', name: 'Italian', native_name: 'Italiano', flag: '🇮🇹' },
+      { code: 'pt', name: 'Portuguese', native_name: 'Português', flag: '🇵🇹' },
+      { code: 'ru', name: 'Russian', native_name: 'Русский', flag: '🇷🇺' },
+      { code: 'ar', name: 'Arabic', native_name: 'العربية', flag: '🇸🇦' },
+      { code: 'hi', name: 'Hindi', native_name: 'हिन्दी', flag: '🇮🇳' },
+      { code: 'th', name: 'Thai', native_name: 'ไทย', flag: '🇹🇭' },
+      { code: 'vi', name: 'Vietnamese', native_name: 'Tiếng Việt', flag: '🇻🇳' }
+    ]
+  }
+
+  /**
+   * Create stream processor for translation responses
+   */
+  private createTranslationStreamProcessor(response: Response): ReadableStream<TranslationResult> {
+    if (!response.body) {
+      throw new Error('No response body received')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    return new ReadableStream<TranslationResult>({
+      start(controller) {
+        let buffer = ''
+        
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) {
+                controller.close()
+                break
+              }
+
+              const chunk = decoder.decode(value, { stream: true })
+              buffer += chunk
+              
+              // Process complete lines
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+
+              for (const line of lines) {
+                const trimmedLine = line.trim()
+                if (!trimmedLine) continue
+                
+                if (trimmedLine.startsWith('data: ')) {
+                  const data = trimmedLine.slice(6)
+                  
+                  if (data === '[DONE]') {
+                    controller.close()
+                    return
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data) as TranslationResult
+                    console.log('[LLMWrapper] Translation chunk received:', parsed)
+                    controller.enqueue(parsed)
+                  } catch (parseError) {
+                    console.warn('Failed to parse translation chunk:', data, parseError)
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('[LLMWrapper] Translation stream processing error:', error)
+            controller.error(error)
+          } finally {
+            try {
+              reader.releaseLock()
+            } catch (e) {
+              console.warn('Error releasing translation reader:', e)
             }
           }
         }

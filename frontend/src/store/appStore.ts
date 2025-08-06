@@ -10,7 +10,11 @@ import {
   AppState, 
   ProcessingTask, 
   DocumentResult, 
-  APIResponse 
+  APIResponse,
+  TranslationState,
+  TranslationSettings,
+  BlockTranslation,
+  TranslationRequest
 } from '../types';
 import { apiClient } from '../api/client';
 import { syncManager, SyncStatus } from '../utils/syncManager';
@@ -45,6 +49,16 @@ function migrateV1toV2(oldState: any) {
   };
 }
 
+// Initial translation settings
+const initialTranslationSettings: TranslationSettings = {
+  sourceLanguage: 'auto',
+  targetLanguage: 'en',
+  model: undefined,
+  enableStreaming: true,
+  showOriginal: true,
+  autoDetectLanguage: true
+};
+
 // Initial state
 const initialState: AppState = {
   tasks: [],
@@ -70,6 +84,13 @@ export const useAppStore = create<AppStore>()(
       // Sync state (not persisted)
       syncStatus: null as SyncStatus | null,
       isInitialized: false,
+      
+      // Translation state
+      translations: new Map<string, BlockTranslation>(),
+      currentTranslationTask: null as string | null,
+      translationSettings: { ...initialTranslationSettings },
+      isTranslating: false,
+      availableModels: [] as string[],
 
       // Computed properties
       get currentTask() {
@@ -261,6 +282,119 @@ export const useAppStore = create<AppStore>()(
         }
       },
 
+      // Translation actions
+      translateBlock: async (blockId: string, text: string, targetLanguage?: string) => {
+        const { translationSettings } = get();
+        const sourceLanguage = translationSettings.autoDetectLanguage ? 'auto' : translationSettings.sourceLanguage;
+        const target = targetLanguage || translationSettings.targetLanguage;
+        
+        const request: TranslationRequest = {
+          text,
+          source_language: sourceLanguage,
+          target_language: target,
+          model: translationSettings.model
+        };
+
+        set({ isTranslating: true, currentTranslationTask: blockId });
+
+        try {
+          // Import LLM wrapper dynamically to avoid circular dependencies
+          const { llmWrapper } = await import('../lib/llmwrapper');
+          
+          if (translationSettings.enableStreaming) {
+            // Streaming translation
+            const stream = await llmWrapper.streamTranslateText(request);
+            const reader = stream.getReader();
+            
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                if (value.translated_text) {
+                  const translation: BlockTranslation = {
+                    blockId,
+                    original_text: text,
+                    translated_text: value.translated_text,
+                    source_language: value.source_language,
+                    target_language: value.target_language,
+                    timestamp: Date.now(),
+                    model: value.model
+                  };
+
+                  set((state) => {
+                    const newTranslations = new Map(state.translations);
+                    newTranslations.set(blockId, translation);
+                    return { translations: newTranslations };
+                  });
+                }
+              }
+            } finally {
+              reader.releaseLock();
+            }
+          } else {
+            // Non-streaming translation
+            const result = await llmWrapper.translateText(request);
+            
+            const translation: BlockTranslation = {
+              blockId,
+              original_text: text,
+              translated_text: result.translated_text,
+              source_language: result.source_language,
+              target_language: result.target_language,
+              timestamp: Date.now(),
+              model: result.model
+            };
+
+            set((state) => {
+              const newTranslations = new Map(state.translations);
+              newTranslations.set(blockId, translation);
+              return { translations: newTranslations };
+            });
+          }
+        } catch (error) {
+          console.error('Translation failed:', error);
+          throw error;
+        } finally {
+          set({ isTranslating: false, currentTranslationTask: null });
+        }
+      },
+
+      updateTranslationSettings: (settings: Partial<TranslationSettings>) => {
+        set((state) => ({
+          translationSettings: { ...state.translationSettings, ...settings }
+        }));
+      },
+
+      clearTranslations: () => {
+        set({ 
+          translations: new Map(),
+          currentTranslationTask: null,
+          isTranslating: false
+        });
+      },
+
+      removeTranslation: (blockId: string) => {
+        set((state) => {
+          const newTranslations = new Map(state.translations);
+          newTranslations.delete(blockId);
+          return { translations: newTranslations };
+        });
+      },
+
+      loadAvailableModels: async () => {
+        try {
+          const { llmWrapper } = await import('../lib/llmwrapper');
+          const models = await llmWrapper.getAvailableModels();
+          const modelIds = models.map(model => model.id);
+          set({ availableModels: modelIds });
+          return modelIds;
+        } catch (error) {
+          console.error('Failed to load available models:', error);
+          return [];
+        }
+      },
+
       // Sync operations
       initializeSync: () => {
         const { isInitialized } = get();
@@ -339,6 +473,7 @@ export const useAppStore = create<AppStore>()(
           currentTaskId: state.currentTaskId,
           theme: state.theme,
           searchQuery: state.searchQuery,
+          translationSettings: state.translationSettings,
           _version: STORE_VERSION
         };
       },
@@ -402,3 +537,20 @@ export const useSyncActions = () => useAppStore(state => ({
 }));
 
 export const useSyncStatus = () => useAppStore(state => state.syncStatus);
+
+// Translation hooks
+export const useTranslationActions = () => useAppStore(state => ({
+  translateBlock: state.translateBlock,
+  updateTranslationSettings: state.updateTranslationSettings,
+  clearTranslations: state.clearTranslations,
+  removeTranslation: state.removeTranslation,
+  loadAvailableModels: state.loadAvailableModels
+}));
+
+export const useTranslationState = () => useAppStore(state => ({
+  translations: state.translations,
+  currentTranslationTask: state.currentTranslationTask,
+  translationSettings: state.translationSettings,
+  isTranslating: state.isTranslating,
+  availableModels: state.availableModels
+}));
