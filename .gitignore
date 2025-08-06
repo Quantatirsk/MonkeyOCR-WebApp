@@ -43,7 +43,6 @@ tmp/
 temp/
 uploads/
 results/
-static/
 
 # Package files
 *.tgz
