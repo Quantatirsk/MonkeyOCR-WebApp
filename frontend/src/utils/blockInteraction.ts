@@ -3,8 +3,9 @@
  * Handles click highlighting, auto-positioning, and cross-view synchronization
  */
 
-import { BlockData, BlockSelection } from '../types';
-import { BlockProcessor } from './blockProcessor';
+// Currently unused imports - keeping for future implementation
+// import { BlockData, BlockSelection } from '../types';
+// import { BlockProcessor } from './blockProcessor';
 
 export interface HighlightOptions {
   /** Duration of highlight animation in milliseconds */
@@ -113,7 +114,7 @@ export class BlockInteractionManager {
    * Clear all highlights
    */
   clearAllHighlights(): void {
-    this.highlightTimeouts.forEach((timeout, elementId) => {
+    this.highlightTimeouts.forEach((timeout, _elementId) => {
       clearTimeout(timeout);
     });
     this.highlightTimeouts.clear();
@@ -133,7 +134,7 @@ export class BlockInteractionManager {
   ): void {
     const {
       container = document.documentElement,
-      offset = { top: 20, bottom: 20, left: 20, right: 20 },
+      offset: _offset = { top: 20, bottom: 20, left: 20, right: 20 },
       duration = 300,
       smooth = true
     } = options;

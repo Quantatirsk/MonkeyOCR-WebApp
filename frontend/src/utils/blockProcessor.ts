@@ -80,13 +80,14 @@ export class BlockProcessor {
     scale: number = 1
   ): [number, number, number, number] {
     const [x1, y1, x2, y2] = bbox;
-    const [pageWidth, pageHeight] = pageSize;
+    const [_pageWidth, _pageHeight] = pageSize;
     
-    // Convert coordinates (PDF uses bottom-left origin)
+    // Convert coordinates - check if block data is already in top-left coordinate system
+    // If blocks appear upside down, the source data might already be canvas-based
     const canvasX1 = x1 * scale;
-    const canvasY1 = (pageHeight - y2) * scale; // Flip Y coordinate
+    const canvasY1 = y1 * scale; // Try direct mapping first
     const canvasX2 = x2 * scale;
-    const canvasY2 = (pageHeight - y1) * scale;
+    const canvasY2 = y2 * scale;
     
     return [canvasX1, canvasY1, canvasX2, canvasY2];
   }
@@ -256,31 +257,37 @@ export class ContentMatcher {
    * Find the best matching paragraph for a block's content
    */
   private static findBestMatch(blockContent: string, paragraphs: string[]): number {
-    const normalizedBlockContent = this.normalizeText(blockContent);
+    if (!blockContent.trim()) return -1;
     
-    // Strategy 1: Exact match
+    const normalizedBlockContent = this.normalizeTextGently(blockContent);
+    
+    // Strategy 1: Direct substring match (most reliable)
     for (let i = 0; i < paragraphs.length; i++) {
-      if (this.normalizeText(paragraphs[i]) === normalizedBlockContent) {
+      const normalizedPara = this.normalizeTextGently(paragraphs[i]);
+      
+      // Check both directions with minimum content length filter
+      if (normalizedBlockContent.length > 10 && normalizedPara.length > 10) {
+        if (normalizedPara.includes(normalizedBlockContent) || 
+            normalizedBlockContent.includes(normalizedPara)) {
+          return i;
+        }
+      }
+    }
+    
+    // Strategy 2: Exact match after normalization
+    for (let i = 0; i < paragraphs.length; i++) {
+      if (this.normalizeText(paragraphs[i]) === this.normalizeText(blockContent)) {
         return i;
       }
     }
     
-    // Strategy 2: Substring match
-    for (let i = 0; i < paragraphs.length; i++) {
-      const normalizedPara = this.normalizeText(paragraphs[i]);
-      if (normalizedPara.includes(normalizedBlockContent) || 
-          normalizedBlockContent.includes(normalizedPara)) {
-        return i;
-      }
-    }
-    
-    // Strategy 3: Fuzzy match based on similarity
+    // Strategy 3: Fuzzy match with lower threshold
     let bestMatch = -1;
-    let bestSimilarity = 0.6; // Minimum similarity threshold
+    let bestSimilarity = 0.3; // Reduced threshold for better matching
     
     for (let i = 0; i < paragraphs.length; i++) {
       const similarity = this.calculateSimilarity(
-        normalizedBlockContent, 
+        this.normalizeText(blockContent), 
         this.normalizeText(paragraphs[i])
       );
       
@@ -294,7 +301,17 @@ export class ContentMatcher {
   }
 
   /**
-   * Normalize text for comparison
+   * Normalize text for comparison (gentle version for better matching)
+   */
+  private static normalizeTextGently(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/\s+/g, ' ') // Collapse whitespace only
+      .trim();
+  }
+
+  /**
+   * Normalize text for comparison (aggressive version)
    */
   private static normalizeText(text: string): string {
     return text

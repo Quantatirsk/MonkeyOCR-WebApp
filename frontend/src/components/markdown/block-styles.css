@@ -15,52 +15,69 @@
   cursor: default;
 }
 
-/* Block paragraph container */
+/* Block paragraph container - maintain block display for proper layout */
 .block-paragraph {
+  display: block;
   position: relative;
-  margin: 1rem 0;
-  padding: 0.75rem 0.75rem 0.75rem 3rem;
-  border-radius: 0.5rem;
-  transition: all 0.2s ease-in-out;
+  padding: 2px 4px;
+  margin: 0.75rem 0; /* Ensure proper paragraph spacing */
+  border-radius: 3px;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease; /* 仅对不影响布局的属性过渡 */
   cursor: pointer;
-  border-left: 3px solid transparent;
+  background-color: transparent;
+  border-left: 4px solid transparent; /* 预设边框避免hover时布局变化 */
+  text-align: justify; /* 区块内文字两端对齐 */
+  text-justify: inter-word; /* 单词间对齐 */
+}
+
+/* Inline block marker */
+.inline-block-marker {
+  display: inline-block;
+  font-weight: 600;
+  font-family: monospace;
+  vertical-align: middle;
 }
 
 .block-paragraph:hover {
-  background-color: hsl(var(--muted) / 0.3);
-  transform: translateX(2px);
+  background-color: hsl(var(--muted) / 0.5);
+  border-radius: 3px;
+  /* 移除所有transform和尺寸变化，仅保留背景色变化 */
 }
 
 /* Block type specific styling */
-.block-paragraph.block-type-text {
-  border-left-color: #3B82F6; /* blue-500 */
+.block-paragraph.block-type-text:hover {
+  background-color: rgba(59, 130, 246, 0.1); /* blue-500 with alpha */
+  /* 移除transform，仅保留背景色变化 */
 }
 
-.block-paragraph.block-type-title {
-  border-left-color: #10B981; /* green-500 */
+.block-paragraph.block-type-title:hover {
+  background-color: rgba(16, 185, 129, 0.1); /* green-500 with alpha */
+  /* 移除transform，仅保留背景色变化 */
 }
 
-.block-paragraph.block-type-image {
-  border-left-color: #F59E0B; /* amber-500 */
+.block-paragraph.block-type-image:hover {
+  background-color: rgba(245, 158, 11, 0.1); /* amber-500 with alpha */
+  /* 移除transform，仅保留背景色变化 */
 }
 
 /* Block states */
 .block-paragraph.block-selected {
-  background-color: hsl(var(--primary) / 0.1);
-  border-left-width: 4px;
+  background-color: hsl(var(--primary) / 0.2);
+  border-radius: 3px;
   box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
-  transform: translateX(4px);
+  /* 移除translateX位移，保持布局稳定 */
 }
 
 .block-paragraph.block-highlighted {
   background-color: hsl(var(--secondary) / 0.2);
-  border-left-width: 4px;
+  border-left-color: hsl(var(--secondary) / 0.4);
+  /* 仅改变预设边框颜色，不改变宽度 */
 }
 
 .block-paragraph.block-hovered {
   background-color: hsl(var(--accent) / 0.1);
-  border-left-width: 4px;
-  transform: translateX(4px);
+  border-left-color: hsl(var(--accent) / 0.4);
+  /* 仅改变预设边框颜色，不改变宽度和布局 */
 }
 
 /* Block marker */
@@ -113,18 +130,36 @@
 /* Enhanced markdown styling */
 .markdown-content {
   max-width: none;
+  display: block;
+  line-height: 1.6;
+  text-align: justify; /* 文字两端对齐 */
+  text-justify: inter-word; /* 单词间对齐 */
+}
+
+/* Ensure all markdown elements have proper block display and spacing */
+.markdown-content > * {
+  display: block !important;
+  margin-bottom: 1rem;
+}
+
+.markdown-content > *:last-child {
+  margin-bottom: 0;
 }
 
 .markdown-paragraph {
-  margin: 0.75rem 0;
+  margin: 0.75rem 0 !important; /* Force proper paragraph spacing */
   line-height: 1.7;
+  display: block !important; /* Ensure block-level display */
+  text-align: justify !important; /* 段落文字两端对齐 */
+  text-justify: inter-word; /* 单词间对齐 */
 }
 
 .markdown-heading {
   font-weight: 600;
-  margin: 1.5rem 0 1rem 0;
+  margin: 1.5rem 0 1rem 0 !important; /* Force proper heading spacing */
   line-height: 1.3;
   color: hsl(var(--foreground));
+  display: block !important; /* Ensure block-level display */
 }
 
 .markdown-h1 {
@@ -359,12 +394,13 @@
 /* High contrast mode */
 @media (prefers-contrast: high) {
   .block-paragraph {
-    border-left-width: 4px;
+    border-left-color: hsl(var(--border)); /* 显示预设边框，不改变宽度 */
   }
   
   .block-paragraph.block-selected {
-    border-left-width: 6px;
+    border-left-color: hsl(var(--primary));
     box-shadow: 0 0 0 3px hsl(var(--primary) / 0.3);
+    /* 不改变边框宽度，仅改变颜色 */
   }
 }
 
@@ -376,12 +412,7 @@
     transition: none;
   }
   
-  .block-paragraph:hover,
-  .block-paragraph.block-selected,
-  .block-paragraph.block-hovered {
-    transform: none;
-  }
-  
+  /* 由于已移除所有transform，无需额外重置 */
   .markdown-image:hover {
     transform: none;
   }
@@ -393,7 +424,7 @@
     background-color: #666 !important;
     color: white !important;
     -webkit-print-color-adjust: exact;
-    color-adjust: exact;
+    print-color-adjust: exact;
   }
   
   .block-paragraph {

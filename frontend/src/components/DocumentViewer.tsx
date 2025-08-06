@@ -5,6 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
+import { BlockMarkdownViewer } from './markdown/BlockMarkdownViewer';
 import { FilePreview } from './FilePreview';
 import './markdown/markdown-styles.css';
 import { 
@@ -34,9 +35,12 @@ import {
   ResizableHandle,
 } from "./ui/resizable";
 import { useAppStore, useUIActions } from '../store/appStore';
-import { ImageResource } from '../types';
+import { ImageResource, BlockData } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
+import { useBlockSync } from '../hooks/useBlockSync';
+import { useScrollSync } from '../hooks/useScrollSync';
+import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
 
 // 独立的Markdown内容组件，防止PDF状态变化导致重渲染
 const MarkdownContentPanel = React.memo(({ 
@@ -80,25 +84,154 @@ const MarkdownContentPanel = React.memo(({
   return shouldNotRerender;
 });
 
+// 增强的区块同步Markdown组件
+const BlockSyncMarkdownPanel = React.memo(({ 
+  originalMarkdown,
+  markdownZoom,
+  blockData,
+  selectedBlock,
+  highlightedBlocks,
+  syncEnabled,
+  onBlockClick,
+  onBlockHover,
+  activeSearchQuery
+}: { 
+  originalMarkdown: string;
+  markdownZoom: number;
+  blockData: BlockData[];
+  selectedBlock: any;
+  highlightedBlocks: number[];
+  syncEnabled: boolean;
+  onBlockClick?: (blockIndex: number) => void;
+  onBlockHover?: (blockIndex: number | null) => void;
+  activeSearchQuery?: string;
+}) => {
+  // 生成基于区块的Markdown内容
+  const blockBasedMarkdown = useMemo(() => {
+    if (!syncEnabled || blockData.length === 0) {
+      return originalMarkdown;
+    }
+    
+    console.log('🔄 Generating block-based markdown from', blockData.length, 'blocks');
+    
+    // DEBUG: 显示排序前后的对比
+    console.log('🔍 BEFORE sorting - blocks by Y coordinate:', 
+      [...blockData]
+        .sort((a, b) => a.page_num === b.page_num ? a.bbox[1] - b.bbox[1] : a.page_num - b.page_num)
+        .map(b => ({ index: b.index, page: b.page_num, y: b.bbox[1], content: b.content.substring(0, 20) + '...' }))
+    );
+    
+    console.log('🎯 AFTER sorting - blocks by index:', 
+      [...blockData]
+        .sort((a, b) => a.page_num === b.page_num ? a.index - b.index : a.page_num - b.page_num)
+        .map(b => ({ index: b.index, page: b.page_num, y: b.bbox[1], content: b.content.substring(0, 20) + '...' }))
+    );
+    
+    const generated = BlockMarkdownGenerator.generateFromBlocks(blockData);
+    console.log('✅ Generated markdown:', generated.length, 'characters');
+    
+    return generated;
+  }, [blockData, syncEnabled, originalMarkdown]);
+
+  // 应用搜索高亮
+  const processedMarkdown = useMemo(() => {
+    if (!activeSearchQuery?.trim()) {
+      return blockBasedMarkdown;
+    }
+
+    const query = activeSearchQuery.trim();
+    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    
+    return blockBasedMarkdown.replace(regex, '<mark class="search-highlight">$1</mark>');
+  }, [blockBasedMarkdown, activeSearchQuery]);
+  
+  console.log('🔄 BlockSyncMarkdownPanel render', { 
+    originalLength: originalMarkdown.length,
+    blockBasedLength: blockBasedMarkdown.length, 
+    markdownZoom,
+    blockCount: blockData.length,
+    syncEnabled,
+    selectedBlockIndex: selectedBlock?.blockIndex
+  });
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      <ScrollArea className="h-full w-full">
+        <div className="p-3 pr-4 min-w-0 w-full">
+          <BlockMarkdownViewer 
+            content={processedMarkdown}
+            blockData={blockData}
+            selectedBlock={selectedBlock}
+            highlightedBlocks={highlightedBlocks}
+            syncEnabled={syncEnabled}
+            onBlockClick={onBlockClick}
+            onBlockHover={onBlockHover}
+            fontSize={markdownZoom}
+            className="w-full min-w-0"
+          />
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // 比较所有相关props
+  const originalMarkdownSame = prevProps.originalMarkdown === nextProps.originalMarkdown;
+  const zoomSame = prevProps.markdownZoom === nextProps.markdownZoom;
+  const blockDataSame = prevProps.blockData === nextProps.blockData;
+  const selectedBlockSame = JSON.stringify(prevProps.selectedBlock) === JSON.stringify(nextProps.selectedBlock);
+  const highlightedSame = JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks);
+  const syncEnabledSame = prevProps.syncEnabled === nextProps.syncEnabled;
+  const searchSame = prevProps.activeSearchQuery === nextProps.activeSearchQuery;
+  const callbacksSame = prevProps.onBlockClick === nextProps.onBlockClick && 
+                       prevProps.onBlockHover === nextProps.onBlockHover;
+  
+  const shouldNotRerender = originalMarkdownSame && zoomSame && blockDataSame && selectedBlockSame && 
+                           highlightedSame && syncEnabledSame && searchSame && callbacksSame;
+  
+  if (!shouldNotRerender) {
+    console.log('📝 BlockSyncMarkdownPanel will re-render:', { 
+      originalMarkdownSame, zoomSame, blockDataSame, selectedBlockSame, highlightedSame, syncEnabledSame, searchSame, callbacksSame
+    });
+  }
+  
+  return shouldNotRerender;
+});
+
 // 独立的PDF预览组件，防止任务列表展开/收起导致重渲染
 const PDFPreviewPanel = React.memo(({
   task,
   selectedPage,
   onPageSelect,
   onRotate,
-  externalPageRotations
+  externalPageRotations,
+  blockData,
+  selectedBlock,
+  highlightedBlocks,
+  syncEnabled,
+  onBlockClick,
+  onBlockHover,
+  pdfContainerRef
 }: {
   task: any;
   selectedPage: number | null;
   onPageSelect: (page: number) => void;
   onRotate: (page: number) => void;
   externalPageRotations: { [pageNumber: number]: number };
+  blockData?: BlockData[];
+  selectedBlock?: any;
+  highlightedBlocks?: number[];
+  syncEnabled?: boolean;
+  onBlockClick?: (blockIndex: number, pageNumber: number) => void;
+  onBlockHover?: (blockIndex: number | null, pageNumber: number) => void;
+  pdfContainerRef?: React.RefObject<HTMLElement>;
 }) => {
   // 调试：监控重渲染
   console.log('📄 PDFPreviewPanel render', { 
     taskId: task.id, 
     selectedPage, 
-    rotationsCount: Object.keys(externalPageRotations).length 
+    rotationsCount: Object.keys(externalPageRotations).length,
+    blockCount: blockData?.length || 0,
+    syncEnabled
   });
   
   return (
@@ -112,6 +245,13 @@ const PDFPreviewPanel = React.memo(({
         onPageSelect={onPageSelect}
         onRotate={onRotate}
         externalPageRotations={externalPageRotations}
+        blockData={blockData}
+        selectedBlock={selectedBlock}
+        highlightedBlocks={highlightedBlocks}
+        syncEnabled={syncEnabled}
+        onBlockClick={onBlockClick}
+        onBlockHover={onBlockHover}
+        containerRef={pdfContainerRef}
       />
     </div>
   );
@@ -122,10 +262,19 @@ const PDFPreviewPanel = React.memo(({
                    prevProps.task.status === nextProps.task.status;
   const selectedPageSame = prevProps.selectedPage === nextProps.selectedPage;
   const rotationsSame = JSON.stringify(prevProps.externalPageRotations) === JSON.stringify(nextProps.externalPageRotations);
+  const blockDataSame = prevProps.blockData === nextProps.blockData;
+  const selectedBlockSame = JSON.stringify(prevProps.selectedBlock) === JSON.stringify(nextProps.selectedBlock);
+  const highlightedBlocksSame = JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks);
+  const syncEnabledSame = prevProps.syncEnabled === nextProps.syncEnabled;
   const callbacksSame = prevProps.onPageSelect === nextProps.onPageSelect && 
-                        prevProps.onRotate === nextProps.onRotate;
+                        prevProps.onRotate === nextProps.onRotate &&
+                        prevProps.onBlockClick === nextProps.onBlockClick &&
+                        prevProps.onBlockHover === nextProps.onBlockHover;
+  const refSame = prevProps.pdfContainerRef === nextProps.pdfContainerRef;
   
-  const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && callbacksSame;
+  const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && 
+                           blockDataSame && selectedBlockSame && highlightedBlocksSame && 
+                           syncEnabledSame && callbacksSame && refSame;
   
   if (!shouldNotRerender) {
     console.log('📄 PDFPreviewPanel will re-render:', { 
@@ -188,6 +337,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const [pdfSelectedPage, setPdfSelectedPage] = useState<number | null>(null);
   const [pdfPageRotations, setPdfPageRotations] = useState<{ [pageNumber: number]: number }>({});
   
+  // 区块同步状态管理
+  const [blockData, setBlockData] = useState<BlockData[]>([]);
+  const [blockDataLoading, setBlockDataLoading] = useState(false);
+  
   // PDF操作处理函数 - 使用useCallback稳定化
   const handlePdfRotate = React.useCallback((pageNumber: number) => {
     setPdfPageRotations(prev => ({
@@ -245,6 +398,46 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     loadTaskResult();
   }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
 
+  // 加载区块数据：当结果加载完成且处于对照标签页时
+  React.useEffect(() => {
+    const loadBlockData = async () => {
+      if (currentResult && currentTaskId && activeDocumentTab === 'compare' && !blockDataLoading && blockData.length === 0) {
+        setBlockDataLoading(true);
+        try {
+          console.log(`🔄 Loading block data for task: ${currentTaskId}`);
+          const response = await apiClient.getTaskBlockData(currentTaskId);
+          if (response.success && response.data?.preproc_blocks) {
+            setBlockData(response.data.preproc_blocks);
+            
+            // Debug: 验证index顺序和排序修复效果
+            const blocks = response.data.preproc_blocks;
+            console.log(`✅ Loaded ${blocks.length} blocks`);
+            console.log('🔍 Block index verification:', blocks.map(b => ({
+              index: b.index,
+              page: b.page_num,
+              y_coord: b.bbox[1],
+              content_preview: b.content.substring(0, 30) + '...'
+            })));
+            
+            // 检查index是否连续
+            const indices = blocks.map(b => b.index).sort((a, b) => a - b);
+            const isSequential = indices.every((val, i) => val === i + 1);
+            console.log(`🎯 Index sequence check: ${isSequential ? '✅ SEQUENTIAL' : '❌ NOT SEQUENTIAL'}`, indices);
+          } else {
+            console.warn('Block data not available for this document');
+          }
+        } catch (error) {
+          console.error('Failed to load block data:', error);
+          // 不显示错误提示，因为不是所有文档都有区块数据
+        } finally {
+          setBlockDataLoading(false);
+        }
+      }
+    };
+    
+    loadBlockData();
+  }, [currentResult, currentTaskId, activeDocumentTab, blockDataLoading, blockData.length]);
+
   // Process markdown content with search highlighting
   const processedMarkdown = useMemo(() => {
     if (!currentResult?.markdown_content || !activeSearchQuery.trim()) {
@@ -257,6 +450,109 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     return currentResult.markdown_content.replace(regex, '<mark class="search-highlight">$1</mark>');
   }, [currentResult?.markdown_content, activeSearchQuery]);
 
+  // 初始化区块同步hooks
+  const blockSyncEnabled = blockData.length > 0 && activeDocumentTab === 'compare';
+  const blockSync = useBlockSync({
+    blockData: blockData,
+    enabled: blockSyncEnabled,
+    onSelectionChange: (selection) => {
+      console.log('Block selection changed:', selection);
+    },
+    onBlockInteraction: (blockIndex, action) => {
+      console.log('Block interaction:', blockIndex, action);
+    }
+  });
+
+  // 初始化滚动同步hooks
+  const scrollSync = useScrollSync({
+    blockData: blockData,
+    markdownContent: processedMarkdown,
+    enabled: blockSyncEnabled && blockSync.isScrollSyncEnabled,
+    selectedBlock: blockSync.selectedBlock,
+    debounceDelay: 50 // 减少debounce延迟以提高响应速度
+  });
+
+  // Markdown → PDF 滚动同步：监听区块选择变化并触发PDF滚动
+  // 添加用户手动滚动检测状态
+  const [isUserScrolling, setIsUserScrolling] = React.useState(false);
+  const userScrollTimeoutRef = React.useRef<NodeJS.Timeout>();
+
+  // 跟踪最后一次Markdown点击的时间戳，用于区分用户操作和自动同步
+  const lastMarkdownClickRef = React.useRef<number>(0);
+
+  React.useEffect(() => {
+    if (!blockSyncEnabled || !blockSync.selectedBlock.isActive || !blockSync.selectedBlock.blockIndex) {
+      return;
+    }
+
+    // 简化逻辑：只检查是否是最近的用户点击（缩短到500ms）
+    const currentTime = Date.now();
+    const timeSinceLastClick = currentTime - lastMarkdownClickRef.current;
+    
+    // 如果距离最后一次点击超过500ms，认为这不是用户主动操作，跳过滚动
+    if (timeSinceLastClick > 500) {
+      console.log(`⏭️  Block selection not from recent user click (${timeSinceLastClick}ms ago), skipping scroll`);
+      return;
+    }
+    
+    const blockIndex = blockSync.selectedBlock.blockIndex;
+    console.log(`🔄 Block ${blockIndex} selected from recent Markdown click, triggering immediate PDF scroll`);
+    
+    // 立即响应，移除requestAnimationFrame延迟
+    scrollSync.scrollToBlockInPdf(blockIndex);
+  }, [blockSync.selectedBlock.blockIndex, blockSync.selectedBlock.isActive, blockSyncEnabled, scrollSync]);
+
+  // 检测用户手动滚动PDF
+  React.useEffect(() => {
+    const pdfContainer = scrollSync.pdfContainerRef.current;
+    if (!pdfContainer) return;
+
+    // 查找实际的可滚动元素
+    const scrollableElement = pdfContainer.querySelector('[data-radix-scroll-area-viewport]') || pdfContainer;
+
+    const handleUserScroll = () => {
+      // 设置用户正在滚动状态
+      setIsUserScrolling(true);
+      console.log(`👆 User manual scroll detected`);
+      
+      // 清除之前的超时
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+      
+      // 设置超时，在用户停止滚动500ms后恢复自动滚动（大幅缩短等待时间）
+      userScrollTimeoutRef.current = setTimeout(() => {
+        setIsUserScrolling(false);
+        console.log(`✅ User scroll timeout, auto-scroll re-enabled`);
+      }, 500);
+    };
+
+    // 添加滚动事件监听器
+    (scrollableElement as HTMLElement).addEventListener('scroll', handleUserScroll, { passive: true });
+
+    return () => {
+      (scrollableElement as HTMLElement).removeEventListener('scroll', handleUserScroll);
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+    };
+  }, [scrollSync.pdfContainerRef]);
+
+  // 包装Markdown点击处理函数，记录点击时间戳并立即触发PDF滚动
+  const handleMarkdownBlockClickWithTimestamp = React.useCallback((blockIndex: number) => {
+    lastMarkdownClickRef.current = Date.now();
+    console.log(`📝 Markdown block ${blockIndex} clicked, triggering immediate sync`);
+    
+    // 立即处理区块选择
+    blockSync.handleMarkdownBlockClick(blockIndex);
+    
+    // 如果同步已启用，立即触发PDF滚动而不等待useEffect
+    if (blockSyncEnabled) {
+      console.log(`⚡ Immediate PDF scroll trigger for block ${blockIndex}`);
+      scrollSync.scrollToBlockInPdf(blockIndex);
+    }
+  }, [blockSync, blockSyncEnabled, scrollSync]);
+
   // Handle search input
   const handleSearchChange = (value: string) => {
     setLocalSearchQuery(value);
@@ -268,8 +564,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     setSearchQuery(localSearchQuery);
   };
 
-  // Handle search input key press
-  const handleSearchKeyPress = (e: React.KeyboardEvent) => {
+  // Handle search input key down (替换弃用的onKeyPress)
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearchExecute();
     }
@@ -532,6 +828,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             onPageSelect={handlePdfPageSelect}
                             onRotate={handlePdfRotate}
                             externalPageRotations={pdfPageRotations}
+                            blockData={blockData}
+                            selectedBlock={blockSync.selectedBlock}
+                            highlightedBlocks={blockSync.highlightedBlocks}
+                            syncEnabled={blockSync.isSyncEnabled}
+                            onBlockClick={blockSync.handlePdfBlockClick}
+                            onBlockHover={blockSync.handlePdfBlockHover}
+                            pdfContainerRef={scrollSync.pdfContainerRef}
                           />
                         </div>
                       </ResizablePanel>
@@ -549,9 +852,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                           {/* OCR识别内容标题栏 - 包含识别相关操作 */}
                           <div className="bg-muted/5 px-3 py-2 border-b flex-shrink-0">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              {/* 左侧：标题 */}
+                              {/* 左侧：标题和同步状态 */}
                               <div className="flex items-center space-x-2 flex-shrink-0">
                                 <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">OCR识别内容</h3>
+                                {blockSyncEnabled && (
+                                  <div className="flex items-center space-x-1">
+                                    <Badge variant="outline" className="text-xs">
+                                      区块同步 {blockSync.isSyncEnabled ? '开启' : '关闭'}
+                                    </Badge>
+                                  </div>
+                                )}
                               </div>
                               
                               {/* 右侧：操作按钮和搜索 */}
@@ -596,17 +906,31 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                                     placeholder="搜索..."
                                     value={localSearchQuery}
                                     onChange={(e) => handleSearchChange(e.target.value)}
-                                    onKeyPress={handleSearchKeyPress}
+                                    onKeyDown={handleSearchKeyDown}
                                     className="pl-7 h-7 text-xs w-full"
                                   />
                                 </div>
                               </div>
                             </div>
                           </div>
-                          <MarkdownContentPanel 
-                            processedMarkdown={processedMarkdown}
-                            markdownZoom={markdownZoom}
-                          />
+                          {blockSyncEnabled ? (
+                            <BlockSyncMarkdownPanel 
+                              originalMarkdown={currentResult?.markdown_content || ''}
+                              markdownZoom={markdownZoom}
+                              blockData={blockData}
+                              selectedBlock={blockSync.selectedBlock}
+                              highlightedBlocks={blockSync.highlightedBlocks}
+                              syncEnabled={blockSync.isSyncEnabled}
+                              onBlockClick={handleMarkdownBlockClickWithTimestamp}
+                              onBlockHover={blockSync.handleMarkdownBlockHover}
+                              activeSearchQuery={activeSearchQuery}
+                            />
+                          ) : (
+                            <MarkdownContentPanel 
+                              processedMarkdown={processedMarkdown}
+                              markdownZoom={markdownZoom}
+                            />
+                          )}
                         </div>
                       </ResizablePanel>
                     </ResizablePanelGroup>
@@ -687,7 +1011,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                           placeholder="在文档内容中搜索...（按回车搜索）"
                           value={localSearchQuery}
                           onChange={(e) => handleSearchChange(e.target.value)}
-                          onKeyPress={handleSearchKeyPress}
+                          onKeyDown={handleSearchKeyDown}
                           className="pl-8 h-8 text-xs w-full"
                         />
                       </div>

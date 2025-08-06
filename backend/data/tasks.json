@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "created_at": "2025-08-06T15:03:33.588116",
+  "tasks": {
+    "90a694a7-d260-4d16-ac27-1038a11d8a2f": {
+      "id": "90a694a7-d260-4d16-ac27-1038a11d8a2f",
+      "filename": "2410.03690v1.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-06T15:22:24.908138",
+      "completed_at": "2025-08-06T15:22:38.341702",
+      "error_message": null,
+      "result_url": "/api/download/90a694a7-d260-4d16-ac27-1038a11d8a2f",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 7,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-06T15:22:38.341731"
+    }
+  }
+}

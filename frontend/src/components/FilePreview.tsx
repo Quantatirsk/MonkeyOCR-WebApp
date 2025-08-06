@@ -3,7 +3,7 @@
  * Handles PDF and image file previews using react-pdf and native image rendering
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
 // Import react-pdf styles to fix TextLayer warning
@@ -44,6 +44,7 @@ interface FilePreviewProps {
   syncEnabled?: boolean; // Whether sync features are enabled
   onBlockClick?: (blockIndex: number, pageNumber: number) => void; // Block click handler
   onBlockHover?: (blockIndex: number | null, pageNumber: number) => void; // Block hover handler
+  containerRef?: React.RefObject<HTMLElement>; // Container ref for scroll synchronization
 }
 
 const FilePreviewComponent: React.FC<FilePreviewProps> = ({ 
@@ -61,7 +62,8 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   highlightedBlocks = [],
   syncEnabled = false,
   onBlockClick,
-  onBlockHover
+  onBlockHover,
+  containerRef: externalContainerRef
 }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({});
@@ -80,7 +82,18 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
   const [previewInfo, setPreviewInfo] = useState<any>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const internalContainerRef = React.useRef<HTMLDivElement>(null);
+  
+  // Use external container ref if provided, otherwise use internal ref
+  const containerRef = externalContainerRef || internalContainerRef;
+  
+  // PDF页面动态尺寸信息
+  const [pdfPageSizes, setPdfPageSizes] = useState<{ [pageNum: number]: [number, number] }>({});
+  const pageRefs = React.useRef<{ [pageNum: number]: HTMLDivElement }>({});
+  
+  // 拖拽状态管理 - 用于优化渲染性能
+  const [isDragging, setIsDragging] = useState(false);
+  const dragTimeoutRef = useRef<NodeJS.Timeout>();
   
   // 从服务器获取文件预览URL和信息
   React.useEffect(() => {
@@ -114,13 +127,31 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     loadFilePreview();
   }, [task.id]);
 
-  // 简化的容器监听 - 仅用于触发CSS响应式更新
+  // 容器尺寸监听 - 触发PDF缩放重计算
   React.useLayoutEffect(() => {
     const updateContainerSize = () => {
       if (containerRef.current) {
         const width = containerRef.current.clientWidth;
         if (width > 0 && Math.abs(width - containerWidth) > 5) {
           setContainerWidth(width);
+          
+          // Detect dragging state for performance optimization
+          if (!isDragging) {
+            setIsDragging(true);
+            console.log('🎯 Dragging started - entering high-performance mode');
+          }
+          
+          // Clear existing timeout and set new one
+          if (dragTimeoutRef.current) {
+            clearTimeout(dragTimeoutRef.current);
+          }
+          
+          dragTimeoutRef.current = setTimeout(() => {
+            setIsDragging(false);
+            console.log('🎯 Dragging ended - returning to high-precision mode');
+          }, 300); // 300ms delay to detect end of dragging
+          
+          console.log('📐 Container resized, CSS will handle scaling automatically');
         }
       }
     };
@@ -136,8 +167,12 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
 
     return () => {
       resizeObserver.disconnect();
+      // Clear drag timeout on cleanup
+      if (dragTimeoutRef.current) {
+        clearTimeout(dragTimeoutRef.current);
+      }
     };
-  }, []);
+  }, [containerWidth]); // Simplified - CSS handles scaling automatically
 
 
   
@@ -166,7 +201,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       document.head.appendChild(styleElement);
     }
     
-    // 改进的CSS规则：实现真正的响应式PDF和正确的滚动
+    // 改进的CSS规则：实现真正的响应式PDF和快速滚动动画
     styleElement.textContent = `
       /* PDF页面容器响应式 */
       .react-pdf__Page {
@@ -200,6 +235,23 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         height: auto !important;
         display: block !important;
       }
+      
+      /* 快速滚动动画 - 保持视觉效果但提升速度 */
+      [data-radix-scroll-area-viewport] {
+        scroll-behavior: smooth !important;
+        scroll-padding-top: 20px !important;
+      }
+      
+      /* 加速CSS滚动动画 */
+      * {
+        --scroll-duration: 300ms;
+      }
+      
+      @media (prefers-reduced-motion: no-preference) {
+        [data-radix-scroll-area-viewport] {
+          transition: scroll-position var(--scroll-duration) cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+      }
     `;
     
     return () => {
@@ -223,14 +275,37 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   }, [syncEnabled]);
 
   // PDF文档加载成功回调
-  const onDocumentLoadSuccess = React.useCallback((pdf: any) => {
+  const onDocumentLoadSuccess = React.useCallback(async (pdf: any) => {
     setNumPages(pdf.numPages);
     setError(null);
+    
+    // 获取每个页面的真实尺寸
+    const pageSizes: { [pageNum: number]: [number, number] } = {};
+    
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.0 });
+        pageSizes[pageNum] = [viewport.width, viewport.height];
+        console.log(`📏 Page ${pageNum} dimensions:`, viewport.width, 'x', viewport.height);
+      } catch (error) {
+        console.warn(`Failed to get dimensions for page ${pageNum}:`, error);
+        // 使用默认A4尺寸作为后备
+        pageSizes[pageNum] = [595, 842];
+      }
+    }
+    
+    setPdfPageSizes(pageSizes);
   }, []);
 
   const onDocumentLoadError = React.useCallback((error: Error) => {
     console.error('PDF load error:', error);
     setError('无法加载PDF文件');
+  }, []);
+
+  // 页面加载完成通知 - 不再需要scale计算
+  const onPageLoadSuccess = React.useCallback((_page: any, pageNumber: number) => {
+    console.log(`✅ Page ${pageNumber} loaded, CSS will handle responsive scaling`);
   }, []);
 
   // Loading state
@@ -324,7 +399,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         )}
 
         {/* Image Content */}
-        <div className="flex-1 overflow-hidden" ref={task.file_type === 'image' ? containerRef : undefined}>
+        <div className="flex-1 overflow-hidden" ref={task.file_type === 'image' ? containerRef as React.RefObject<HTMLDivElement> : undefined}>
           <ScrollArea className="h-full w-full">
             <div className="flex items-center justify-center min-h-full p-4">
               <img
@@ -406,21 +481,14 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                   第{selectedPage}页
                 </span>
               )}
-              
-              {/* Block count indicator */}
-              {syncEnabled && blockData.length > 0 && (
-                <span className="text-xs text-muted-foreground border rounded px-2 py-1 whitespace-nowrap">
-                  {blockData.length} 区块
-                </span>
-              )}
             </div>
           </div>
         </div>
       )}
 
       {/* PDF Content - 高级响应式版本 */}
-      <div className="flex-1 overflow-hidden" ref={containerRef}>
-        <ScrollArea className="h-full w-full">
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea ref={containerRef as any} className="h-full w-full">
           <div className="flex flex-col items-center p-4 space-y-4 min-h-full">
             <Document
               key={`${task.id}-${fileUrl}`}
@@ -439,6 +507,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                     className={`relative cursor-pointer transition-all duration-200 mb-6 ${
                       isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
                     }`}
+                    data-page-number={pageNum}
                     onClick={() => setSelectedPage(pageNum)}
                   >
                     {/* 页码标签 */}
@@ -452,13 +521,21 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                       )}
                     </div>
                     
-                    <div className="relative">
+                    <div 
+                      className="relative" 
+                      ref={(el) => {
+                        if (el) {
+                          pageRefs.current[pageNum] = el;
+                        }
+                      }}
+                    >
                       <Page
                         pageNumber={pageNum}
                         rotate={pageRotation}
                         className="shadow-lg transition-all duration-300"
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
+                        onLoadSuccess={(page) => onPageLoadSuccess(page, pageNum)}
                       />
                       
                       {/* Block Overlay */}
@@ -466,14 +543,15 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                         <PDFBlockOverlay
                           blocks={blockData}
                           pageNumber={pageNum}
-                          pageSize={[595, 842]} // Default A4 size, should be dynamic
-                          scale={1} // Should be calculated based on actual page rendering
+                          pageSize={pdfPageSizes[pageNum] || [595, 842]} // Use dynamic page size
+                          scale={1} // Fixed scale - CSS handles responsive scaling
                           selectedBlock={selectedBlock}
                           highlightedBlocks={highlightedBlocks}
                           syncEnabled={showBlockOverlays}
                           onBlockClick={onBlockClick}
                           onBlockHover={onBlockHover}
                           className="z-10"
+                          isDragging={isDragging} // Pass dragging state for performance optimization
                         />
                       )}
                     </div>
@@ -516,7 +594,9 @@ export const FilePreview = React.memo(FilePreviewComponent, (prevProps, nextProp
     // 比较外部旋转状态对象
     JSON.stringify(prevProps.externalPageRotations || {}) === JSON.stringify(nextProps.externalPageRotations || {}) &&
     // 检查是否从外部控制模式切换到内部控制模式，或反之
-    (prevProps.onPageSelect !== undefined) === (nextProps.onPageSelect !== undefined)
+    (prevProps.onPageSelect !== undefined) === (nextProps.onPageSelect !== undefined) &&
+    // 比较容器引用（对象引用比较）
+    prevProps.containerRef === nextProps.containerRef
   );
 });
 

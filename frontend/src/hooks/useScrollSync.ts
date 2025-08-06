@@ -37,6 +37,8 @@ export interface UseScrollSyncReturn {
   syncMarkdownToPdf: () => void;
   /** Enable/disable scroll sync temporarily */
   setScrollSyncEnabled: (enabled: boolean) => void;
+  /** Get the last sync source */
+  getLastSyncSource: () => 'pdf' | 'markdown' | null;
 }
 
 export const useScrollSync = ({
@@ -45,7 +47,7 @@ export const useScrollSync = ({
   enabled = true,
   selectedBlock,
   sensitivity = 0.7,
-  debounceDelay = 100
+  debounceDelay = 50
 }: UseScrollSyncOptions): UseScrollSyncReturn => {
   // Container refs
   const pdfContainerRef = useRef<HTMLElement>(null);
@@ -71,35 +73,35 @@ export const useScrollSync = ({
     syncEnabledRef.current = enabled;
   }, [enabled]);
 
-  // Utility: Get visible blocks in container
-  const getVisibleBlocks = useCallback((
-    container: HTMLElement, 
-    blockElements: NodeListOf<Element>
-  ): number[] => {
-    const containerRect = container.getBoundingClientRect();
-    const visibleBlocks: number[] = [];
+  // Utility: Get visible blocks in container (commented out - unused but may be needed later)
+  // const getVisibleBlocks = useCallback((
+  //   container: HTMLElement, 
+  //   blockElements: NodeListOf<Element>
+  // ): number[] => {
+  //   const containerRect = container.getBoundingClientRect();
+  //   const visibleBlocks: number[] = [];
     
-    blockElements.forEach((element) => {
-      const rect = element.getBoundingClientRect();
-      const blockIndex = parseInt(element.getAttribute('data-block-index') || '-1', 10);
+  //   blockElements.forEach((element) => {
+  //     const rect = element.getBoundingClientRect();
+  //     const blockIndex = parseInt(element.getAttribute('data-block-index') || '-1', 10);
       
-      if (blockIndex >= 0) {
-        // Check if block is visible (intersects with container)
-        const isVisible = (
-          rect.bottom > containerRect.top &&
-          rect.top < containerRect.bottom &&
-          rect.right > containerRect.left &&
-          rect.left < containerRect.right
-        );
+  //     if (blockIndex >= 0) {
+  //       // Check if block is visible (intersects with container)
+  //       const isVisible = (
+  //         rect.bottom > containerRect.top &&
+  //         rect.top < containerRect.bottom &&
+  //         rect.right > containerRect.left &&
+  //         rect.left < containerRect.right
+  //       );
         
-        if (isVisible) {
-          visibleBlocks.push(blockIndex);
-        }
-      }
-    });
+  //       if (isVisible) {
+  //         visibleBlocks.push(blockIndex);
+  //       }
+  //     }
+  //   });
     
-    return visibleBlocks;
-  }, []);
+  //   return visibleBlocks;
+  // }, []);
 
   // Utility: Get scroll position as percentage
   const getScrollPercentage = useCallback((container: HTMLElement): number => {
@@ -117,7 +119,7 @@ export const useScrollSync = ({
     container.scrollTop = Math.max(0, Math.min(maxScroll, percentage * maxScroll));
   }, []);
 
-  // Scroll to specific block in PDF
+  // Scroll to specific block in PDF - 优化版本，减少日志和延迟
   const scrollToBlockInPdf = useCallback((blockIndex: number) => {
     const pdfContainer = pdfContainerRef.current;
     if (!pdfContainer || !syncEnabledRef.current) return;
@@ -125,30 +127,30 @@ export const useScrollSync = ({
     const block = BlockProcessor.findBlockByIndex(blockData, blockIndex);
     if (!block) return;
 
-    // Find PDF page element
-    const pageElements = pdfContainer.querySelectorAll('.react-pdf__Page');
-    const targetPageElement = Array.from(pageElements).find(el => {
-      const pageNumber = parseInt(el.getAttribute('data-page-number') || '0', 10);
-      return pageNumber === block.page_num;
-    });
+    // Find the actual scrollable viewport and target page quickly
+    const scrollableElement = pdfContainer.querySelector('[data-radix-scroll-area-viewport]') || pdfContainer;
+    const targetPageElement = scrollableElement.querySelector(`[data-page-number="${block.page_num}"]`) || 
+                             pdfContainer.querySelector(`[data-page-number="${block.page_num}"]`);
 
     if (targetPageElement) {
-      // Scroll to page first
-      targetPageElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
+      // Calculate position quickly without excessive logging
+      const [, bboxY1, ,] = block.bbox;
+      const [, pageHeight] = block.page_size;
+      const relativeY = bboxY1 / pageHeight;
+      
+      const pageRect = targetPageElement.getBoundingClientRect();
+      const scrollableRect = (scrollableElement as HTMLElement).getBoundingClientRect();
+      const pageTopInContainer = (targetPageElement as HTMLElement).offsetTop;
+      const blockPositionInPage = relativeY * pageRect.height;
+      const targetScrollTop = pageTopInContainer + blockPositionInPage - (scrollableRect.height / 3);
+      
+      // 快速滚动动画，保持视觉效果但大幅提升速度
+      (scrollableElement as HTMLElement).scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth' // 保持smooth动画，但通过CSS加速
       });
       
-      // Then look for block overlay if available
-      setTimeout(() => {
-        const blockOverlay = targetPageElement.querySelector(`[data-block-index="${blockIndex}"]`);
-        if (blockOverlay) {
-          blockOverlay.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          });
-        }
-      }, 300);
+      console.log(`⚡ Fast PDF scroll to block ${blockIndex}`);
     }
     
     lastSyncSourceRef.current = 'markdown';
@@ -258,25 +260,32 @@ export const useScrollSync = ({
     };
   }, [enabled, handlePdfScroll, handleMarkdownScroll]);
 
-  // Auto-scroll to selected block
+  // Auto-scroll to selected block (仅处理PDF→Markdown方向，Markdown→PDF由DocumentViewer处理)
   useEffect(() => {
     if (!selectedBlock?.isActive || selectedBlock.blockIndex === null) return;
     
     const blockIndex = selectedBlock.blockIndex;
     
-    // Small delay to ensure DOM is updated
-    setTimeout(() => {
+    // 使用requestAnimationFrame确保DOM更新完成，比setTimeout更快
+    requestAnimationFrame(() => {
       if (lastSyncSourceRef.current === 'pdf') {
         scrollToBlockInMarkdown(blockIndex);
-      } else if (lastSyncSourceRef.current === 'markdown') {
-        scrollToBlockInPdf(blockIndex);
       }
-    }, 100);
-  }, [selectedBlock, scrollToBlockInPdf, scrollToBlockInMarkdown]);
+      // 注释掉Markdown→PDF滚动，由DocumentViewer统一处理以避免冲突
+      // else if (lastSyncSourceRef.current === 'markdown') {
+      //   scrollToBlockInPdf(blockIndex);
+      // }
+    });
+  }, [selectedBlock, scrollToBlockInMarkdown]); // 移除scrollToBlockInPdf依赖
 
   // Control function
   const setScrollSyncEnabled = useCallback((enabled: boolean) => {
     syncEnabledRef.current = enabled;
+  }, []);
+
+  // Get last sync source
+  const getLastSyncSource = useCallback(() => {
+    return lastSyncSourceRef.current;
   }, []);
 
   return {
@@ -286,6 +295,7 @@ export const useScrollSync = ({
     scrollToBlockInMarkdown,
     syncPdfToMarkdown,
     syncMarkdownToPdf,
-    setScrollSyncEnabled
+    setScrollSyncEnabled,
+    getLastSyncSource
   };
 };

@@ -163,7 +163,7 @@ export const useBlockSync = ({
     selectBlock(blockIndex, pageNumber);
   }, [selectBlock, clearSelection]);
 
-  const handlePdfBlockHover = useCallback((blockIndex: number | null, pageNumber: number) => {
+  const handlePdfBlockHover = useCallback((blockIndex: number | null, _pageNumber: number) => {
     setHoveredBlock(blockIndex);
     
     if (blockIndex !== null && onBlockInteraction) {

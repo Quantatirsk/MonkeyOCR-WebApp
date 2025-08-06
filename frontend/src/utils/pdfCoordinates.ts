@@ -255,8 +255,8 @@ export class PDFCoordinateUtils {
     offset: [number, number] = [0, 0]
   ): [number, number] {
     const [vx, vy] = viewportPoint;
-    const [vw, vh] = viewportSize;
-    const [pw, ph] = pageSize;
+    const [_vw, _vh] = viewportSize;
+    const [_pw, ph] = pageSize;
     const [ox, oy] = offset;
 
     // Account for offset and scale

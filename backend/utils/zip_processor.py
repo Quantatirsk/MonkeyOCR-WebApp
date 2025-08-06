@@ -310,7 +310,90 @@ class ZipProcessor:
         try:
             async with aiofiles.open(middle_json_path, 'r', encoding='utf-8') as f:
                 content = await f.read()
-                return json.loads(content)
+                raw_data = json.loads(content)
+                
+                # Transform raw data to frontend-compatible format
+                return self._transform_block_data(raw_data)
         except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
             print(f"Error reading middle.json file {middle_json_path}: {e}")
             return None
+    
+    def _transform_block_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Transform raw middle.json data to frontend-compatible BlockProcessingData format
+        
+        Args:
+            raw_data: Raw data from middle.json file
+            
+        Returns:
+            Transformed data compatible with frontend BlockProcessingData interface
+        """
+        if 'pdf_info' not in raw_data or not raw_data['pdf_info']:
+            return {
+                'preproc_blocks': [],
+                'total_pages': 0
+            }
+        
+        all_blocks = []
+        page_count = len(raw_data['pdf_info'])
+        global_block_index = 1  # 全文档连续编号，从1开始
+        
+        print(f"🔍 Processing {page_count} pages of block data...")
+        
+        for page_idx, page_info in enumerate(raw_data['pdf_info']):
+            page_num = page_idx + 1
+            page_size = page_info.get('page_size', [595, 842])  # Default A4 size
+            preproc_blocks = page_info.get('preproc_blocks', [])
+            
+            for block in preproc_blocks:
+                # Extract content from lines/spans structure
+                content = ""
+                if 'lines' in block and block['lines']:
+                    content_parts = []
+                    for line in block['lines']:
+                        if 'spans' in line and line['spans']:
+                            for span in line['spans']:
+                                if 'content' in span:
+                                    content_parts.append(span['content'])
+                    content = ' '.join(content_parts)
+                
+                # CRITICAL: Use sequential global index for consistent cross-page ordering
+                # Original MonkeyOCR index is per-page (0,1,2...), we need global continuous numbering
+                
+                # Create BlockData compatible structure with global continuous index
+                transformed_block = {
+                    'index': global_block_index,  # 使用全文档连续索引确保一致性
+                    'bbox': block.get('bbox', [0, 0, 0, 0]),
+                    'type': block.get('type', 'text'),
+                    'content': content,
+                    'page_num': page_num,
+                    'page_size': page_size,
+                    # DEBUG: 保留原始数据结构供调试
+                    '_raw_index': block.get('index', None),
+                    '_global_index': global_block_index
+                }
+                
+                all_blocks.append(transformed_block)
+                
+                # Debug log for index assignment
+                raw_index = block.get('index')
+                if raw_index is not None:
+                    print(f"  📋 Block {global_block_index}: original={raw_index} → global={global_block_index} (page {page_num})")
+                else:
+                    print(f"  📋 Block {global_block_index}: no original → global={global_block_index} (page {page_num})")
+                
+                global_block_index += 1  # 递增全局索引
+        
+        # Final debug: show the complete index sequence
+        print(f"📊 Final block sequence: {[block['index'] for block in all_blocks]}")
+        print(f"📊 Total blocks processed: {len(all_blocks)}")
+        
+        return {
+            'preproc_blocks': all_blocks,
+            'total_pages': page_count,
+            'document_metadata': {
+                'title': 'Extracted Document',
+                'processing_timestamp': raw_data.get('_version_name', ''),
+                'parse_type': raw_data.get('_parse_type', 'unknown')
+            }
+        }
