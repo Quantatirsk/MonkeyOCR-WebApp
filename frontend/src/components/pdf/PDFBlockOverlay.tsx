@@ -150,7 +150,27 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       ctx.globalAlpha = 1;
       ctx.strokeRect(x1, y1, width, height);
 
-      // 移除数字标识和类型指示器，保持简洁的区块显示
+      // Draw block index number (从1开始显示)
+      const displayIndex = block.index.toString();
+      ctx.font = 'bold 12px Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      
+      // Draw background for index number
+      const textMetrics = ctx.measureText(displayIndex);
+      const textWidth = textMetrics.width;
+      const textHeight = 12;
+      const padding = 3;
+      
+      // Background rectangle for better visibility
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(x1 + 2, y1 + 2, textWidth + padding * 2, textHeight + padding * 2);
+      
+      // Index number text
+      ctx.fillStyle = 'white';
+      ctx.globalAlpha = 1;
+      ctx.fillText(displayIndex, x1 + 2 + padding, y1 + 2 + padding);
     });
   }, [
     pageBlocks,

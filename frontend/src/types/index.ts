@@ -178,10 +178,15 @@ export type FileType = ProcessingTask['file_type'];
 export interface BlockData {
   index: number;
   bbox: [number, number, number, number]; // [x1, y1, x2, y2]
-  type: 'text' | 'title' | 'image';
+  type: 'text' | 'title' | 'image' | 'table';
   content: string;
   page_num: number;
   page_size: [number, number]; // [width, height]
+  
+  // Enhanced fields for images and tables
+  image_path?: string;
+  caption?: string;
+  html_content?: string; // For tables - HTML table structure
 }
 
 export interface BlockProcessingData {

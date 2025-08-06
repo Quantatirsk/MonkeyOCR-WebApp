@@ -116,7 +116,7 @@ export class BlockProcessor {
   /**
    * Get block color scheme based on type
    */
-  static getBlockColorScheme(type: 'text' | 'title' | 'image'): {
+  static getBlockColorScheme(type: 'text' | 'title' | 'image' | 'table'): {
     border: string;
     background: string;
     label: string;
@@ -133,6 +133,12 @@ export class BlockProcessor {
           border: '#F59E0B', // amber-500
           background: 'rgba(245, 158, 11, 0.1)', // amber-500 with 10% opacity
           label: '#92400E' // amber-800
+        };
+      case 'table':
+        return {
+          border: '#8B5CF6', // violet-500
+          background: 'rgba(139, 92, 246, 0.1)', // violet-500 with 10% opacity
+          label: '#5B21B6' // violet-800
         };
       case 'text':
       default:

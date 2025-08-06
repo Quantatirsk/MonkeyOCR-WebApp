@@ -3,7 +3,7 @@
  * Displays OCR results with markdown rendering, image gallery, and search functionality
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
 import { BlockMarkdownViewer } from './markdown/BlockMarkdownViewer';
 import { FilePreview } from './FilePreview';
@@ -51,7 +51,7 @@ const MarkdownContentPanel = React.memo(({
   markdownZoom: number; 
 }) => {
   // 调试：监控重渲染
-  console.log('🔄 MarkdownContentPanel render', { markdownLength: processedMarkdown.length, markdownZoom });
+  // MarkdownContentPanel render
   
   return (
     <div className="flex-1 overflow-hidden">
@@ -94,7 +94,9 @@ const BlockSyncMarkdownPanel = React.memo(({
   syncEnabled,
   onBlockClick,
   onBlockHover,
-  activeSearchQuery
+  activeSearchQuery,
+  taskId,
+  onMarkdownGenerated
 }: { 
   originalMarkdown: string;
   markdownZoom: number;
@@ -105,6 +107,8 @@ const BlockSyncMarkdownPanel = React.memo(({
   onBlockClick?: (blockIndex: number) => void;
   onBlockHover?: (blockIndex: number | null) => void;
   activeSearchQuery?: string;
+  taskId?: string;
+  onMarkdownGenerated?: (markdown: string) => void;
 }) => {
   // 生成基于区块的Markdown内容
   const blockBasedMarkdown = useMemo(() => {
@@ -112,26 +116,18 @@ const BlockSyncMarkdownPanel = React.memo(({
       return originalMarkdown;
     }
     
-    console.log('🔄 Generating block-based markdown from', blockData.length, 'blocks');
-    
-    // DEBUG: 显示排序前后的对比
-    console.log('🔍 BEFORE sorting - blocks by Y coordinate:', 
-      [...blockData]
-        .sort((a, b) => a.page_num === b.page_num ? a.bbox[1] - b.bbox[1] : a.page_num - b.page_num)
-        .map(b => ({ index: b.index, page: b.page_num, y: b.bbox[1], content: b.content.substring(0, 20) + '...' }))
-    );
-    
-    console.log('🎯 AFTER sorting - blocks by index:', 
-      [...blockData]
-        .sort((a, b) => a.page_num === b.page_num ? a.index - b.index : a.page_num - b.page_num)
-        .map(b => ({ index: b.index, page: b.page_num, y: b.bbox[1], content: b.content.substring(0, 20) + '...' }))
-    );
-    
-    const generated = BlockMarkdownGenerator.generateFromBlocks(blockData);
-    console.log('✅ Generated markdown:', generated.length, 'characters');
+    // Generate markdown from blocks
+    const generated = BlockMarkdownGenerator.generateFromBlocks(blockData, taskId || undefined);
     
     return generated;
-  }, [blockData, syncEnabled, originalMarkdown]);
+  }, [blockData, syncEnabled, originalMarkdown, taskId]);
+  
+  // Use effect to notify parent component about generated markdown
+  useEffect(() => {
+    if (onMarkdownGenerated && syncEnabled && blockData.length > 0) {
+      onMarkdownGenerated(blockBasedMarkdown);
+    }
+  }, [blockBasedMarkdown, onMarkdownGenerated, syncEnabled, blockData.length]);
 
   // 应用搜索高亮
   const processedMarkdown = useMemo(() => {
@@ -145,14 +141,7 @@ const BlockSyncMarkdownPanel = React.memo(({
     return blockBasedMarkdown.replace(regex, '<mark class="search-highlight">$1</mark>');
   }, [blockBasedMarkdown, activeSearchQuery]);
   
-  console.log('🔄 BlockSyncMarkdownPanel render', { 
-    originalLength: originalMarkdown.length,
-    blockBasedLength: blockBasedMarkdown.length, 
-    markdownZoom,
-    blockCount: blockData.length,
-    syncEnabled,
-    selectedBlockIndex: selectedBlock?.blockIndex
-  });
+  // BlockSyncMarkdownPanel render
   
   return (
     <div className="flex-1 overflow-hidden">
@@ -188,11 +177,9 @@ const BlockSyncMarkdownPanel = React.memo(({
   const shouldNotRerender = originalMarkdownSame && zoomSame && blockDataSame && selectedBlockSame && 
                            highlightedSame && syncEnabledSame && searchSame && callbacksSame;
   
-  if (!shouldNotRerender) {
-    console.log('📝 BlockSyncMarkdownPanel will re-render:', { 
-      originalMarkdownSame, zoomSame, blockDataSame, selectedBlockSame, highlightedSame, syncEnabledSame, searchSame, callbacksSame
-    });
-  }
+  // if (!shouldNotRerender) {
+  //   BlockSyncMarkdownPanel will re-render
+  // }
   
   return shouldNotRerender;
 });
@@ -225,14 +212,7 @@ const PDFPreviewPanel = React.memo(({
   onBlockHover?: (blockIndex: number | null, pageNumber: number) => void;
   pdfContainerRef?: React.RefObject<HTMLElement>;
 }) => {
-  // 调试：监控重渲染
-  console.log('📄 PDFPreviewPanel render', { 
-    taskId: task.id, 
-    selectedPage, 
-    rotationsCount: Object.keys(externalPageRotations).length,
-    blockCount: blockData?.length || 0,
-    syncEnabled
-  });
+  // PDFPreviewPanel render
   
   return (
     <div className="flex-1 overflow-hidden">
@@ -276,16 +256,9 @@ const PDFPreviewPanel = React.memo(({
                            blockDataSame && selectedBlockSame && highlightedBlocksSame && 
                            syncEnabledSame && callbacksSame && refSame;
   
-  if (!shouldNotRerender) {
-    console.log('📄 PDFPreviewPanel will re-render:', { 
-      taskSame, 
-      selectedPageSame, 
-      rotationsSame,
-      callbacksSame,
-      taskId: nextProps.task.id,
-      selectedPage: nextProps.selectedPage
-    });
-  }
+  // if (!shouldNotRerender) {
+  //   PDFPreviewPanel will re-render
+  // }
   
   return shouldNotRerender;
 });
@@ -468,7 +441,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     if (activeDocumentTab !== 'compare' && blockData.length > 0) {
       console.log('📤 Leaving compare tab, clearing block data to free memory');
       setBlockData([]);
-      // 注意：不清理loadedTaskId，这样回到对照页面时可以判断是否需要重新加载
+      // 重要：同时重置loadedTaskId，确保回到对照页面时会重新加载数据
+      setLoadedTaskId(null);
+      console.log('🔄 Reset loadedTaskId to null, will reload block data when returning to compare tab');
     }
   }, [activeDocumentTab, blockData.length]);
 
@@ -584,13 +559,25 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     setFontSizeLevel(prev => (prev + 1) % 3);
   };
 
+  // Store the generated block-based markdown for copying
+  const [blockBasedMarkdownForCopy, setBlockBasedMarkdownForCopy] = React.useState<string>('');
+
   // Handle copy to clipboard
   const handleCopyMarkdown = async () => {
-    if (currentResult?.markdown_content) {
+    // In compare tab with block sync enabled, copy the regenerated content
+    // Otherwise, copy the original markdown content
+    const contentToCopy = (activeDocumentTab === 'compare' && blockSyncEnabled && blockBasedMarkdownForCopy) 
+      ? blockBasedMarkdownForCopy 
+      : currentResult?.markdown_content;
+      
+    if (contentToCopy) {
       try {
-        await navigator.clipboard.writeText(currentResult.markdown_content);
+        await navigator.clipboard.writeText(contentToCopy);
+        const message = (activeDocumentTab === 'compare' && blockSyncEnabled && blockBasedMarkdownForCopy)
+          ? "已复制重新拼接的内容到剪贴板"
+          : "已复制到剪贴板";
         toast({
-          description: "已复制到剪贴板",
+          description: message,
         });
       } catch (error) {
         console.error('Failed to copy markdown:', error);
@@ -862,14 +849,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                               {/* 左侧：标题和同步状态 */}
                               <div className="flex items-center space-x-2 flex-shrink-0">
-                                <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">OCR识别内容</h3>
-                                {blockSyncEnabled && (
-                                  <div className="flex items-center space-x-1">
-                                    <Badge variant="outline" className="text-xs">
-                                      区块同步 {blockSync.isSyncEnabled ? '开启' : '关闭'}
-                                    </Badge>
-                                  </div>
-                                )}
+
                               </div>
                               
                               {/* 右侧：操作按钮和搜索 */}
@@ -932,6 +912,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               onBlockClick={handleMarkdownBlockClickWithTimestamp}
                               onBlockHover={blockSync.handleMarkdownBlockHover}
                               activeSearchQuery={activeSearchQuery}
+                              taskId={currentTaskId || undefined}
+                              onMarkdownGenerated={setBlockBasedMarkdownForCopy}
                             />
                           ) : (
                             <MarkdownContentPanel 
