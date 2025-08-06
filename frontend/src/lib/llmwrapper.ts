@@ -517,6 +517,360 @@ ${JSON.stringify(filesInfo, null, 2)}
 
     return response
   }
+
+  /**
+   * Translate text using backend translation API
+   */
+  async translateText(
+    text: string,
+    sourceLanguage = 'auto',
+    targetLanguage: string,
+    style: 'accurate' | 'natural' | 'formal' = 'accurate',
+    stream = false
+  ): Promise<string | ReadableStream<string>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/translate/text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text,
+          source_language: sourceLanguage,
+          target_language: targetLanguage,
+          translation_style: style,
+          stream
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Translation failed: HTTP ${response.status}`)
+      }
+
+      if (stream) {
+        return this.createTranslationStreamProcessor(response)
+      } else {
+        const data = await response.json()
+        return data.translation || ''
+      }
+    } catch (error) {
+      console.error('Translation error:', error)
+      throw new Error(`Translation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Explain text using backend explanation API
+   */
+  async explainText(
+    text: string,
+    language = 'en',
+    stream = false
+  ): Promise<string | ReadableStream<string>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/explain/text`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text,
+          language,
+          stream
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Explanation failed: HTTP ${response.status}`)
+      }
+
+      if (stream) {
+        return this.createTranslationStreamProcessor(response)
+      } else {
+        const data = await response.json()
+        return data.explanation || ''
+      }
+    } catch (error) {
+      console.error('Explanation error:', error)
+      throw new Error(`Explanation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Translate single block using backend API
+   */
+  async translateBlock(
+    content: string,
+    sourceLanguage = 'auto',
+    targetLanguage: string,
+    translationStyle: 'accurate' | 'natural' | 'formal' = 'accurate'
+  ): Promise<{
+    original: string;
+    translation: string;
+    status: string;
+    error?: string;
+    source_language: string;
+    target_language: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/translate/block`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          block_content: content,
+          source_language: sourceLanguage,
+          target_language: targetLanguage,
+          translation_style: translationStyle
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Block translation failed: HTTP ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Block translation error:', error)
+      throw new Error(`Block translation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Start document translation job
+   */
+  async translateDocument(blocks: Array<{
+    id: string;
+    content: string;
+    type: string;
+  }>, options: {
+    source_language: string;
+    target_language: string;
+    preserve_formatting?: boolean;
+    translation_style?: 'accurate' | 'natural' | 'formal';
+  }): Promise<{
+    translation_id: string;
+    status: string;
+    total_blocks: number;
+    message: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/translate/document`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          blocks,
+          source_language: options.source_language,
+          target_language: options.target_language,
+          preserve_formatting: options.preserve_formatting ?? true,
+          translation_style: options.translation_style ?? 'accurate'
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Document translation failed: HTTP ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Document translation error:', error)
+      throw new Error(`Document translation failed: ${error}`)
+    }
+  }
+
+  /**
+   * Get translation job status
+   */
+  async getTranslationStatus(translationId: string): Promise<{
+    translation_id: string;
+    status: string;
+    progress: number;
+    total_blocks: number;
+    completed_blocks: number;
+    failed_blocks: number;
+    created_at: string;
+    completed_at?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/translate/status/${translationId}`)
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Translation job not found')
+        }
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Status check failed: HTTP ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Translation status error:', error)
+      throw new Error(`Translation status check failed: ${error}`)
+    }
+  }
+
+  /**
+   * Get complete translation results
+   */
+  async getTranslationResult(translationId: string): Promise<{
+    translation_id: string;
+    status: string;
+    source_language: string;
+    target_language: string;
+    total_blocks: number;
+    results: Array<{
+      block_id: string;
+      original_content: string;
+      translated_content: string;
+      status: string;
+      error_message?: string;
+    }>;
+    created_at: string;
+    completed_at?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/translate/result/${translationId}`)
+
+      if (!response.ok) {
+        if (response.status === 202) {
+          throw new Error('Translation still in progress')
+        }
+        if (response.status === 404) {
+          throw new Error('Translation results not found')
+        }
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Result retrieval failed: HTTP ${response.status}`)
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Translation result error:', error)
+      throw new Error(`Translation result retrieval failed: ${error}`)
+    }
+  }
+
+  /**
+   * Delete translation result and free memory
+   */
+  async deleteTranslationResult(translationId: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/translate/result/${translationId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok && response.status !== 404) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Deletion failed: HTTP ${response.status}`)
+      }
+    } catch (error) {
+      console.error('Translation deletion error:', error)
+      // Don't throw for deletion errors - they're not critical
+    }
+  }
+
+  /**
+   * Get available models from backend LLM API
+   */
+  async getLLMModels(): Promise<Array<{
+    id: string;
+    object: string;
+    created: number;
+    owned_by: string;
+  }>> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/llm/models`)
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || `Models retrieval failed: HTTP ${response.status}`)
+      }
+
+      const data = await response.json()
+      return data.data || []
+    } catch (error) {
+      console.error('LLM models error:', error)
+      // Return fallback models
+      return [
+        { id: 'gpt-3.5-turbo', object: 'model', created: Date.now(), owned_by: 'openai' },
+        { id: 'gpt-4', object: 'model', created: Date.now(), owned_by: 'openai' }
+      ]
+    }
+  }
+
+  /**
+   * Create stream processor for translation/explanation streaming
+   */
+  private createTranslationStreamProcessor(response: Response): ReadableStream<string> {
+    if (!response.body) {
+      throw new Error('No response body received')
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+
+    return new ReadableStream<string>({
+      start(controller) {
+        let buffer = ''
+        
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read()
+              
+              if (done) {
+                controller.close()
+                break
+              }
+
+              const chunk = decoder.decode(value, { stream: true })
+              buffer += chunk
+              
+              // Process complete lines
+              const lines = buffer.split('\n')
+              buffer = lines.pop() || ''
+
+              for (const line of lines) {
+                const trimmedLine = line.trim()
+                if (!trimmedLine) continue
+                
+                if (trimmedLine.startsWith('data: ')) {
+                  const data = trimmedLine.slice(6)
+                  
+                  if (data === '[DONE]') {
+                    controller.close()
+                    return
+                  }
+
+                  try {
+                    const parsed = JSON.parse(data)
+                    if (parsed.content) {
+                      controller.enqueue(parsed.content)
+                    } else if (parsed.error) {
+                      controller.error(new Error(parsed.error))
+                    }
+                  } catch (parseError) {
+                    console.warn('Failed to parse translation stream chunk:', data)
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Translation stream processing error:', error)
+            controller.error(error)
+          }
+        }
+        
+        processStream()
+      }
+    })
+  }
 }
 
 // Export singleton instance

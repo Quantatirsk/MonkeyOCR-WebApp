@@ -20,7 +20,8 @@ import {
   Type,
   Monitor,
   ArrowLeftRight,
-  RotateCw
+  RotateCw,
+  Languages
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -41,6 +42,7 @@ import { useToast } from '../hooks/use-toast';
 import { useBlockSync } from '../hooks/useBlockSync';
 import { useScrollSync } from '../hooks/useScrollSync';
 import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
+import { TranslationTabContent } from './translation/TranslationTabContent';
 
 // 独立的Markdown内容组件，防止PDF状态变化导致重渲染
 const MarkdownContentPanel = React.memo(({ 
@@ -665,7 +667,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
         <div className="h-full flex flex-col">
           {/* 标签页头部 */}
           <div className="border-b flex-shrink-0">
-            <div className="grid w-full grid-cols-5 h-10">
+            <div className="grid w-full grid-cols-6 h-10">
               <button 
                 onClick={() => setActiveDocumentTab('preview')}
                 className={`flex items-center justify-center space-x-1 text-xs transition-colors ${
@@ -735,6 +737,21 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 <span>详情</span>
                 {currentTask?.status === 'completed' && currentResult && (
                   <span className="text-xs text-green-500 ml-1">✓</span>
+                )}
+              </button>
+              <button 
+                onClick={() => setActiveDocumentTab('translation')}
+                disabled={!currentResult}
+                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeDocumentTab === 'translation' 
+                    ? 'bg-background text-foreground border-b-2 border-primary' 
+                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Languages className="w-3 h-3" />
+                <span>翻译</span>
+                {currentTask?.status === 'completed' && currentResult && (
+                  <span className="text-xs text-blue-500 ml-1">AI</span>
                 )}
               </button>
             </div>
@@ -1167,6 +1184,30 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 </div>
               </div>
             )}
+            </div>
+
+            {/* Translation tab */}
+            <div 
+              className={`absolute inset-0 ${
+                activeDocumentTab === 'translation' ? 'block' : 'hidden'
+              }`}
+            >
+              {currentResult ? (
+                <TranslationTabContent
+                  result={currentResult}
+                  taskId={currentTaskId!}
+                  searchQuery={activeSearchQuery}
+                />
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <Languages className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">
+                      等待OCR处理完成以使用翻译功能
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           </div>
