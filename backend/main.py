@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from middleware import add_security_middleware
 
 # Set up logging
 logging.basicConfig(
@@ -85,14 +86,26 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS middleware
+# Configure CORS middleware with environment-based origins
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+logger.info(f"CORS origins configured: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite dev server
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Specific methods only
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Content-Language",
+        "Content-Type",
+        "Authorization"
+    ],
 )
+
+# Add security middleware
+add_security_middleware(app)
 
 # Static file serving for extracted images
 static_dir = os.path.join(os.path.dirname(__file__), "static")

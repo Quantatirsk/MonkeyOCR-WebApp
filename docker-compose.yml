@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  monkeyocr-webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      # Backend configuration
+      - PYTHONPATH=/app
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://0.0.0.0:3000
+      # Optional: External API configuration
+      - MONKEYOCR_API_BASE_URL=https://ocr.teea.cn
+    volumes:
+      # Persistent data storage
+      - ./data:/app/data
+      - ./static:/app/static
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - monkeyocr-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: Redis for caching/sessions (uncomment if needed)
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis_data:/data
+  #   networks:
+  #     - monkeyocr-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 256M
+  #       reservations:
+  #         memory: 64M
+
+networks:
+  monkeyocr-network:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: monkeyocr0
+
+volumes:
+  redis_data:
+    driver: local
+
+# Development override example:
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up

@@ -1,0 +1,49 @@
+version: '3.8'
+
+# Production override for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  monkeyocr-webapp:
+    restart: always
+    environment:
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o-mini}
+      - MONKEYOCR_API_KEY=${MONKEYOCR_API_KEY}
+    volumes:
+      # Production volumes (read-only source code)
+      - ./data:/app/data
+      - ./static:/app/static
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Uncomment for production monitoring
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - monkeyocr-network
