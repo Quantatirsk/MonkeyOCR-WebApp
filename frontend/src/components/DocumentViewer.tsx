@@ -38,7 +38,7 @@ import { useBlockActions } from './translation';
 // Store and API
 import { useAppStore, useUIActions } from '../store/appStore';
 import { apiClient } from '../api/client';
-import { useToast } from '../hooks/use-toast';
+import { toast } from 'sonner';
 import { useBlockSync } from '../hooks/useBlockSync';
 import { useScrollSync } from '../hooks/useScrollSync';
 import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
@@ -113,12 +113,20 @@ const BlockSyncMarkdownPanel = React.memo(({
     return BlockMarkdownGenerator.generateFromBlocks(blockData, taskId);
   }, [blockData, syncEnabled, originalMarkdown, taskId]);
   
-  // Notify parent about generated markdown
+  // Generate clean markdown for copying (without HTML wrappers)
+  const cleanMarkdownForCopy = useMemo(() => {
+    if (!syncEnabled || blockData.length === 0) {
+      return originalMarkdown;
+    }
+    return BlockMarkdownGenerator.generateCleanMarkdown(blockData, taskId);
+  }, [blockData, syncEnabled, originalMarkdown, taskId]);
+  
+  // Notify parent about generated markdown (clean version for copying)
   useEffect(() => {
     if (onMarkdownGenerated && syncEnabled && blockData.length > 0) {
-      onMarkdownGenerated(blockBasedMarkdown);
+      onMarkdownGenerated(cleanMarkdownForCopy);
     }
-  }, [blockBasedMarkdown, onMarkdownGenerated, syncEnabled, blockData.length]);
+  }, [cleanMarkdownForCopy, onMarkdownGenerated, syncEnabled, blockData.length]);
 
   // Apply search highlighting
   const processedMarkdown = useMemo(() => {
@@ -223,7 +231,7 @@ const BlockSyncMarkdownPanel = React.memo(({
             streamingTranslation={streamingTranslation}
             onRefreshTranslation={(blockIndex) => {
               // 防止在处理中重复刷新
-              if (blockActions.actionState.isProcessing || blockActions.streamingState.isStreaming) {
+              if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
                 return;
               }
               // 清除现有翻译并重新生成（使用force参数强制刷新）
@@ -234,7 +242,7 @@ const BlockSyncMarkdownPanel = React.memo(({
             }}
             onRefreshExplanation={(blockIndex) => {
               // 防止在处理中重复刷新
-              if (blockActions.actionState.isProcessing || blockActions.streamingState.isStreaming) {
+              if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
                 return;
               }
               // 清除现有解释并重新生成（使用force参数强制刷新）
@@ -290,7 +298,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     activeDocumentTab 
   } = useAppStore();
   const { setActiveDocumentTab } = useUIActions();
-  const { toast } = useToast();
+
   
   // Get current result and task
   const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
@@ -342,10 +350,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           await loadResult(currentTask.id);
         } catch (error) {
           console.error('Failed to auto-load task result:', error);
-          toast({
-            variant: "destructive",
-            description: "加载OCR结果失败",
-          });
+          toast.error("加载OCR结果失败");
         }
       }
     };
@@ -393,24 +398,21 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       try {
         await navigator.clipboard.writeText(contentToCopy);
         const message = (activeDocumentTab === TAB_TYPES.COMPARE && blockSyncEnabled && blockBasedMarkdownForCopy)
-          ? "已复制重新拼接的内容到剪贴板"
+          ? "已复制拼接内容"
           : "已复制到剪贴板";
-        toast({ description: message });
+        toast.success(message);
       } catch (error) {
         console.error('Failed to copy markdown:', error);
-        toast({
-          variant: "destructive",
-          description: "复制失败",
-        });
+        toast.error("复制失败");
       }
     }
-  }, [activeDocumentTab, blockSyncEnabled, blockBasedMarkdownForCopy, currentResult, toast]);
+  }, [activeDocumentTab, blockSyncEnabled, blockBasedMarkdownForCopy, currentResult]);
   
   const handleDownload = useCallback(async () => {
     if (!currentTaskId) return;
     
     try {
-      toast({ description: "开始下载..." });
+      toast.info("开始下载...");
       
       const blob = await apiClient.downloadTaskResult(currentTaskId);
       const url = window.URL.createObjectURL(blob);
@@ -423,12 +425,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      toast({
-        variant: "destructive",
-        description: "下载失败",
-      });
+      toast.error("下载失败");
     }
-  }, [currentTaskId, currentTask, toast]);
+  }, [currentTaskId, currentTask]);
   
   // Handle block actions
   const handleTranslateBlock = useCallback((blockIndex: number) => {

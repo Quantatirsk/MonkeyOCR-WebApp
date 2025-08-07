@@ -54,8 +54,17 @@ export class BlockMarkdownGenerator {
         // Wrap ALL blocks (including list items) in a container div with block index
         // This ensures one block = one DOM element, regardless of internal structure
         if (isListItem) {
-          // List items get special styling but are still wrapped
-          markdownParts.push(`<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<p class="simulated-list-item" style="margin-left:2em;">${formattedContent}</p>\n\n</div>`);
+          // Convert list item markers to proper HTML list
+          // Remove the list marker (-, *, +, or number.) from the beginning
+          let cleanContent = formattedContent.trim();
+          if (cleanContent.startsWith('- ') || cleanContent.startsWith('* ') || cleanContent.startsWith('+ ')) {
+            cleanContent = cleanContent.substring(2); // Remove marker and space
+          } else if (cleanContent.match(/^\d+\.\s/)) {
+            cleanContent = cleanContent.replace(/^\d+\.\s/, ''); // Remove numbered marker
+          }
+          
+          // Wrap in a proper list item
+          markdownParts.push(`<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<ul class="markdown-unordered-list"><li class="markdown-list-item">${cleanContent}</li></ul>\n\n</div>`);
         } else {
           markdownParts.push(`<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${formattedContent}\n\n</div>`);
         }
@@ -431,5 +440,36 @@ export class BlockMarkdownGenerator {
   static extractBlockIndexFromMarker(content: string): number | null {
     const match = content.match(/<!-- BLOCK_(\d+)_PAGE_\d+ -->/);
     return match ? parseInt(match[1], 10) : null;
+  }
+
+  /**
+   * Generate clean markdown content for copying (without HTML block containers or page separators)
+   * This produces pure markdown without any HTML wrapper elements or page breaks
+   */
+  static generateCleanMarkdown(blocks: BlockData[], taskId?: string): string {
+    if (!blocks || blocks.length === 0) {
+      return '';
+    }
+
+    const markdownParts: string[] = [];
+
+    // Sort blocks by page and then by index
+    const sortedBlocks = [...blocks].sort((a, b) => {
+      if (a.page_num !== b.page_num) {
+        return a.page_num - b.page_num;
+      }
+      return a.index - b.index;
+    });
+
+    for (const block of sortedBlocks) {
+      // Format content based on block type
+      const formattedContent = this.formatBlockContent(block, taskId);
+      if (formattedContent.trim()) {
+        // For clean markdown, just add the content without any HTML wrappers or page separators
+        markdownParts.push(formattedContent);
+      }
+    }
+
+    return markdownParts.join('\n\n');
   }
 }

@@ -13,7 +13,7 @@ import {
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { useToast } from '../hooks/use-toast';
+import { toast } from 'sonner';
 import { healthChecker } from '../utils/healthCheck';
 import { useSyncActions } from '../store/appStore';
 
@@ -27,7 +27,6 @@ export const OfflineIndicator: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   
-  const { toast } = useToast();
   const { syncWithServer } = useSyncActions();
 
   // Check server health
@@ -59,9 +58,7 @@ export const OfflineIndicator: React.FC = () => {
     const handleOnline = () => {
       setIsOnline(true);
       setShowAlert(false);
-      toast({
-        description: "网络连接已恢复",
-      });
+      toast.success("网络连接已恢复");
       
       // Check server when coming back online
       setTimeout(checkServerHealth, 1000);
@@ -70,10 +67,7 @@ export const OfflineIndicator: React.FC = () => {
     const handleOffline = () => {
       setIsOnline(false);
       setShowAlert(true);
-      toast({
-        variant: "destructive",
-        description: "网络连接已断开",
-      });
+      toast.error("网络连接已断开");
     };
 
     window.addEventListener('online', handleOnline);
@@ -106,26 +100,15 @@ export const OfflineIndicator: React.FC = () => {
         // Try to sync with server
         try {
           await syncWithServer();
-          toast({
-            description: "连接已恢复，数据已同步",
-          });
+          toast.success("连接已恢复，数据已同步");
         } catch (syncError) {
-          toast({
-            variant: "destructive",
-            description: "连接已恢复，但数据同步失败",
-          });
+          toast.warning("连接已恢复，但数据同步失败");
         }
       } else {
-        toast({
-          variant: "destructive",
-          description: "服务器仍然不可用",
-        });
+        toast.error("服务器仍然不可用");
       }
     } catch (error) {
-      toast({
-        variant: "destructive",
-        description: "重试失败，请检查网络连接",
-      });
+      toast.error("重试失败，请检查网络连接");
     }
   };
 

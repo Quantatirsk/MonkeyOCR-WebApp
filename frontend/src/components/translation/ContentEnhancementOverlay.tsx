@@ -99,7 +99,7 @@ const ContentEnhancementOverlay: React.FC<ContentEnhancementOverlayProps> = ({
     
     try {
       await navigator.clipboard.writeText(contentToCopy);
-      toast.success('翻译内容已复制到剪贴板');
+      toast.success('已复制到剪贴板');
     } catch (error) {
       console.error('Copy failed:', error);
       toast.error('复制失败');
@@ -123,7 +123,7 @@ const ContentEnhancementOverlay: React.FC<ContentEnhancementOverlayProps> = ({
     const bgClass = isExplain ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
     
     return (
-      <div className="flex items-center justify-between mb-2 min-w-0">
+      <div className="flex items-center justify-between min-w-0">
         <div className="flex items-center gap-2 flex-shrink-0">
           <Icon className={`w-3 h-3 ${colorClass}`} />
           <span className={`text-xs ${bgClass} px-1.5 py-0.5 rounded whitespace-nowrap`}>
@@ -212,8 +212,8 @@ const ContentEnhancementOverlay: React.FC<ContentEnhancementOverlayProps> = ({
   }, [isStreaming, displayContent, overlayType, isCollapsed]);
 
   const containerClass = overlayType === 'explain' 
-    ? "mt-2 p-3 bg-green-50/50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded relative w-full box-border"
-    : "mt-2 p-3 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded relative w-full box-border";
+    ? "mt-2 p-2 bg-green-50/50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded relative w-full box-border"
+    : "mt-2 p-2 bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded relative w-full box-border";
   
   return (
     <>

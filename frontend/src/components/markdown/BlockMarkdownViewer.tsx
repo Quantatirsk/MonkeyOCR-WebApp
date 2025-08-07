@@ -59,12 +59,30 @@ interface BlockMapping {
 }
 
 
-// 处理表格单元格内的完整内容（数学公式 + 格式标记）
-function processTableCellContent(text: string): React.ReactNode {
-  if (!text || typeof text !== 'string') return text;
-  
-  // 首先处理数学公式，然后处理其他格式标记
-  return processWithMathAndFormatting(text);
+// 通用的子元素处理函数，支持 LaTeX 和格式化
+function processChildrenWithLatex(children: any): any {
+  if (typeof children === 'string') {
+    return processWithMathAndFormatting(children);
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, index) => {
+      if (typeof child === 'string') {
+        return <span key={index}>{processWithMathAndFormatting(child)}</span>;
+      }
+      // 递归处理嵌套元素
+      if (React.isValidElement(child)) {
+        const childProps = child.props as any;
+        if (childProps?.children) {
+          const processedChild = React.cloneElement(child as React.ReactElement<any>, {
+            children: processChildrenWithLatex(childProps.children)
+          });
+          return processedChild;
+        }
+      }
+      return child;
+    });
+  }
+  return children;
 }
 
 // 综合处理数学公式和格式标记
@@ -321,9 +339,17 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
   
   // Removed hover effect - using CSS :hover for better performance
 
-  // Scroll to selected block
+  // Track previous block index to detect actual changes
+  const prevBlockIndexRef = useRef<number | null>(null);
+  
+  // Scroll to selected block only when block index actually changes
   useEffect(() => {
     if (!syncEnabled || !selectedBlock.isActive || selectedBlock.blockIndex === null) return;
+
+    // Only scroll if the block index has actually changed
+    if (prevBlockIndexRef.current === selectedBlock.blockIndex) return;
+    
+    prevBlockIndexRef.current = selectedBlock.blockIndex;
 
     const container = containerRef.current;
     if (!container) return;
@@ -335,12 +361,19 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     }
     
     if (targetElement) {
-      targetElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
+      // Check if element is already in view
+      const rect = targetElement.getBoundingClientRect();
+      const isInView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+      
+      // Only scroll if element is not already in view
+      if (!isInView) {
+        targetElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
     }
-  }, [selectedBlock, syncEnabled]);
+  }, [selectedBlock.blockIndex, selectedBlock.isActive, syncEnabled]);
 
   // Markdown components with custom renderers
   const components = useMemo(() => ({
@@ -370,8 +403,10 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
       return <div className={className} {...props}>{children}</div>;
     },
     
-    // Custom paragraph renderer
+    // Custom paragraph renderer with LaTeX support
     p: ({ children, ...props }: any) => {
+      const processedChildren = processChildrenWithLatex(children);
+      
       // Check if children contains an image (which would have a div.markdown-image-container)
       // If so, render as div instead of p to avoid nesting issues
       const hasImage = React.Children.toArray(children).some((child: any) => 
@@ -381,49 +416,30 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
       if (hasImage) {
         return (
           <div {...props} className="markdown-paragraph">
-            {children}
+            {processedChildren}
           </div>
         );
       }
       
       return (
         <p {...props} className="markdown-paragraph">
-          {children}
+          {processedChildren}
         </p>
       );
     },
     
-    // Custom heading renderers
-    h1: ({ children, ...props }: any) => (
-      <h1 {...props} className="markdown-heading markdown-h1">
-        {children}
-      </h1>
-    ),
-    h2: ({ children, ...props }: any) => (
-      <h2 {...props} className="markdown-heading markdown-h2">
-        {children}
-      </h2>
-    ),
-    h3: ({ children, ...props }: any) => (
-      <h3 {...props} className="markdown-heading markdown-h3">
-        {children}
-      </h3>
-    ),
-    h4: ({ children, ...props }: any) => (
-      <h4 {...props} className="markdown-heading markdown-h4">
-        {children}
-      </h4>
-    ),
-    h5: ({ children, ...props }: any) => (
-      <h5 {...props} className="markdown-heading markdown-h5">
-        {children}
-      </h5>
-    ),
-    h6: ({ children, ...props }: any) => (
-      <h6 {...props} className="markdown-heading markdown-h6">
-        {children}
-      </h6>
-    ),
+    // Custom heading renderers - simplified with a factory function
+    ...(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].reduce((acc, tag) => {
+      acc[tag] = ({ children, ...props }: any) => {
+        const HeadingTag = tag as keyof JSX.IntrinsicElements;
+        return React.createElement(
+          HeadingTag,
+          { ...props, className: `markdown-heading markdown-${tag}` },
+          children
+        );
+      };
+      return acc;
+    }, {} as Record<string, any>)),
     
     
 
@@ -491,50 +507,37 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
         {children}
       </tr>
     ),
-    th: ({ children, ...props }: any) => {
-      const processChildren = (children: any): any => {
-        if (typeof children === 'string') {
-          return processTableCellContent(children);
-        }
-        if (Array.isArray(children)) {
-          return children.map((child, index) => {
-            if (typeof child === 'string') {
-              return <span key={index}>{processTableCellContent(child)}</span>;
-            }
-            return child;
-          });
-        }
-        return children;
-      };
-      
-      return (
-        <th {...props} className="markdown-table-header-cell">
-          {processChildren(children)}
-        </th>
-      );
-    },
-    td: ({ children, ...props }: any) => {
-      const processChildren = (children: any): any => {
-        if (typeof children === 'string') {
-          return processTableCellContent(children);
-        }
-        if (Array.isArray(children)) {
-          return children.map((child, index) => {
-            if (typeof child === 'string') {
-              return <span key={index}>{processTableCellContent(child)}</span>;
-            }
-            return child;
-          });
-        }
-        return children;
-      };
-      
-      return (
-        <td {...props} className="markdown-table-cell">
-          {processChildren(children)}
-        </td>
-      );
-    }
+    th: ({ children, ...props }: any) => (
+      <th {...props} className="markdown-table-header-cell">
+        {processChildrenWithLatex(children)}
+      </th>
+    ),
+    td: ({ children, ...props }: any) => (
+      <td {...props} className="markdown-table-cell">
+        {processChildrenWithLatex(children)}
+      </td>
+    ),
+    
+    // Custom unordered list renderer
+    ul: ({ children, ...props }: any) => (
+      <ul {...props} className="markdown-unordered-list">
+        {children}
+      </ul>
+    ),
+    
+    // Custom ordered list renderer
+    ol: ({ children, ...props }: any) => (
+      <ol {...props} className="markdown-ordered-list">
+        {children}
+      </ol>
+    ),
+    
+    // Custom list item renderer with LaTeX support
+    li: ({ children, ...props }: any) => (
+      <li {...props} className="markdown-list-item">
+        {processChildrenWithLatex(children)}
+      </li>
+    )
   }), [blockData, translations, explanations, streamingTranslation]);
 
   return (

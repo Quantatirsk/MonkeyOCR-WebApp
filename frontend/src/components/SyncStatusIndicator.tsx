@@ -21,7 +21,7 @@ import {
   TooltipTrigger 
 } from './ui/tooltip';
 import { useSyncStatus, useSyncActions } from '../store/appStore';
-import { useToast } from '../hooks/use-toast';
+import { toast } from 'sonner';
 
 interface SyncStatusIndicatorProps {
   className?: string;
@@ -36,21 +36,15 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 }) => {
   const syncStatus = useSyncStatus();
   const { syncWithServer } = useSyncActions();
-  const { toast } = useToast();
 
   // Manual sync handler
   const handleManualSync = async () => {
     try {
       await syncWithServer();
-      toast({
-        description: "数据同步完成",
-      });
+      toast.success("数据同步完成");
     } catch (error) {
       console.error('Manual sync failed:', error);
-      toast({
-        variant: "destructive",
-        description: "同步失败，请检查网络连接",
-      });
+      toast.error("同步失败，请检查网络连接");
     }
   };
 

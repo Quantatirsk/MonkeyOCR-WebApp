@@ -19,8 +19,10 @@ export interface BlockActionState {
   selectedBlockIndex: number | null;
   /** 当前操作模式 */
   actionMode: ActionMode;
-  /** 是否正在处理 */
-  isProcessing: boolean;
+  /** 正在处理中的区块索引集合 */
+  processingBlocks: Set<number>;
+  /** 正在进行的操作类型映射 (区块索引 -> 操作类型) */
+  activeOperations: Map<number, ActiveActionType>;
   /** 翻译内容映射 (blockIndex -> translated content) */
   translations: Map<number, string>;
   /** 解释内容映射 (blockIndex -> explanation content) */
@@ -39,6 +41,8 @@ export interface StreamingState {
   streamContent: string;
   /** 流式传输类型 */
   streamType: StreamType | null;
+  /** 当前流式传输的区块索引 */
+  streamingBlockIndex: number | null;
   /** 错误信息 */
   error: string | null;
 }

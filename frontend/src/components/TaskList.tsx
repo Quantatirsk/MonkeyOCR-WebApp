@@ -33,7 +33,7 @@ import {
 import { useAppStore } from '../store/appStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
-import { useToast } from '../hooks/use-toast';
+import { toast } from 'sonner';
 import { syncManager } from '../utils/syncManager';
 
 interface TaskListProps {
@@ -55,7 +55,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     initializeSync,
     syncWithServer
   } = useAppStore();
-  const { toast } = useToast();
 
   // 计时器状态管理
   const [timers, setTimers] = useState<{ [taskId: string]: number }>({});
@@ -118,10 +117,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         
       } catch (error) {
         console.error('TaskList initialization failed:', error);
-        toast({
-          variant: "destructive",
-          description: "任务状态恢复失败，可能需要手动刷新"
-        });
+        toast.error("任务状态恢复失败，可能需要手动刷新");
       } finally {
         setIsInitialized(true);
       }
@@ -446,9 +442,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   // Handle task retry
   const handleRetry = async (task: ProcessingTask) => {
     try {
-      toast({
-        description: "重试中...",
-      });
+      toast.info("重试中...");
       
       // Create a new file object from the task (this is a simplified version)
       // In a real implementation, you might need to store the original file
@@ -458,10 +452,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       await uploadFiles([file]);
     } catch (error) {
       console.error('Retry failed:', error);
-      toast({
-        variant: "destructive",
-        description: "重试失败",
-      });
+      toast.error("重试失败");
     }
   };
 
@@ -485,15 +476,10 @@ export const TaskList: React.FC<TaskListProps> = ({
       // This will use the fixed mergeTasks logic that respects server as authority
       await syncWithServer();
       
-      toast({
-        description: "任务已删除",
-      });
+      toast.success("任务已删除");
     } catch (error) {
       console.error('Failed to delete task:', error);
-      toast({
-        variant: "destructive",
-        description: "删除任务失败，请重新尝试",
-      });
+      toast.error("删除任务失败，请重新尝试");
       
       // If deletion failed, sync to restore state
       try {
@@ -515,9 +501,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleClearAllConfirm = async () => {
     try {
-      toast({
-        description: "正在删除所有任务...",
-      });
+      toast.info("正在删除所有任务...");
 
       // Delete all tasks in parallel
       const deletePromises = tasks.map(task => apiClient.deleteTask(task.id));
@@ -540,21 +524,13 @@ export const TaskList: React.FC<TaskListProps> = ({
       await syncWithServer();
       
       if (failedCount === 0) {
-        toast({
-          description: `成功删除所有 ${successCount} 个任务`,
-        });
+        toast.success(`成功删除所有 ${successCount} 个任务`);
       } else {
-        toast({
-          variant: "destructive",
-          description: `删除完成：成功 ${successCount} 个，失败 ${failedCount} 个`,
-        });
+        toast.warning(`删除完成：成功 ${successCount} 个，失败 ${failedCount} 个`);
       }
     } catch (error) {
       console.error('Failed to clear all tasks:', error);
-      toast({
-        variant: "destructive",
-        description: "批量删除失败，请重新尝试",
-      });
+      toast.error("批量删除失败，请重新尝试");
       
       // If deletion failed, sync to restore state
       try {
@@ -571,9 +547,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   // Handle result download
   const handleDownload = async (task: ProcessingTask) => {
     try {
-      toast({
-        description: "开始下载...",
-      });
+      toast.info("开始下载...");
       
       // Download the result file as blob
       const blob = await apiClient.downloadTaskResult(task.id);
@@ -589,10 +563,7 @@ export const TaskList: React.FC<TaskListProps> = ({
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download failed:', error);
-      toast({
-        variant: "destructive",
-        description: "下载失败",
-      });
+      toast.error("下载失败");
     }
   };
 

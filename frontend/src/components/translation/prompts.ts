@@ -3,6 +3,8 @@
  * 减少提示词干扰，提高翻译和分析质量
  */
 
+import type { MessageContent } from '../../lib/llmwrapper';
+
 export interface PromptConfig {
   systemPrompt: string;
   userPromptTemplate: (content: string) => string;
@@ -61,34 +63,54 @@ const TABLE_PROMPTS: BlockPrompts = {
 - 分析表格的整体结构和逻辑
 - 解释表格中的关键数据和趋势
 - 说明表格的作用和重要信息点
-- 重点解释数据内容，而不是HTML标签结构
 - 用中文回答，条理清晰`,
     userPromptTemplate: (content: string) => `请分析以下HTML表格的数据含义和重要信息：\n\n${content}`
   }
 };
 
 /**
- * 图片类区块专用提示词
+ * 图片类区块专用提示词（支持多模态）
  */
 const IMAGE_PROMPTS: BlockPrompts = {
   translate: {
-    systemPrompt: `你是专业的图片描述翻译专家。专注于翻译图片描述和说明文字。
-要求：
-- 准确翻译图片的描述内容
-- 保持描述的准确性和完整性
-- 维持原有的描述风格和详细程度
-- 确保翻译后仍能准确描述图片内容`,
-    userPromptTemplate: (content: string) => `请翻译以下图片描述或说明文字：\n\n${content}`
+    systemPrompt: `你是专业的视觉内容翻译专家，具备强大的图像理解和跨语言描述能力。
+
+核心任务：直接分析图片内容，用目标语言生成准确、详细的描述
+
+
+图片分析要求：
+- 识别图片中的所有重要元素（文字、物体、人物、场景等）
+- 翻译图片中出现的任何文字内容
+- 描述图片的布局、颜色、构图等视觉特征
+- 识别并说明图表、流程图、架构图等专业内容
+- 保持专业术语的准确性
+
+输出格式：
+- 先概述图片主要内容
+- 详细描述各个组成部分
+- 如有文字内容，提供准确翻译
+- 说明图片传达的核心信息`,
+    userPromptTemplate: (content: string) => `请分析并用中文描述以下内容：\n\n${content}`
   },
   explain: {
-    systemPrompt: `你是专业的图片内容解释专家。专注于解释图片描述的含义和背景。
-要求：
-- 基于描述内容解释图片的含义
-- 提供相关的概念和背景信息
-- 说明图片在文档中的作用和重要性
-- 解释图片所传达的信息和价值
-- 用中文回答，条理清晰`,
-    userPromptTemplate: (content: string) => `请基于以下描述解释图片的含义和相关背景：\n\n${content}`
+    systemPrompt: `你是专业的视觉内容分析专家，擅长深度解读图像信息并提供专业见解。
+
+核心任务：深入分析图片内容，提供专业解释和背景信息
+
+图片分析维度：
+- 内容识别：图片中的所有重要元素（文字、物体、人物、场景等）
+- 专业解读：解释技术图表、流程图、架构图、数据可视化等
+- 背景知识：提供相关领域的专业知识和概念解释
+- 关联分析：说明图片在文档中的作用和重要性
+- 深层含义：挖掘图片传达的隐含信息和价值
+
+输出要求：
+- 用中文回答，条理清晰
+- 提供专业、准确的解释
+- 包含必要的背景知识
+- 指出关键信息和重要细节
+- 如果是技术内容，解释相关概念和原理`,
+    userPromptTemplate: (content: string) => `请深入分析和解释以下内容：\n\n${content}`
   }
 };
 
@@ -103,17 +125,15 @@ const TEXT_PROMPTS: BlockPrompts = {
 - 确保翻译准确、流畅、自然
 - 维持原文的语调和表达风格
 - 保持段落结构和标点符号的合理使用`,
-    userPromptTemplate: (content: string) => `请翻译以下文本内容：\n\n${content}`
+    userPromptTemplate: (content: string) => `请翻译以下文本内容：\n\n${content}\n\n 直接返回翻译结果：`
   },
   explain: {
-    systemPrompt: `你是知识渊博的文本内容解释专家。专注于解释文本的含义和背景。
+    systemPrompt: `你是知识渊博的文本内容解释专家。专注于解释文本的含义。
 要求：
 - 详细解释文本的核心含义
 - 提供相关的背景信息和概念
-- 分析文本的重要观点和论述
-- 解释专业术语和关键概念
-- 用中文回答，条理清晰，便于理解`,
-    userPromptTemplate: (content: string) => `请详细解释以下文本的含义和背景：\n\n${content}`
+- 分析文本的重要观点和论述`,
+    userPromptTemplate: (content: string) => `请解释以下文本的含义：\n\n${content}\n\n 直接返回解释内容：`
   }
 };
 
@@ -197,6 +217,149 @@ export function buildExplainMessages(
       content: prompts.explain.userPromptTemplate(content)
     }
   ];
+}
+
+/**
+ * 构建多模态翻译消息（支持图片）
+ */
+export function buildMultimodalTranslateMessages(
+  blockType: string,
+  textContent: string,
+  imageUrl: string | null,
+  targetLanguage: string = 'zh',
+  _sourceLanguage?: string,
+  detectionInfo?: { sourceName: string; targetName: string; confidence: string }
+): Array<{ role: 'system' | 'user'; content: string | MessageContent[] }> {
+  const prompts = getBlockPrompts(blockType);
+  
+  // 根据目标语言调整系统提示词
+  let systemPrompt = prompts.translate.systemPrompt;
+  
+  // 添加语言检测信息到系统提示词
+  if (detectionInfo) {
+    const confidenceText = detectionInfo.confidence === 'high' ? '高置信度' : 
+                          detectionInfo.confidence === 'medium' ? '中等置信度' : '低置信度';
+    
+    systemPrompt += `\n\n语言检测信息：检测到源语言为${detectionInfo.sourceName}（${confidenceText}），请翻译为${detectionInfo.targetName}。`;
+  }
+  
+  // 动态调整翻译方向的系统提示词
+  if (targetLanguage === 'zh') {
+    systemPrompt = systemPrompt.replace(/翻译成[^。]*/g, '翻译成中文');
+  } else if (targetLanguage === 'en') {
+    systemPrompt = systemPrompt.replace(/翻译成[^。]*/g, '翻译成英文');
+  } else {
+    systemPrompt = systemPrompt.replace(/翻译成[^。]*/g, `翻译成${getLanguageName(targetLanguage)}`);
+  }
+  
+  // 如果有图片URL且是图片类型，构建多模态消息
+  if (imageUrl && blockType === 'image') {
+    const userContent: MessageContent[] = [];
+    
+    // 添加文本部分（包含图片标题信息）
+    if (textContent) {
+      // 解析图片标题信息
+      const imageRegex = /!\[(.*?)\]\((.*?)\)/;
+      const match = textContent.match(imageRegex);
+      const imageTitle = match && match[1] ? match[1] : '';
+      
+      const userPrompt = imageTitle 
+        ? `请分析并用中文描述这张图片的内容。图片标题：${imageTitle}`
+        : prompts.translate.userPromptTemplate(textContent);
+        
+      userContent.push({
+        type: 'text',
+        text: userPrompt
+      });
+    } else {
+      userContent.push({
+        type: 'text',
+        text: '请分析并用中文描述这张图片的内容：'
+      });
+    }
+    
+    // 添加图片部分
+    userContent.push({
+      type: 'image_url',
+      image_url: {
+        url: imageUrl
+      }
+    });
+    
+    return [
+      {
+        role: 'system' as const,
+        content: systemPrompt
+      },
+      {
+        role: 'user' as const,
+        content: userContent
+      }
+    ];
+  }
+  
+  // 否则返回纯文本消息
+  return buildTranslateMessages(blockType, textContent, targetLanguage, _sourceLanguage, detectionInfo);
+}
+
+/**
+ * 构建多模态解释消息（支持图片）
+ */
+export function buildMultimodalExplainMessages(
+  blockType: string,
+  textContent: string,
+  imageUrl: string | null
+): Array<{ role: 'system' | 'user'; content: string | MessageContent[] }> {
+  const prompts = getBlockPrompts(blockType);
+  
+  // 如果有图片URL且是图片类型，构建多模态消息
+  if (imageUrl && blockType === 'image') {
+    const userContent: MessageContent[] = [];
+    
+    // 添加文本部分（包含图片标题信息）
+    if (textContent) {
+      // 解析图片标题信息
+      const imageRegex = /!\[(.*?)\]\((.*?)\)/;
+      const match = textContent.match(imageRegex);
+      const imageTitle = match && match[1] ? match[1] : '';
+      
+      const userPrompt = imageTitle 
+        ? `请深入分析和解释这张图片的内容、含义和重要信息。图片标题：${imageTitle}`
+        : prompts.explain.userPromptTemplate(textContent);
+        
+      userContent.push({
+        type: 'text',
+        text: userPrompt
+      });
+    } else {
+      userContent.push({
+        type: 'text',
+        text: '请深入分析和解释这张图片的内容、含义和重要信息：'
+      });
+    }
+    
+    // 添加图片部分
+    userContent.push({
+      type: 'image_url',
+      image_url: {
+        url: imageUrl
+      }
+    });
+    
+    return [
+      {
+        role: 'system' as const,
+        content: prompts.explain.systemPrompt
+      },
+      {
+        role: 'user' as const,
+        content: userContent
+      }
+    ];
+  }
+  
+  // 否则返回纯文本消息
+  return buildExplainMessages(blockType, textContent);
 }
 
 /**

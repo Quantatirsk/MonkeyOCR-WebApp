@@ -4,7 +4,7 @@ Compatible with OpenAI SDK for chat completion functionality
 """
 import logging
 import json
-from typing import Optional, List
+from typing import Optional, List, Union, Dict, Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -17,10 +17,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/llm", tags=["llm"])
 
 
+class ImageUrl(BaseModel):
+    """Image URL model for multimodal content"""
+    url: str = Field(..., description="Image URL or base64 data URL")
+
+
+class ContentPart(BaseModel):
+    """Content part for multimodal messages"""
+    type: str = Field(..., description="Content type: text or image_url")
+    text: Optional[str] = Field(default=None, description="Text content")
+    image_url: Optional[ImageUrl] = Field(default=None, description="Image URL object")
+
+
 class Message(BaseModel):
-    """Chat message model"""
+    """Chat message model supporting both text and multimodal content"""
     role: str = Field(..., description="Message role: system, user, or assistant")
-    content: str = Field(..., description="Message content")
+    content: Union[str, List[ContentPart]] = Field(..., description="Message content - can be string or list of content parts for multimodal")
 
 
 class ChatCompletionRequest(BaseModel):
@@ -128,11 +140,27 @@ async def create_chat_completion(request: ChatCompletionRequest):
     try:
         client = await get_openai_client()
         
-        # Convert request to OpenAI format
-        openai_messages = [
-            {"role": msg.role, "content": msg.content}
-            for msg in request.messages
-        ]
+        # Convert request to OpenAI format, handling multimodal content
+        openai_messages = []
+        for msg in request.messages:
+            if isinstance(msg.content, str):
+                # Simple text message
+                openai_messages.append({"role": msg.role, "content": msg.content})
+            else:
+                # Multimodal message with content parts
+                content_parts = []
+                for part in msg.content:
+                    if part.type == "text":
+                        content_parts.append({"type": "text", "text": part.text})
+                    elif part.type == "image_url" and part.image_url:
+                        image_part = {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": part.image_url.url
+                            }
+                        }
+                        content_parts.append(image_part)
+                openai_messages.append({"role": msg.role, "content": content_parts})
         
         completion_params = {
             "model": request.model,

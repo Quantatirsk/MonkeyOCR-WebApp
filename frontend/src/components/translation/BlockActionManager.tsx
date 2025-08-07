@@ -85,7 +85,7 @@ const BlockActionManager: React.FC<BlockActionManagerProps> = ({
   const { shortcuts: finalShortcuts } = useKeyboardShortcuts({
     selectedBlock: currentBlock,
     enabled,
-    isProcessing: blockActions.actionState.isProcessing || blockActions.streamingState.isStreaming,
+    isProcessing: blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming,
     shortcuts,
     onTranslate: handleTranslate,
     onExplain: handleExplain,
@@ -116,8 +116,5 @@ const BlockActionManager: React.FC<BlockActionManagerProps> = ({
     </>
   );
 };
-
-// 导出hook以供其他组件使用
-export { useBlockActions, useKeyboardShortcuts };
 
 export default BlockActionManager;

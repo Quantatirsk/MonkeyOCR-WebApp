@@ -28,11 +28,12 @@ function processTableCellMath(text: string): React.ReactNode[] {
   }
 
   // Split by math expressions and process each part
-  const parts = text.split(/(\$\$?[^$]*?\$\$?)/);
+  // 使用与主查看器相同的正则表达式
+  const parts = text.split(/(\$\$[^$]+\$\$|\$[^$]+\$)/);
   
   return parts.map((part, index) => {
     // Handle display math $$...$$
-    if (part.match(/^\$\$[^$]*?\$\$$/)) {
+    if (part.match(/^\$\$[^$]+\$\$$/)) {
       const mathContent = part.slice(2, -2);
       try {
         const html = katex.renderToString(mathContent, {
@@ -40,6 +41,7 @@ function processTableCellMath(text: string): React.ReactNode[] {
           displayMode: true,
           output: 'html',
           strict: false,
+          trust: true,
         });
         return <div key={index} dangerouslySetInnerHTML={{ __html: html }} style={{ margin: '0.2em 0', textAlign: 'center', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
       } catch (error) {
@@ -48,7 +50,7 @@ function processTableCellMath(text: string): React.ReactNode[] {
     }
     
     // Handle inline math $...$  
-    if (part.match(/^\$[^$]*?\$$/)) {
+    if (part.match(/^\$[^$]+\$$/)) {
       const mathContent = part.slice(1, -1);
       try {
         const html = katex.renderToString(mathContent, {
@@ -56,6 +58,7 @@ function processTableCellMath(text: string): React.ReactNode[] {
           displayMode: false,
           output: 'html',
           strict: false,
+          trust: true,
         });
         return <span key={index} dangerouslySetInnerHTML={{ __html: html }} style={{ whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
       } catch (error) {
@@ -93,35 +96,37 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       .compact-markdown-translate {
         font-size: 11px !important;
         line-height: 1.3 !important;
-        color: #374151 !important;
+        color: #1f2937 !important;
       }
       
       .compact-markdown-translate .wmde-markdown,
       .compact-markdown-translate .w-md-editor-preview {
         font-size: 11px !important;
         line-height: 1.3 !important;
+        color: #1f2937 !important;
       }
 
       /* 紧凑型Markdown样式 - 解释模式 */
       .compact-markdown-explain {
         font-size: 11px !important;
         line-height: 1.3 !important;
-        color: #166534 !important;
+        color: #1f2937 !important;
       }
       
       .compact-markdown-explain .wmde-markdown,
       .compact-markdown-explain .w-md-editor-preview {
         font-size: 11px !important;
         line-height: 1.3 !important;
+        color: #1f2937 !important;
       }
 
-      /* 标题样式 - 极小间距 */
+      /* 标题样式 - 极小间距，使用主题蓝色系 CSS 变量 */
       .compact-markdown-translate h1, .compact-markdown-explain h1,
       .compact-markdown-translate .wmde-markdown h1, .compact-markdown-explain .wmde-markdown h1 {
         font-size: 14px !important;
         font-weight: 600 !important;
         margin: 4px 0 2px 0 !important;
-        color: #1f2937 !important;
+        color: hsl(var(--primary)) !important;
       }
       
       .compact-markdown-translate h2, .compact-markdown-explain h2,
@@ -129,7 +134,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         font-size: 13px !important;
         font-weight: 600 !important;
         margin: 3px 0 2px 0 !important;
-        color: #374151 !important;
+        color: hsl(var(--primary)) !important;
       }
       
       .compact-markdown-translate h3, .compact-markdown-explain h3,
@@ -137,7 +142,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         font-size: 12px !important;
         font-weight: 600 !important;
         margin: 2px 0 1px 0 !important;
-        color: #4b5563 !important;
+        color: hsl(var(--secondary)) !important;
       }
 
       .compact-markdown-translate h4, .compact-markdown-translate h5, .compact-markdown-translate h6,
@@ -147,15 +152,16 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         font-size: 11px !important;
         font-weight: 600 !important;
         margin: 2px 0 1px 0 !important;
-        color: #6b7280 !important;
+        color: hsl(var(--secondary)) !important;
       }
 
-      /* 段落和文本 - 极小间距 */
+      /* 段落和文本 - 极小间距，黑色文字 */
       .compact-markdown-translate p, .compact-markdown-explain p,
       .compact-markdown-translate .wmde-markdown p, .compact-markdown-explain .wmde-markdown p {
         margin: 2px 0 !important;
         font-size: 11px !important;
         line-height: 1.3 !important;
+        color: #1f2937 !important;
       }
 
       /* 列表 - 极小缩进和间距 */
@@ -173,6 +179,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         margin: 1px 0 !important;
         font-size: 11px !important;
         line-height: 1.3 !important;
+        color: #1f2937 !important;
       }
 
       /* 表格样式 - 保持功能性但缩小尺寸 */
@@ -184,7 +191,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         border-collapse: collapse !important;
         width: 100% !important;
         max-width: 100% !important;
-        word-break: break-all !important;
+        word-break: normal !important;
         table-layout: auto !important;
         overflow: visible !important;
       }
@@ -197,8 +204,8 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         border: 1px solid #e5e7eb !important;
         font-size: 10px !important;
         line-height: 1.2 !important;
-        word-break: break-all !important;
-        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
         vertical-align: top !important;
       }
 
@@ -277,13 +284,23 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         line-height: 1.3 !important;
       }
 
-      /* 强制文本换行 - 但排除KaTeX元素 */
+      /* 分隔线样式 - 适中间距 */
+      .compact-markdown-translate hr, .compact-markdown-explain hr,
+      .compact-markdown-translate .wmde-markdown hr, .compact-markdown-explain .wmde-markdown hr {
+        margin: 6px 0 !important;
+        padding: 0 !important;
+        height: 1px !important;
+        border: none !important;
+        background-color: #e5e7eb !important;
+      }
+
+      /* 智能文本换行 - 优先保持单词完整性，但排除KaTeX元素 */
       .compact-markdown-translate *:not(.katex):not(.katex *),
       .compact-markdown-explain *:not(.katex):not(.katex *),
       .compact-markdown-translate .wmde-markdown *:not(.katex):not(.katex *),
       .compact-markdown-explain .wmde-markdown *:not(.katex):not(.katex *) {
-        word-break: break-all !important;
-        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
         word-wrap: break-word !important;
         max-width: 100% !important;
         min-width: 0 !important;
@@ -291,14 +308,6 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         box-sizing: border-box !important;
       }
 
-      /* 解释模式的特殊颜色 */
-      .compact-markdown-explain h1, .compact-markdown-explain h2, .compact-markdown-explain h3 {
-        color: #14532d !important;
-      }
-      
-      .compact-markdown-explain p {
-        color: #166534 !important;
-      }
 
       /* HTML表格样式 */
       .compact-markdown-translate table, .compact-markdown-explain table {
@@ -389,7 +398,14 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
             errorColor: '#cc0000',
             output: 'html',
             displayMode: false,
-            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+            trust: true,
+            macros: {
+              "\\RR": "\\mathbb{R}",
+              "\\NN": "\\mathbb{N}",
+              "\\ZZ": "\\mathbb{Z}",
+              "\\QQ": "\\mathbb{Q}",
+              "\\CC": "\\mathbb{C}"
+            }
           }]
         ]}
         remarkPlugins={[
@@ -452,6 +468,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
                   displayMode: false,
                   output: 'html',
                   strict: false,
+                  trust: true,
                 });
                 return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
               } catch (error) {
@@ -460,14 +477,15 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
             }
             
             // 处理块级数学公式 $$...$$
-            if (typeof text === 'string' && /^\$\$([^$]+)\$\$$/.test(text)) {
-              const mathContent = text.replace(/^\$\$([^$]+)\$\$$/, '$1');
+            if (typeof text === 'string' && /^\$\$([\s\S]+)\$\$$/.test(text)) {
+              const mathContent = text.replace(/^\$\$([\s\S]+)\$\$$/, '$1');
               try {
                 const html = katex.renderToString(mathContent, {
                   throwOnError: false,
                   displayMode: true,
                   output: 'html',
                   strict: false,
+                  trust: true,
                 });
                 return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '0.3em 0', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
               } catch (error) {

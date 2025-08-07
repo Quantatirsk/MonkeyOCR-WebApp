@@ -40,7 +40,7 @@ const ActionToolbar: React.FC<ActionToolbarProps> = React.memo(({
   };
 
   const blockTypeInfo = getBlockTypeInfo(selectedBlock.type);
-  const isProcessing = actionState.isProcessing || streamingState.isStreaming;
+  const isProcessing = actionState.processingBlocks.size > 0 || streamingState.isStreaming;
 
   // 获取操作状态的显示信息
   const getActionStatusInfo = () => {
@@ -51,7 +51,7 @@ const ActionToolbar: React.FC<ActionToolbarProps> = React.memo(({
       };
     }
     
-    if (actionState.isProcessing) {
+    if (actionState.processingBlocks.size > 0) {
       return {
         text: actionState.actionMode === 'translate' ? '准备翻译...' : '准备解释...',
         icon: <Loader2 className="w-3 h-3 animate-spin" />

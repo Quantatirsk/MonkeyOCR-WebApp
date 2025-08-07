@@ -55,8 +55,8 @@
 
 /* Apply background to the content wrapper inside selected containers */
 .block-container.block-selected .block-content-wrapper {
-  background-color: hsl(var(--primary) / 0.2) !important;
-  border-left-color: hsl(var(--primary) / 0.4) !important;
+  background-color: rgba(239, 68, 68, 0.15) !important; /* 浅淡红色，与PDF区块选中色保持一致 */
+  border-left-color: rgba(239, 68, 68, 0.4) !important;
 }
 
 .block-container.block-highlighted {
@@ -128,9 +128,9 @@
 
 /* Block states */
 .block-paragraph.block-selected {
-  background-color: hsl(var(--primary) / 0.2);
+  background-color: rgba(239, 68, 68, 0.15); /* 浅淡红色，与PDF区块选中色保持一致 */
   border-radius: 3px;
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
   /* 移除translateX位移，保持布局稳定 */
 }
 
@@ -343,7 +343,14 @@
 }
 
 .markdown-unordered-list {
-  list-style-type: disc;
+  list-style-type: disc !important;
+  list-style-position: outside !important;
+}
+
+/* Ensure list items in unordered lists show bullets */
+.markdown-unordered-list > .markdown-list-item {
+  list-style-type: disc !important;
+  display: list-item !important;
 }
 
 .markdown-ordered-list {
@@ -511,8 +518,8 @@
   }
   
   .block-paragraph.block-selected {
-    border-left-color: hsl(var(--primary));
-    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.3);
+    border-left-color: rgba(239, 68, 68, 0.8); /* 红色边框 */
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
     /* 不改变边框宽度，仅改变颜色 */
   }
 }

@@ -13,7 +13,7 @@ export { useBlockActions } from './hooks/useBlockActions';
 export { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 // 提示词系统
-export { getBlockPrompts, buildTranslateMessages, buildExplainMessages } from './prompts';
+export { buildTranslateMessages, buildExplainMessages } from './prompts';
 
 // 语言检测系统
 export { 

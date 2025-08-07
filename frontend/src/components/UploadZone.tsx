@@ -13,7 +13,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { useAppStore } from '../store/appStore';
 import { UploadOptions } from '../types';
-import { useToast } from '../hooks/use-toast';
+import { toast } from 'sonner';
 
 // File type validation
 const ACCEPTED_FILE_TYPES = {
@@ -45,7 +45,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   disabled = false 
 }) => {
   const { isUploading, uploadFiles } = useAppStore();
-  const { toast } = useToast();
   const [uploadQueue, setUploadQueue] = useState<FileUploadItem[]>([]);
   const [uploadOptions, setUploadOptions] = useState<UploadOptions>({
     extract_type: 'standard',
@@ -121,9 +120,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         .filter(f => f.status === 'pending')
         .map(f => f.file);
 
-      toast({
-        description: `开始上传 ${filesToUpload.length} 个文件...`,
-      });
+      toast.info(`开始上传 ${filesToUpload.length} 个文件...`);
 
       await uploadFiles(filesToUpload, uploadOptions);
       
@@ -132,9 +129,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 }))
       );
       
-      toast({
-        description: "上传完成",
-      });
+      toast.success("上传完成");
       
       // Clear queue after successful upload
       clearAll();
@@ -148,10 +143,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         }))
       );
       
-      toast({
-        variant: "destructive",
-        description: "上传失败",
-      });
+      toast.error("上传失败");
     }
   };
 
