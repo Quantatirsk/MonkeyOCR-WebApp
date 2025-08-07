@@ -84,6 +84,7 @@ export interface UseBlockActionsReturn {
   // 操作方法
   translateBlock: (blockIndex: number, force?: boolean) => Promise<void>;
   explainBlock: (blockIndex: number, force?: boolean) => Promise<void>;
+  translateAllBlocks: (onProgress?: (completed: number, total: number) => void, batchSize?: number) => Promise<void>;
   cancelAction: () => void;
   clearTranslation: (blockIndex: number) => void;
   clearExplanation: (blockIndex?: number) => void;

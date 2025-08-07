@@ -84,7 +84,8 @@ const BlockSyncMarkdownPanel = React.memo(({
   activeSearchQuery,
   taskId,
   onMarkdownGenerated,
-  enableTranslationFeatures = true
+  enableTranslationFeatures = true,
+  onTranslateAllStatusChange
 }: { 
   originalMarkdown: string;
   markdownZoom: number;
@@ -97,6 +98,7 @@ const BlockSyncMarkdownPanel = React.memo(({
   taskId?: string;
   onMarkdownGenerated?: (markdown: string) => void;
   enableTranslationFeatures?: boolean;
+  onTranslateAllStatusChange?: (isTranslating: boolean, progress?: { completed: number; total: number }) => void;
 }) => {
   // Translation functionality integration
   const blockActions = useBlockActions({
@@ -149,19 +151,31 @@ const BlockSyncMarkdownPanel = React.memo(({
       }
     };
     
+    const handleTranslateAllEvent = async () => {
+      if (blockActions.translateAllBlocks) {
+        onTranslateAllStatusChange?.(true);
+        await blockActions.translateAllBlocks((completed, total) => {
+          onTranslateAllStatusChange?.(true, { completed, total });
+        });
+        onTranslateAllStatusChange?.(false);
+      }
+    };
+    
     const markdownPanel = document.querySelector('.block-sync-markdown-panel');
     if (markdownPanel) {
       markdownPanel.addEventListener('translate-block', handleTranslateEvent as EventListener);
       markdownPanel.addEventListener('explain-block', handleExplainEvent as EventListener);
+      markdownPanel.addEventListener('translate-all', handleTranslateAllEvent as any);
     }
     
     return () => {
       if (markdownPanel) {
         markdownPanel.removeEventListener('translate-block', handleTranslateEvent as EventListener);
         markdownPanel.removeEventListener('explain-block', handleExplainEvent as EventListener);
+        markdownPanel.removeEventListener('translate-all', handleTranslateAllEvent as any);
       }
     };
-  }, [blockActions]);
+  }, [blockActions, onTranslateAllStatusChange]);
   
   // Keyboard shortcuts
   useEffect(() => {
@@ -342,6 +356,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   // Store generated block-based markdown for copying
   const [blockBasedMarkdownForCopy, setBlockBasedMarkdownForCopy] = useState<string>('');
   
+  // 全文翻译状态
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+  
   // Auto-load OCR results when task is selected
   useEffect(() => {
     const loadTaskResult = async () => {
@@ -455,6 +472,29 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     documentSearch.executeSearch(query);
     setSearchQuery(query);
   }, [documentSearch, setSearchQuery]);
+  
+  // 处理全文翻译
+  const handleTranslateAll = useCallback(() => {
+    const markdownPanel = document.querySelector('.block-sync-markdown-panel');
+    if (markdownPanel) {
+      const event = new CustomEvent('translate-all');
+      markdownPanel.dispatchEvent(event);
+    }
+  }, []);
+  
+  // 处理全文翻译状态变化
+  const handleTranslateAllStatusChange = useCallback((isTranslating: boolean, progress?: { completed: number; total: number }) => {
+    setIsTranslatingAll(isTranslating);
+    if (progress) {
+      // 显示进度提示
+      if (progress.completed < progress.total) {
+        toast.info(`翻译进度: ${progress.completed}/${progress.total}`, { 
+          id: 'translate-all-progress',
+          duration: 1000 
+        });
+      }
+    }
+  }, []);
 
   if (!currentTask) {
     return (
@@ -571,6 +611,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             onFontSizeChange={handleFontSizeChange}
                             onCopy={handleCopyMarkdown}
                             onDownload={handleDownload}
+                            onTranslateAll={handleTranslateAll}
+                            showTranslateAll={blockSyncEnabled}
+                            isTranslatingAll={isTranslatingAll}
                             searchQuery={documentSearch.localQuery}
                             onSearch={handleSearch}
                           />
@@ -585,6 +628,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               onBlockClick={handleMarkdownBlockClickWithTimestamp}
                               activeSearchQuery={documentSearch.activeQuery}
                               onMarkdownGenerated={setBlockBasedMarkdownForCopy}
+                              onTranslateAllStatusChange={handleTranslateAllStatusChange}
                             />
                           ) : (
                             <MarkdownContentPanel 

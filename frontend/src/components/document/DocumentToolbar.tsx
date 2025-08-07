@@ -29,6 +29,9 @@ interface DocumentToolbarProps {
   onFontSizeChange: () => void;
   onCopy: () => void;
   onDownload: () => void;
+  onTranslateAll?: () => void;
+  showTranslateAll?: boolean;
+  isTranslatingAll?: boolean;
   
   // Search
   searchQuery?: string;
@@ -52,6 +55,9 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = React.memo(({
   onFontSizeChange,
   onCopy,
   onDownload,
+  onTranslateAll,
+  showTranslateAll = false,
+  isTranslatingAll = false,
   searchQuery = '',
   onSearch,
   searchPlaceholder = '搜索...',
@@ -103,6 +109,9 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = React.memo(({
             onFontSizeChange={onFontSizeChange}
             onCopy={onCopy}
             onDownload={onDownload}
+            onTranslateAll={onTranslateAll}
+            showTranslateAll={showTranslateAll}
+            isTranslatingAll={isTranslatingAll}
           />
 
           {/* Search */}

@@ -625,6 +625,67 @@ export const useBlockActions = ({
       explanationBlockIndex: null
     }));
   }, []);
+  
+  // 全文翻译功能
+  const translateAllBlocks = useCallback(async (
+    onProgress?: (completed: number, total: number) => void,
+    batchSize: number = 10
+  ) => {
+    if (!enabled || !blockData || blockData.length === 0) {
+      toast.error('没有可翻译的内容');
+      return;
+    }
+    
+    // 按index排序区块
+    const sortedBlocks = [...blockData].sort((a, b) => a.index - b.index);
+    const totalBlocks = sortedBlocks.length;
+    let completedBlocks = 0;
+    
+    console.log(`🌍 开始全文翻译，共 ${totalBlocks} 个区块，每批 ${batchSize} 个`);
+    toast.info(`开始全文翻译 (共${totalBlocks}个区块)`, { duration: 2000 });
+    
+    // 分批处理
+    for (let i = 0; i < sortedBlocks.length; i += batchSize) {
+      const batch = sortedBlocks.slice(i, Math.min(i + batchSize, sortedBlocks.length));
+      console.log(`📦 处理第 ${Math.floor(i/batchSize) + 1} 批，包含 ${batch.length} 个区块`);
+      
+      // 并行处理当前批次的区块
+      const batchPromises = batch.map(async (block) => {
+        try {
+          // 使用 ref 获取最新状态，避免闭包问题
+          const currentState = actionStateRef.current;
+          
+          // 跳过已翻译的区块
+          if (currentState.translations.has(block.index)) {
+            completedBlocks++;
+            onProgress?.(completedBlocks, totalBlocks);
+            return;
+          }
+          
+          // 调用单个区块的翻译方法
+          await translateBlock(block.index, true);
+          completedBlocks++;
+          onProgress?.(completedBlocks, totalBlocks);
+          
+        } catch (error) {
+          console.error(`区块 ${block.index} 翻译失败:`, error);
+          completedBlocks++;
+          onProgress?.(completedBlocks, totalBlocks);
+        }
+      });
+      
+      // 等待当前批次完成
+      await Promise.allSettled(batchPromises);
+      
+      // 批次间短暂延迟，避免请求过于密集
+      if (i + batchSize < sortedBlocks.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    console.log('✅ 全文翻译完成');
+    toast.success('全文翻译完成', { duration: 2000 });
+  }, [enabled, blockData, translateBlock]);
 
   // 获取翻译内容
   const getTranslation = useCallback((blockIndex: number): string | null => {
@@ -649,6 +710,7 @@ export const useBlockActions = ({
     // 操作方法
     translateBlock,
     explainBlock,
+    translateAllBlocks,
     cancelAction,
     clearTranslation,
     clearExplanation,
