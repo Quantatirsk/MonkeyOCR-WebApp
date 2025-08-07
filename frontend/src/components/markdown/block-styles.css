@@ -359,14 +359,13 @@
   color: hsl(var(--primary));
 }
 
-/* Table styling - match content tab */
+/* Table styling - clean border implementation */
 .markdown-table-container {
   margin: 0.3em 0 !important; /* Reduced spacing */
   overflow: visible !important; /* Match content tab - force text wrapping */
   overflow-x: visible !important;
   overflow-y: visible !important;
-  border-radius: 0.5rem;
-  border: 1px solid #6b7280; /* Fine dark gray border */
+  /* Remove container border to avoid double borders */
 }
 
 .markdown-table {
@@ -377,6 +376,9 @@
   overflow-x: visible !important;
   overflow-y: visible !important;
   table-layout: auto !important; /* Allow natural column width distribution */
+  /* Add outer border to table element itself */
+  border: 1px solid #6b7280 !important;
+  border-radius: 0.375rem !important; /* Subtle rounded corners */
 }
 
 .markdown-table-header {
@@ -396,6 +398,16 @@
   white-space: normal !important;
 }
 
+/* First header cell - round top-left corner */
+.markdown-table-header-cell:first-child {
+  border-top-left-radius: 0.25rem !important;
+}
+
+/* Last header cell - round top-right corner */
+.markdown-table-header-cell:last-child {
+  border-top-right-radius: 0.25rem !important;
+}
+
 .markdown-table-cell {
   border: 1px solid #6b7280 !important; /* Fine dark gray border */
   padding: 2px 4px !important; /* Keep current padding */
@@ -407,12 +419,18 @@
   white-space: normal !important;
 }
 
-.markdown-table-row:hover {
-  background-color: hsl(var(--muted) / 0.3);
+/* Last row first cell - round bottom-left corner */
+.markdown-table-row:last-child .markdown-table-cell:first-child {
+  border-bottom-left-radius: 0.25rem !important;
 }
 
-.markdown-table-row:last-child .markdown-table-cell {
-  border-bottom: 1px solid #6b7280 !important; /* Fine dark gray border */
+/* Last row last cell - round bottom-right corner */
+.markdown-table-row:last-child .markdown-table-cell:last-child {
+  border-bottom-right-radius: 0.25rem !important;
+}
+
+.markdown-table-row:hover {
+  background-color: hsl(var(--muted) / 0.3);
 }
 
 /* Block overlay info */
