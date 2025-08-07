@@ -48,6 +48,21 @@ class ChatCompletionResponse(BaseModel):
     created: int
     model: str
     choices: List[ChatCompletionChoice]
+
+
+class TranslationRequest(BaseModel):
+    """Translation request model"""
+    text: str = Field(..., description="Text to translate")
+    source_language: str = Field(default="auto", description="Source language")
+    target_language: str = Field(..., description="Target language")
+    stream: bool = Field(default=False, description="Enable streaming response")
+
+
+class ExplainRequest(BaseModel):
+    """Explain text request model"""
+    text: str = Field(..., description="Text to explain")
+    language: str = Field(default="en", description="Response language")
+    stream: bool = Field(default=False, description="Enable streaming response")
     usage: Optional[Dict[str, int]] = None
 
 
@@ -181,12 +196,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
 
 
 @router.post("/translate/text")
-async def translate_text(
-    text: str = Field(..., description="Text to translate"),
-    source_language: str = Field(default="auto", description="Source language"),
-    target_language: str = Field(..., description="Target language"),
-    stream: bool = Field(default=False, description="Enable streaming response")
-):
+async def translate_text(request: TranslationRequest):
     """
     Translate text using LLM
     Specialized endpoint for translation tasks
@@ -196,16 +206,16 @@ async def translate_text(
         config = get_llm_config()
         
         # Create translation prompt
-        if source_language == "auto":
-            prompt = f"""Please translate the following text to {target_language}. Preserve the original formatting and structure:
+        if request.source_language == "auto":
+            prompt = f"""Please translate the following text to {request.target_language}. Preserve the original formatting and structure:
 
-{text}
+{request.text}
 
 Translation:"""
         else:
-            prompt = f"""Please translate the following {source_language} text to {target_language}. Preserve the original formatting and structure:
+            prompt = f"""Please translate the following {request.source_language} text to {request.target_language}. Preserve the original formatting and structure:
 
-{text}
+{request.text}
 
 Translation:"""
         
@@ -218,10 +228,10 @@ Translation:"""
             "model": config["model"],
             "messages": messages,
             "temperature": 0.3,  # Lower temperature for more consistent translations
-            "stream": stream,
+            "stream": request.stream,
         }
         
-        if stream:
+        if request.stream:
             # Streaming response
             async def generate_translation_stream():
                 try:
@@ -247,8 +257,8 @@ Translation:"""
             
             return {
                 "translation": translation,
-                "source_language": source_language,
-                "target_language": target_language,
+                "source_language": request.source_language,
+                "target_language": request.target_language,
                 "model": config["model"]
             }
             
@@ -258,11 +268,7 @@ Translation:"""
 
 
 @router.post("/explain/text")
-async def explain_text(
-    text: str = Field(..., description="Text to explain"),
-    language: str = Field(default="en", description="Response language"),
-    stream: bool = Field(default=False, description="Enable streaming response")
-):
+async def explain_text(request: ExplainRequest):
     """
     Explain text content using LLM
     Specialized endpoint for content explanation
@@ -272,14 +278,14 @@ async def explain_text(
         config = get_llm_config()
         
         # Create explanation prompt
-        prompt = f"""Please explain the following text in {language}. Provide context, meaning, and any relevant background information:
+        prompt = f"""Please explain the following text in {request.language}. Provide context, meaning, and any relevant background information:
 
-{text}
+{request.text}
 
 Explanation:"""
         
         messages = [
-            {"role": "system", "content": f"You are a helpful assistant that explains content clearly and comprehensively in {language}."},
+            {"role": "system", "content": f"You are a helpful assistant that explains content clearly and comprehensively in {request.language}."},
             {"role": "user", "content": prompt}
         ]
         
@@ -287,10 +293,10 @@ Explanation:"""
             "model": config["model"],
             "messages": messages,
             "temperature": 0.7,
-            "stream": stream,
+            "stream": request.stream,
         }
         
-        if stream:
+        if request.stream:
             # Streaming response
             async def generate_explanation_stream():
                 try:
@@ -316,7 +322,7 @@ Explanation:"""
             
             return {
                 "explanation": explanation,
-                "language": language,
+                "language": request.language,
                 "model": config["model"]
             }
             

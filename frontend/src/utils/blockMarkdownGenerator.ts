@@ -262,7 +262,7 @@ export class BlockMarkdownGenerator {
    * NOTE: Since all blocks are now wrapped with explicit data-block-index attributes,
    * we don't need sequential mapping anymore. This method returns an empty map.
    */
-  static createBlockMapping(blocks: BlockData[]): Map<number, number> {
+  static createBlockMapping(_blocks: BlockData[]): Map<number, number> {
     const mapping = new Map<number, number>();
     
     // Block mapping: All blocks use explicit data-block-index attributes, no sequential mapping needed

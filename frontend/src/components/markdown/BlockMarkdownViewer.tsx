@@ -14,6 +14,7 @@ import 'katex/dist/katex.min.css';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
+import { TooltipProvider } from '../ui/tooltip';
 import './block-styles.css';
 
 export interface BlockMarkdownViewerProps {
@@ -29,8 +30,6 @@ export interface BlockMarkdownViewerProps {
   syncEnabled?: boolean;
   /** Callback for block click */
   onBlockClick?: (blockIndex: number) => void;
-  /** Callback for block hover - deprecated, kept for compatibility */
-  onBlockHover?: (blockIndex: number | null) => void;
   /** Font size multiplier */
   fontSize?: number;
   /** CSS class name */
@@ -42,6 +41,7 @@ interface BlockMapping {
   paragraphIndex: number;
   blockType: 'text' | 'title' | 'image' | 'table';
 }
+
 
 // 处理表格单元格内的完整内容（数学公式 + 格式标记）
 function processTableCellContent(text: string): React.ReactNode {
@@ -149,12 +149,11 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   highlightedBlocks = [],
   syncEnabled = false,
   onBlockClick,
-  onBlockHover, // Kept for compatibility but not used - hover is handled by CSS
   fontSize = 100,
-  className = ''
+  className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  // Removed hoveredBlock state - using pure CSS :hover instead for performance
+  
 
   // Create block-to-paragraph mapping
   const blockMappings = useMemo<BlockMapping[]>(() => {
@@ -215,6 +214,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
           
           if (isSelected) blockContainer.classList.add('block-selected');
           if (isHighlighted) blockContainer.classList.add('block-highlighted');
+          
         }
       });
     } else if (blockMappings.length > 0) {
@@ -254,12 +254,15 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
           
           if (isSelected) paragraph.classList.add('block-selected');
           if (isHighlighted) paragraph.classList.add('block-highlighted');
+          
         }
         
         renderedParagraphIndex++;
       });
     }
   }, [syncEnabled, blockMappings, selectedBlock, highlightedBlocks]);
+
+
 
   // Handle block interactions
   const handleBlockClick = React.useCallback((event: MouseEvent) => {
@@ -273,6 +276,8 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
       }
     }
   }, [onBlockClick]);
+
+
 
   // Removed hover event handlers - using CSS :hover for better performance
 
@@ -501,55 +506,58 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   }), []);
 
   return (
-    <div 
-      ref={containerRef}
-      className={`block-markdown-viewer ${syncEnabled ? 'sync-enabled' : ''} ${className}`}
-      style={{ fontSize: `${fontSize}%` }}
-    >
-      {/* Block mapping debug info (only in development) */}
-      {process.env.NODE_ENV === 'development' && syncEnabled && blockMappings.length > 0 && (
-        <div className="block-debug-info">
-          <details>
-            <summary>Block Mappings ({blockMappings.length})</summary>
-            <pre>{JSON.stringify(blockMappings, null, 2)}</pre>
-          </details>
-        </div>
-      )}
-
-      {/* Markdown content */}
-      <ReactMarkdown
-        components={components}
-        remarkPlugins={[
-          remarkGfm,
-          [remarkMath, {
-            singleDollarTextMath: true,
-            inlineMathDouble: false,
-          }]
-        ]}
-        rehypePlugins={[
-          rehypeRaw,
-          [rehypeKatex, {
-            strict: false,
-            throwOnError: false,
-            errorColor: '#cc0000',
-            output: 'html',
-            displayMode: false,
-            macros: {
-              "\\RR": "\\mathbb{R}",
-              "\\NN": "\\mathbb{N}",
-              "\\ZZ": "\\mathbb{Z}",
-              "\\QQ": "\\mathbb{Q}",
-              "\\CC": "\\mathbb{C}",
-            },
-            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
-          }]
-        ]}
-        className="markdown-content"
+    <TooltipProvider>
+      <div 
+        ref={containerRef}
+        className={`block-markdown-viewer ${syncEnabled ? 'sync-enabled' : ''} ${className}`}
+        style={{ fontSize: `${fontSize}%` }}
       >
-        {processedContent}
-      </ReactMarkdown>
+        
+        {/* Block mapping debug info (only in development) */}
+        {process.env.NODE_ENV === 'development' && syncEnabled && blockMappings.length > 0 && (
+          <div className="block-debug-info">
+            <details>
+              <summary>Block Mappings ({blockMappings.length})</summary>
+              <pre>{JSON.stringify(blockMappings, null, 2)}</pre>
+            </details>
+          </div>
+        )}
 
-    </div>
+        {/* Markdown content */}
+        <ReactMarkdown
+          components={components}
+          remarkPlugins={[
+            remarkGfm,
+            [remarkMath, {
+              singleDollarTextMath: true,
+              inlineMathDouble: false,
+            }]
+          ]}
+          rehypePlugins={[
+            rehypeRaw,
+            [rehypeKatex, {
+              strict: false,
+              throwOnError: false,
+              errorColor: '#cc0000',
+              output: 'html',
+              displayMode: false,
+              macros: {
+                "\\RR": "\\mathbb{R}",
+                "\\NN": "\\mathbb{N}",
+                "\\ZZ": "\\mathbb{Z}",
+                "\\QQ": "\\mathbb{Q}",
+                "\\CC": "\\mathbb{C}",
+              },
+              trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+            }]
+          ]}
+          className="markdown-content"
+        >
+          {processedContent}
+        </ReactMarkdown>
+
+      </div>
+    </TooltipProvider>
   );
 };
 

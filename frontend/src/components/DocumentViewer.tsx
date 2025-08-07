@@ -20,8 +20,7 @@ import {
   Type,
   Monitor,
   ArrowLeftRight,
-  RotateCw,
-  Languages
+  RotateCw
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -42,15 +41,14 @@ import { useToast } from '../hooks/use-toast';
 import { useBlockSync } from '../hooks/useBlockSync';
 import { useScrollSync } from '../hooks/useScrollSync';
 import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
-import { TranslationTabContent } from './translation/TranslationTabContent';
 
 // 独立的Markdown内容组件，防止PDF状态变化导致重渲染
 const MarkdownContentPanel = React.memo(({ 
   processedMarkdown, 
-  markdownZoom 
+  markdownZoom
 }: { 
   processedMarkdown: string; 
-  markdownZoom: number; 
+  markdownZoom: number;
 }) => {
   // 调试：监控重渲染
   // MarkdownContentPanel render
@@ -95,7 +93,6 @@ const BlockSyncMarkdownPanel = React.memo(({
   highlightedBlocks,
   syncEnabled,
   onBlockClick,
-  onBlockHover,
   activeSearchQuery,
   taskId,
   onMarkdownGenerated
@@ -107,7 +104,6 @@ const BlockSyncMarkdownPanel = React.memo(({
   highlightedBlocks: number[];
   syncEnabled: boolean;
   onBlockClick?: (blockIndex: number) => void;
-  onBlockHover?: (blockIndex: number | null) => void;
   activeSearchQuery?: string;
   taskId?: string;
   onMarkdownGenerated?: (markdown: string) => void;
@@ -156,7 +152,6 @@ const BlockSyncMarkdownPanel = React.memo(({
             highlightedBlocks={highlightedBlocks}
             syncEnabled={syncEnabled}
             onBlockClick={onBlockClick}
-            onBlockHover={onBlockHover}
             fontSize={markdownZoom}
             className="w-full min-w-0"
           />
@@ -173,8 +168,7 @@ const BlockSyncMarkdownPanel = React.memo(({
   const highlightedSame = JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks);
   const syncEnabledSame = prevProps.syncEnabled === nextProps.syncEnabled;
   const searchSame = prevProps.activeSearchQuery === nextProps.activeSearchQuery;
-  const callbacksSame = prevProps.onBlockClick === nextProps.onBlockClick && 
-                       prevProps.onBlockHover === nextProps.onBlockHover;
+  const callbacksSame = prevProps.onBlockClick === nextProps.onBlockClick;
   
   const shouldNotRerender = originalMarkdownSame && zoomSame && blockDataSame && selectedBlockSame && 
                            highlightedSame && syncEnabledSame && searchSame && callbacksSame;
@@ -198,7 +192,6 @@ const PDFPreviewPanel = React.memo(({
   highlightedBlocks,
   syncEnabled,
   onBlockClick,
-  onBlockHover,
   pdfContainerRef
 }: {
   task: any;
@@ -211,7 +204,6 @@ const PDFPreviewPanel = React.memo(({
   highlightedBlocks?: number[];
   syncEnabled?: boolean;
   onBlockClick?: (blockIndex: number, pageNumber: number) => void;
-  onBlockHover?: (blockIndex: number | null, pageNumber: number) => void;
   pdfContainerRef?: React.RefObject<HTMLElement>;
 }) => {
   // PDFPreviewPanel render
@@ -232,7 +224,6 @@ const PDFPreviewPanel = React.memo(({
         highlightedBlocks={highlightedBlocks}
         syncEnabled={syncEnabled}
         onBlockClick={onBlockClick}
-        onBlockHover={onBlockHover}
         containerRef={pdfContainerRef}
       />
     </div>
@@ -250,8 +241,7 @@ const PDFPreviewPanel = React.memo(({
   const syncEnabledSame = prevProps.syncEnabled === nextProps.syncEnabled;
   const callbacksSame = prevProps.onPageSelect === nextProps.onPageSelect && 
                         prevProps.onRotate === nextProps.onRotate &&
-                        prevProps.onBlockClick === nextProps.onBlockClick &&
-                        prevProps.onBlockHover === nextProps.onBlockHover;
+                        prevProps.onBlockClick === nextProps.onBlockClick;
   const refSame = prevProps.pdfContainerRef === nextProps.pdfContainerRef;
   
   const shouldNotRerender = taskSame && selectedPageSame && rotationsSame && 
@@ -667,7 +657,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
         <div className="h-full flex flex-col">
           {/* 标签页头部 */}
           <div className="border-b flex-shrink-0">
-            <div className="grid w-full grid-cols-6 h-10">
+            <div className="grid w-full grid-cols-5 h-10">
               <button 
                 onClick={() => setActiveDocumentTab('preview')}
                 className={`flex items-center justify-center space-x-1 text-xs transition-colors ${
@@ -737,21 +727,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                 <span>详情</span>
                 {currentTask?.status === 'completed' && currentResult && (
                   <span className="text-xs text-green-500 ml-1">✓</span>
-                )}
-              </button>
-              <button 
-                onClick={() => setActiveDocumentTab('translation')}
-                disabled={!currentResult}
-                className={`flex items-center justify-center space-x-1 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  activeDocumentTab === 'translation' 
-                    ? 'bg-background text-foreground border-b-2 border-primary' 
-                    : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                <Languages className="w-3 h-3" />
-                <span>翻译</span>
-                {currentTask?.status === 'completed' && currentResult && (
-                  <span className="text-xs text-blue-500 ml-1">AI</span>
                 )}
               </button>
             </div>
@@ -845,7 +820,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             highlightedBlocks={blockSync.highlightedBlocks}
                             syncEnabled={blockSync.isSyncEnabled}
                             onBlockClick={blockSync.handlePdfBlockClick}
-                            onBlockHover={blockSync.handlePdfBlockHover}
                             pdfContainerRef={scrollSync.pdfContainerRef}
                           />
                         </div>
@@ -927,9 +901,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               highlightedBlocks={blockSync.highlightedBlocks}
                               syncEnabled={blockSync.isSyncEnabled}
                               onBlockClick={handleMarkdownBlockClickWithTimestamp}
-                              onBlockHover={blockSync.handleMarkdownBlockHover}
                               activeSearchQuery={activeSearchQuery}
-                              taskId={currentTaskId || undefined}
                               onMarkdownGenerated={setBlockBasedMarkdownForCopy}
                             />
                           ) : (
@@ -1186,29 +1158,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
             )}
             </div>
 
-            {/* Translation tab */}
-            <div 
-              className={`absolute inset-0 ${
-                activeDocumentTab === 'translation' ? 'block' : 'hidden'
-              }`}
-            >
-              {currentResult ? (
-                <TranslationTabContent
-                  result={currentResult}
-                  taskId={currentTaskId!}
-                  searchQuery={activeSearchQuery}
-                />
-              ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-2">
-                    <Languages className="w-8 h-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">
-                      等待OCR处理完成以使用翻译功能
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
           </div>
       </div>

@@ -5,7 +5,7 @@ Advanced translation functionality with batch processing and caching
 import logging
 import uuid
 import asyncio
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, cast
 from datetime import datetime, timedelta
 import json
 
@@ -47,6 +47,14 @@ class BlockTranslationResult(BaseModel):
     translated_content: str
     status: str  # completed, error, pending
     error_message: Optional[str] = None
+
+
+class SingleBlockTranslationRequest(BaseModel):
+    """Single block translation request model"""
+    block_content: str = Field(..., description="Block content to translate")
+    source_language: str = Field(default="auto", description="Source language")
+    target_language: str = Field(..., description="Target language")
+    translation_style: str = Field(default="accurate", description="Translation style")
 
 
 class TranslationStatus(BaseModel):
@@ -143,7 +151,7 @@ async def translate_single_block(
         
         completion = await client.chat.completions.create(
             model=config["model"],
-            messages=messages,
+            messages=cast(Any, messages),  # Cast to Any to bypass strict typing
             temperature=0.3,  # Lower temperature for consistency
             max_tokens=len(block.content) * 3  # Reasonable limit based on input length
         )
@@ -258,24 +266,19 @@ async def process_translation_job(translation_id: str, request: TranslationReque
 
 
 @router.post("/block")
-async def translate_block(
-    block_content: str = Field(..., description="Block content to translate"),
-    source_language: str = Field(default="auto", description="Source language"),
-    target_language: str = Field(..., description="Target language"),
-    translation_style: str = Field(default="accurate", description="Translation style")
-):
+async def translate_block(request: SingleBlockTranslationRequest):
     """
     Translate a single block of text
     """
     try:
         block = TranslationBlock(
             id="single_block",
-            content=block_content,
+            content=request.block_content,
             type="text"
         )
         
         result = await translate_single_block(
-            block, source_language, target_language, translation_style
+            block, request.source_language, request.target_language, request.translation_style
         )
         
         return {
@@ -283,8 +286,8 @@ async def translate_block(
             "translation": result.translated_content,
             "status": result.status,
             "error": result.error_message,
-            "source_language": source_language,
-            "target_language": target_language
+            "source_language": request.source_language,
+            "target_language": request.target_language
         }
         
     except Exception as e:

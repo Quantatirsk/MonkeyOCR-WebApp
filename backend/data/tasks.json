@@ -43,6 +43,48 @@
       "processing_duration": null,
       "extraction_type": null,
       "updated_at": "2025-08-07T00:23:32.966373"
+    },
+    "c4f7fcaf-b010-429c-958e-bb7d750fe12c": {
+      "id": "c4f7fcaf-b010-429c-958e-bb7d750fe12c",
+      "filename": "demo.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-07T10:21:33.628257",
+      "completed_at": "2025-08-07T10:21:36.334786",
+      "error_message": null,
+      "result_url": "/api/download/c4f7fcaf-b010-429c-958e-bb7d750fe12c",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 1,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-07T10:21:36.334798"
+    },
+    "f4dac371-8a8c-4316-b2d8-0d180e6ef979": {
+      "id": "f4dac371-8a8c-4316-b2d8-0d180e6ef979",
+      "filename": "大语言模型科普报告.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-07T12:13:49.955547",
+      "completed_at": "2025-08-07T12:14:41.375069",
+      "error_message": null,
+      "result_url": "/api/download/f4dac371-8a8c-4316-b2d8-0d180e6ef979",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 18,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-07T12:14:41.375093"
     }
   }
 }
