@@ -1,0 +1,45 @@
+# Node modules and build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python cache and virtual environments
+backend/__pycache__/
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+
+# Development files
+.git/
+.github/
+*.md
+.gitignore
+.env
+.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Demo and wiki files
+demo_files/
+wiki/
+
+# Development scripts
+start.py
