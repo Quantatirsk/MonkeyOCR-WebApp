@@ -1,14 +1,13 @@
 """
 LLM API endpoints for MonkeyOCR WebApp
-Compatible with OpenAI SDK for translation functionality
+Compatible with OpenAI SDK for chat completion functionality
 """
 import logging
 import json
-from typing import Optional, Dict, Any, List, AsyncGenerator
-from fastapi import APIRouter, HTTPException, Request
+from typing import Optional, List
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-import openai
 from openai import AsyncOpenAI
 
 from config import get_llm_config, validate_llm_config
@@ -48,22 +47,6 @@ class ChatCompletionResponse(BaseModel):
     created: int
     model: str
     choices: List[ChatCompletionChoice]
-
-
-class TranslationRequest(BaseModel):
-    """Translation request model"""
-    text: str = Field(..., description="Text to translate")
-    source_language: str = Field(default="auto", description="Source language")
-    target_language: str = Field(..., description="Target language")
-    stream: bool = Field(default=False, description="Enable streaming response")
-
-
-class ExplainRequest(BaseModel):
-    """Explain text request model"""
-    text: str = Field(..., description="Text to explain")
-    language: str = Field(default="en", description="Response language")
-    stream: bool = Field(default=False, description="Enable streaming response")
-    usage: Optional[Dict[str, int]] = None
 
 
 class ModelInfo(BaseModel):
@@ -182,8 +165,12 @@ async def create_chat_completion(request: ChatCompletionRequest):
             
             return StreamingResponse(
                 generate_stream(),
-                media_type="text/plain",
-                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no"  # Disable proxy buffering
+                }
             )
         else:
             # Non-streaming response
@@ -193,143 +180,6 @@ async def create_chat_completion(request: ChatCompletionRequest):
     except Exception as e:
         logger.error(f"Error in chat completion: {e}")
         raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
-
-
-@router.post("/translate/text")
-async def translate_text(request: TranslationRequest):
-    """
-    Translate text using LLM
-    Specialized endpoint for translation tasks
-    """
-    try:
-        client = await get_openai_client()
-        config = get_llm_config()
-        
-        # Create translation prompt
-        if request.source_language == "auto":
-            prompt = f"""Please translate the following text to {request.target_language}. Preserve the original formatting and structure:
-
-{request.text}
-
-Translation:"""
-        else:
-            prompt = f"""Please translate the following {request.source_language} text to {request.target_language}. Preserve the original formatting and structure:
-
-{request.text}
-
-Translation:"""
-        
-        messages = [
-            {"role": "system", "content": "You are a professional translator. Translate accurately while preserving formatting, structure, and meaning."},
-            {"role": "user", "content": prompt}
-        ]
-        
-        completion_params = {
-            "model": config["model"],
-            "messages": messages,
-            "temperature": 0.3,  # Lower temperature for more consistent translations
-            "stream": request.stream,
-        }
-        
-        if request.stream:
-            # Streaming response
-            async def generate_translation_stream():
-                try:
-                    stream = await client.chat.completions.create(**completion_params)
-                    async for chunk in stream:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as e:
-                    error_data = {"error": str(e)}
-                    yield f"data: {json.dumps(error_data)}\n\n"
-            
-            return StreamingResponse(
-                generate_translation_stream(),
-                media_type="text/plain",
-                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
-            )
-        else:
-            # Non-streaming response
-            completion = await client.chat.completions.create(**completion_params)
-            translation = completion.choices[0].message.content
-            
-            return {
-                "translation": translation,
-                "source_language": request.source_language,
-                "target_language": request.target_language,
-                "model": config["model"]
-            }
-            
-    except Exception as e:
-        logger.error(f"Error in translation: {e}")
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
-
-
-@router.post("/explain/text")
-async def explain_text(request: ExplainRequest):
-    """
-    Explain text content using LLM
-    Specialized endpoint for content explanation
-    """
-    try:
-        client = await get_openai_client()
-        config = get_llm_config()
-        
-        # Create explanation prompt
-        prompt = f"""Please explain the following text in {request.language}. Provide context, meaning, and any relevant background information:
-
-{request.text}
-
-Explanation:"""
-        
-        messages = [
-            {"role": "system", "content": f"You are a helpful assistant that explains content clearly and comprehensively in {request.language}."},
-            {"role": "user", "content": prompt}
-        ]
-        
-        completion_params = {
-            "model": config["model"],
-            "messages": messages,
-            "temperature": 0.7,
-            "stream": request.stream,
-        }
-        
-        if request.stream:
-            # Streaming response
-            async def generate_explanation_stream():
-                try:
-                    stream = await client.chat.completions.create(**completion_params)
-                    async for chunk in stream:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                    yield "data: [DONE]\n\n"
-                except Exception as e:
-                    error_data = {"error": str(e)}
-                    yield f"data: {json.dumps(error_data)}\n\n"
-            
-            return StreamingResponse(
-                generate_explanation_stream(),
-                media_type="text/plain",
-                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
-            )
-        else:
-            # Non-streaming response
-            completion = await client.chat.completions.create(**completion_params)
-            explanation = completion.choices[0].message.content
-            
-            return {
-                "explanation": explanation,
-                "language": request.language,
-                "model": config["model"]
-            }
-            
-    except Exception as e:
-        logger.error(f"Error in explanation: {e}")
-        raise HTTPException(status_code=500, detail=f"Explanation failed: {str(e)}")
-
 
 @router.get("/health")
 async def health_check():

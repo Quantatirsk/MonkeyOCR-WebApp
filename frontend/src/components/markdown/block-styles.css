@@ -16,7 +16,7 @@
   display: block;
   position: relative;
   padding: 2px 4px;
-  margin: 0.3em 0 0.6em 0 !important;
+  margin: 0.15em 0 0.25em 0 !important;
   border-radius: 3px;
   /* Remove transition for instant response */
   cursor: pointer;
@@ -26,7 +26,7 @@
 
 /* Ensure paragraphs inside block containers don't add extra margin */
 .block-container > p {
-  margin: 0.3em 0 !important;
+  margin: 0.15em 0 !important;
 }
 
 .block-container > p:first-child {
@@ -37,18 +37,26 @@
   margin-bottom: 0 !important;
 }
 
-/* Pure CSS hover - instant response, no JavaScript needed */
-.block-container:hover {
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  border-left-color: rgba(59, 130, 246, 0.4) !important;
-  border-radius: 3px;
+/* Block content wrapper - gives padding around content for better hover/selected area */
+.block-content-wrapper {
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-left-color 0.15s ease;
+  border-left: 4px solid transparent;
 }
 
-/* Block states for containers - these override hover */
-.block-container.block-selected {
+/* Pure CSS hover - apply to content wrapper */
+.block-container:hover .block-content-wrapper {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-left-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+
+/* Apply background to the content wrapper inside selected containers */
+.block-container.block-selected .block-content-wrapper {
   background-color: hsl(var(--primary) / 0.2) !important;
-  border-radius: 3px;
-  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  border-left-color: hsl(var(--primary) / 0.4) !important;
 }
 
 .block-container.block-highlighted {
@@ -67,7 +75,7 @@
   display: block;
   position: relative;
   padding: 2px 4px;
-  margin: 0.3em 0 0.6em 0 !important; /* Match content tab paragraph spacing */
+  margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
   border-radius: 3px;
   transition: background-color 0.15s ease, box-shadow 0.15s ease; /* 仅对不影响布局的属性过渡 */
   cursor: pointer;
@@ -197,7 +205,7 @@
 /* Ensure all markdown elements have proper block display and spacing */
 .markdown-content > * {
   display: block !important;
-  margin-bottom: 1rem;
+  margin-bottom: 0.4rem;
 }
 
 .markdown-content > *:last-child {
@@ -207,7 +215,7 @@
 .markdown-paragraph {
   color: hsl(var(--foreground)) !important;
   line-height: 1.4 !important; /* Match content tab */
-  margin: 0.3em 0 0.6em 0 !important; /* Match content tab paragraph spacing */
+  margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
   display: block !important; /* Ensure block-level display */
   text-align: justify !important; /* 段落文字两端对齐 */
   text-justify: inter-word; /* 单词间对齐 */
@@ -223,42 +231,42 @@
 
 .markdown-h1 {
   font-size: 1.5em !important; /* Match content tab - use em for responsive scaling */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.5em 0 0.2em 0 !important; /* Reduced spacing */
   border-bottom: 2px solid hsl(var(--border));
-  padding-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
 }
 
 .markdown-h2 {
   font-size: 1.25em !important; /* Match content tab */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.5em 0 0.2em 0 !important; /* Reduced spacing */
   border-bottom: 1px solid hsl(var(--border));
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.2rem;
 }
 
 .markdown-h3 {
   font-size: 1.1em !important; /* Match content tab */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
 }
 
 .markdown-h4 {
   font-size: 1em !important; /* Match content tab */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
 }
 
 .markdown-h5 {
   font-size: 1em !important; /* Match content tab */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
 }
 
 .markdown-h6 {
   font-size: 1em !important; /* Match content tab */
-  margin: 1em 0 0.3em 0 !important; /* Match content tab spacing */
+  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
   color: hsl(var(--muted-foreground));
 }
 
 /* Image styling */
 .markdown-image-container {
-  margin: 0.5rem 0;
+  margin: 0.25rem 0;
   text-align: center;
 }
 
@@ -287,7 +295,7 @@
   border: 1px solid hsl(var(--border)) !important;
   border-radius: 6px !important; /* Match content tab border radius */
   padding: 12px !important; /* Match content tab padding */
-  margin: 0.6em 0 !important; /* Match content tab margin */
+  margin: 0.3em 0 !important; /* Reduced spacing */
   overflow-x: auto;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; /* Match content tab font */
   font-size: 0.85em !important; /* Match content tab font size */
@@ -313,8 +321,8 @@
 .markdown-blockquote {
   border-left: 4px solid hsl(var(--primary));
   background-color: hsl(var(--muted) / 0.3);
-  margin: 1rem 0;
-  padding: 1rem 1.5rem;
+  margin: 0.3em 0;
+  padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   font-style: italic;
   color: hsl(var(--muted-foreground));
@@ -330,7 +338,7 @@
 
 /* List styling - match content tab */
 .markdown-list {
-  margin: 0.4em 0 0.6em 0 !important; /* Match content tab spacing */
+  margin: 0.2em 0 0.3em 0 !important; /* Reduced spacing */
   padding-left: 1.2em !important; /* Match content tab indentation */
 }
 
@@ -343,7 +351,7 @@
 }
 
 .markdown-list-item {
-  margin-bottom: 0.2em !important; /* Match content tab item spacing */
+  margin-bottom: 0.1em !important; /* Reduced item spacing */
   line-height: 1.4 !important; /* Match content tab line height */
 }
 
@@ -353,18 +361,18 @@
 
 /* Table styling - match content tab */
 .markdown-table-container {
-  margin: 0.8em 0 !important; /* Match content tab table spacing */
+  margin: 0.3em 0 !important; /* Reduced spacing */
   overflow: visible !important; /* Match content tab - force text wrapping */
   overflow-x: visible !important;
   overflow-y: visible !important;
   border-radius: 0.5rem;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid #6b7280; /* Fine dark gray border */
 }
 
 .markdown-table {
   border-collapse: collapse !important;
   width: 100% !important;
-  font-size: 0.9em !important; /* Match content tab table font size */
+  font-size: 0.7em !important; /* Even smaller table font size */
   overflow: visible !important;
   overflow-x: visible !important;
   overflow-y: visible !important;
@@ -376,11 +384,12 @@
 }
 
 .markdown-table-header-cell {
-  border: 1px solid hsl(var(--border)) !important; /* Match content tab border */
-  padding: 8px 12px !important; /* Match content tab padding */
+  border: 1px solid #6b7280 !important; /* Fine dark gray border */
+  padding: 3px 5px !important; /* Keep current padding */
   text-align: left !important;
   font-weight: 600 !important;
   color: hsl(var(--foreground));
+  font-size: 0.7em !important; /* Even smaller header font */
   /* Enable text wrapping but preserve reasonable table layout */
   word-break: break-word !important;
   overflow-wrap: break-word !important;
@@ -388,9 +397,10 @@
 }
 
 .markdown-table-cell {
-  border: 1px solid hsl(var(--border)) !important; /* Match content tab border */
-  padding: 8px 12px !important; /* Match content tab padding */
+  border: 1px solid #6b7280 !important; /* Fine dark gray border */
+  padding: 2px 4px !important; /* Keep current padding */
   vertical-align: top;
+  font-size: 0.7em !important; /* Even smaller font size */
   /* Enable text wrapping but preserve reasonable table layout */
   word-break: break-word !important;
   overflow-wrap: break-word !important;
@@ -402,7 +412,7 @@
 }
 
 .markdown-table-row:last-child .markdown-table-cell {
-  border-bottom: 1px solid hsl(var(--border)) !important; /* Keep consistent borders */
+  border-bottom: 1px solid #6b7280 !important; /* Fine dark gray border */
 }
 
 /* Block overlay info */

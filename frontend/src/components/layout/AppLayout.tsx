@@ -1,5 +1,6 @@
 
-import { Toaster } from '@/components/ui/toaster';
+// import { Toaster } from '@/components/ui/toaster';  // 使用 sonner 替代
+import { Toaster } from 'sonner';
 import { Header } from './Header';
 import { MainContent } from './MainContent';
 import { OfflineIndicator } from '../OfflineIndicator';
@@ -14,7 +15,12 @@ export function AppLayout() {
       <div className="flex-1 min-h-0">
         <MainContent />
       </div>
-      <Toaster />
+      <Toaster 
+        duration={1000}  // 全局设置显示时间为 1 秒
+        position="bottom-right"
+        richColors
+        closeButton
+      />
     </div>
   );
 }

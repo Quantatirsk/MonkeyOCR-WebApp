@@ -15,6 +15,7 @@ import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
 import { TooltipProvider } from '../ui/tooltip';
+import { BlockContainer } from './BlockContainer';
 import './block-styles.css';
 
 export interface BlockMarkdownViewerProps {
@@ -34,6 +35,21 @@ export interface BlockMarkdownViewerProps {
   fontSize?: number;
   /** CSS class name */
   className?: string;
+  /** Translation content map (blockIndex -> translated content) */
+  translations?: Map<number, string>;
+  /** Explanation content map (blockIndex -> explanation content) */
+  explanations?: Map<number, string>;
+  /** Streaming translation state */
+  streamingTranslation?: {
+    blockIndex: number;
+    content: string;
+    isStreaming: boolean;
+    type?: 'translate' | 'explain';
+  };
+  /** Callback to refresh translation */
+  onRefreshTranslation?: (blockIndex: number) => void;
+  /** Callback to refresh explanation */
+  onRefreshExplanation?: (blockIndex: number) => void;
 }
 
 interface BlockMapping {
@@ -142,7 +158,7 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
 }
 
 
-export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
+export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.memo(({
   content,
   blockData = [],
   selectedBlock = { blockIndex: null, pageNumber: null, isActive: false },
@@ -151,6 +167,11 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   onBlockClick,
   fontSize = 100,
   className = '',
+  translations,
+  explanations,
+  streamingTranslation,
+  onRefreshTranslation,
+  onRefreshExplanation,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -327,11 +348,22 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     div: ({ children, className, ...props }: any) => {
       // Check if this is a block container
       if (className === 'block-container') {
-        // Preserve the data attributes
+        const blockIndex = parseInt(props['data-block-index'] || '-1', 10);
+        
+        // 使用专门的 BlockContainer 组件处理翻译覆盖层
         return (
-          <div {...props} className="block-container">
+          <BlockContainer
+            {...props}
+            blockIndex={blockIndex}
+            blockData={blockData || []}
+            translations={translations}
+            explanations={explanations}
+            streamingTranslation={streamingTranslation}
+            onRefreshTranslation={onRefreshTranslation}
+            onRefreshExplanation={onRefreshExplanation}
+          >
             {children}
-          </div>
+          </BlockContainer>
         );
       }
       // Default div rendering
@@ -503,7 +535,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
         </td>
       );
     }
-  }), []);
+  }), [blockData, translations, explanations, streamingTranslation]);
 
   return (
     <TooltipProvider>
@@ -559,6 +591,24 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
       </div>
     </TooltipProvider>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo optimization
+  return (
+    prevProps.content === nextProps.content &&
+    prevProps.syncEnabled === nextProps.syncEnabled &&
+    prevProps.fontSize === nextProps.fontSize &&
+    prevProps.className === nextProps.className &&
+    prevProps.selectedBlock?.blockIndex === nextProps.selectedBlock?.blockIndex &&
+    prevProps.selectedBlock?.isActive === nextProps.selectedBlock?.isActive &&
+    JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks) &&
+    prevProps.blockData?.length === nextProps.blockData?.length &&
+    prevProps.translations?.size === nextProps.translations?.size &&
+    prevProps.explanations?.size === nextProps.explanations?.size &&
+    prevProps.streamingTranslation?.blockIndex === nextProps.streamingTranslation?.blockIndex &&
+    prevProps.streamingTranslation?.isStreaming === nextProps.streamingTranslation?.isStreaming &&
+    prevProps.streamingTranslation?.content === nextProps.streamingTranslation?.content &&  // 比较流式内容
+    prevProps.streamingTranslation?.type === nextProps.streamingTranslation?.type  // 比较流式类型
+  );
+});
 
 export default BlockMarkdownViewer;

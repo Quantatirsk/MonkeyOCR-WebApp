@@ -1,0 +1,254 @@
+/**
+ * Translation Feature Animations
+ * Custom CSS animations for enhanced user experience
+ */
+
+
+/* Translation overlay - 只在首次显示时播放动画 */
+.translation-overlay-animate {
+  animation: slideInFromLeft 300ms ease-out forwards;
+  animation-iteration-count: 1;
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Streaming text animation */
+.streaming-text {
+  position: relative;
+}
+
+.streaming-text::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #3b82f6;
+  margin-left: 2px;
+  animation: blink 1s infinite;
+  vertical-align: bottom;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Skeleton loading enhancement */
+.skeleton-wave {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: wave 1.5s infinite;
+}
+
+@keyframes wave {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Smooth hover effects for action buttons */
+.action-button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.action-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Success/error feedback animations */
+.feedback-success {
+  animation: pulse-success 0.6s ease;
+}
+
+.feedback-error {
+  animation: pulse-error 0.6s ease;
+}
+
+@keyframes pulse-success {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); background-color: rgba(34, 197, 94, 0.1); }
+  100% { transform: scale(1); }
+}
+
+@keyframes pulse-error {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); background-color: rgba(239, 68, 68, 0.1); }
+  100% { transform: scale(1); }
+}
+
+/* Smooth expand/collapse animations */
+.expand-collapse {
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+  overflow: hidden;
+}
+
+.expand-collapse.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+}
+
+.expand-collapse.expanded {
+  opacity: 1;
+}
+
+/* Loading spinner enhancement */
+.enhanced-spinner {
+  animation: spin 1s linear infinite;
+  filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.3));
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Progress bar animation */
+.progress-bar {
+  position: relative;
+  background-color: rgba(59, 130, 246, 0.1);
+  height: 2px;
+  overflow: hidden;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(59, 130, 246, 0.8),
+    transparent
+  );
+  animation: progress-wave 1.5s infinite;
+}
+
+@keyframes progress-wave {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Tooltip enhancement */
+.enhanced-tooltip {
+  animation: tooltip-in 0.2s ease;
+  backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus ring enhancement for accessibility */
+.focus-enhanced:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Smooth card hover effects */
+.card-interactive {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.card-interactive:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Content fade-in animation */
+.content-fade-in {
+  animation: fade-in 0.4s ease;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .translation-overlay-enter,
+  .translation-overlay-enter-active {
+    transform: translateY(-8px);
+  }
+  
+  .translation-overlay-exit-active {
+    transform: translateY(-8px);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .streaming-text::after {
+    background-color: currentColor;
+  }
+  
+  .enhanced-spinner {
+    filter: none;
+  }
+  
+  .progress-bar::after {
+    background: currentColor;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01s !important;
+  }
+  
+  .streaming-text::after {
+    animation: none;
+  }
+  
+  .progress-bar::after {
+    animation: none;
+  }
+}

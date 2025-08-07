@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # LLM Configuration for Translation
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "gpt-3.5-turbo")
+    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "gpt-4.1-nano")
     translation_cache_ttl: int = int(os.getenv("TRANSLATION_CACHE_TTL", "3600"))
     
     # MonkeyOCR Configuration

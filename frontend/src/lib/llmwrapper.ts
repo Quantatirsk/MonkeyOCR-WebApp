@@ -436,28 +436,18 @@ ${JSON.stringify(filesInfo, null, 2)}
    */
   async getModels(apiKey?: string, baseUrl?: string): Promise<ModelInfo[]> {
     try {
-      // Build request body, only include credentials if provided
-      const requestBody: any = {}
-      
-      if (apiKey) {
-        requestBody.api_key = apiKey
-      }
-      
-      if (baseUrl) {
-        requestBody.base_url = baseUrl
-      }
-      
       console.log('[LLMWrapper] Getting models with:', {
         hasApiKey: !!apiKey,
         baseUrl: baseUrl || 'backend default'
       })
 
-      const response = await fetch(`${this.baseUrl}/v1/models`, {
-        method: 'POST',
+      // For now, use GET request as the backend expects
+      // TODO: Update backend to accept POST with credentials if needed
+      const response = await fetch(`${this.baseUrl}/api/llm/models`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
+        }
       })
 
       if (!response.ok) {
@@ -481,17 +471,13 @@ ${JSON.stringify(filesInfo, null, 2)}
    * Make HTTP request to LLM API (unified for both streaming and non-streaming)
    */
   private async makeRequest(options: ChatCompletionOptions): Promise<Response> {
-    // Build request body, only include model if explicitly provided
+    // Build request body with required fields
     const requestBody: any = {
+      model: options.model || 'qwen3:4b-instruct-2507-q4_K_M', // Provide default model
       messages: options.messages,
       stream: options.stream || false,
       max_tokens: options.maxTokens,
       temperature: options.temperature || 0.7
-    }
-    
-    // Only include optional fields if they're explicitly provided
-    if (options.model) {
-      requestBody.model = options.model
     }
     
     if (options.apiKey) {
@@ -508,7 +494,7 @@ ${JSON.stringify(filesInfo, null, 2)}
       baseUrl: options.baseUrl || 'backend default'
     })
     
-    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const response = await fetch(`${this.baseUrl}/api/llm/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

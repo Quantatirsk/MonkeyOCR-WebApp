@@ -156,6 +156,10 @@ async def translate_single_block(
             max_tokens=len(block.content) * 3  # Reasonable limit based on input length
         )
         
+        # Handle potential None response
+        if not completion.choices or not completion.choices[0].message.content:
+            raise ValueError("Empty response from translation API")
+        
         translation = completion.choices[0].message.content.strip()
         
         # Cache the result

@@ -143,8 +143,8 @@
 .markdown-viewer .w-md-editor-preview table {
   border-collapse: collapse !important;
   width: 100% !important;
-  margin: 0.8em 0 !important;
-  font-size: 0.9em !important;
+  margin: 0.3em 0 !important;
+  font-size: 0.7em !important;
   overflow: visible !important;
   overflow-x: visible !important;
   overflow-y: visible !important;
@@ -187,9 +187,10 @@
 .markdown-viewer .wmde-markdown td,
 .markdown-viewer .w-md-editor-preview th,
 .markdown-viewer .w-md-editor-preview td {
-  border: 1px solid hsl(var(--border)) !important;
-  padding: 8px 12px !important;
+  border: 1px solid #6b7280 !important; /* Fine dark gray border */
+  padding: 3px 5px !important;
   text-align: left !important;
+  font-size: 0.7em !important;
   word-break: break-all !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
@@ -201,6 +202,12 @@
 .markdown-viewer .w-md-editor-preview th {
   background-color: hsl(var(--muted)) !important;
   font-weight: 600 !important;
+  padding: 3px 5px !important;
+}
+
+.markdown-viewer .wmde-markdown td,
+.markdown-viewer .w-md-editor-preview td {
+  padding: 3px 5px !important;
 }
 
 /* ============================================================================
