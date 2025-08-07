@@ -169,11 +169,137 @@ export class BlockMarkdownGenerator {
    * Format table blocks
    */
   private static formatTable(block: BlockData): string {
-    const content = block.content.trim();
+    // If we have HTML content, validate and fix it before returning
+    if (block.html_content) {
+      return this.validateAndFixTableHTML(block.html_content);
+    }
     
-    // If we have HTML content available, we could potentially convert it
-    // For now, just return the markdown content as processed by the backend
+    // Fallback to markdown content if no HTML is available
+    const content = block.content.trim();
     return content;
+  }
+
+  /**
+   * Validate and auto-fix incomplete HTML table structures
+   */
+  private static validateAndFixTableHTML(html: string): string {
+    // Trim the HTML content
+    let fixedHtml = html.trim();
+    
+    // Check if it starts with <table
+    if (!fixedHtml.startsWith('<table')) {
+      console.warn('Invalid table HTML: does not start with <table>', fixedHtml.substring(0, 50));
+      return fixedHtml; // Return as-is if not a table
+    }
+    
+    // Count open and close tags with improved regex patterns
+    const countTag = (str: string, tag: string): { open: number; close: number } => {
+      // More robust pattern for opening tags:
+      // - Match <tag followed by whitespace, >, or any attribute
+      // - Handle cases like <td>, <td class="x">, <td  >, <td colspan="2">
+      const openPattern = new RegExp(`<${tag}(?:\\s[^>]*?)?(?:\\s*/)?>`, 'gi');
+      
+      // Pattern for closing tags - this is straightforward
+      const closePattern = new RegExp(`</${tag}>`, 'gi');
+      
+      const openMatches = str.match(openPattern) || [];
+      const closeMatches = str.match(closePattern) || [];
+      
+      // Filter out self-closing tags from open matches (though rare in tables)
+      // Self-closing tags would be like <br/> or <img/>
+      const nonSelfClosingOpens = openMatches.filter(match => !match.match(/\/\s*>$/));
+      
+      return { 
+        open: nonSelfClosingOpens.length, 
+        close: closeMatches.length 
+      };
+    };
+    
+    // Track unclosed tags in order
+    const tagsToCheck = ['table', 'thead', 'tbody', 'tr', 'td', 'th'];
+    const unclosedTags: string[] = [];
+    
+    // Check each tag type
+    for (const tag of tagsToCheck) {
+      const counts = countTag(fixedHtml, tag);
+      const unclosedCount = counts.open - counts.close;
+      
+      // Add unclosed tags to the list (in reverse order for closing)
+      for (let i = 0; i < unclosedCount; i++) {
+        unclosedTags.unshift(tag); // Add to beginning for reverse order
+      }
+    }
+    
+    // Special handling for incomplete content within cells
+    // Check if the HTML ends with an incomplete cell content (e.g., ends with "$" or other incomplete LaTeX)
+    const lastCloseTagIndex = Math.max(
+      fixedHtml.lastIndexOf('</td>'),
+      fixedHtml.lastIndexOf('</th>'),
+      fixedHtml.lastIndexOf('</tr>'),
+      fixedHtml.lastIndexOf('</tbody>'),
+      fixedHtml.lastIndexOf('</thead>'),
+      fixedHtml.lastIndexOf('</table>')
+    );
+    
+    // If there's content after the last close tag, we might have an incomplete cell
+    if (lastCloseTagIndex === -1 || lastCloseTagIndex < fixedHtml.length - 10) {
+      // Find the last open td or th tag
+      const lastOpenTd = fixedHtml.lastIndexOf('<td');
+      const lastOpenTh = fixedHtml.lastIndexOf('<th');
+      const lastOpenCell = Math.max(lastOpenTd, lastOpenTh);
+      
+      if (lastOpenCell > lastCloseTagIndex) {
+        // We have an unclosed cell
+        // Check if it's td or th
+        const cellType = lastOpenTd > lastOpenTh ? 'td' : 'th';
+        
+        // Find the position where the cell content starts
+        const cellContentStart = fixedHtml.indexOf('>', lastOpenCell) + 1;
+        
+        // Check if the content looks incomplete (e.g., ends with "$" or other special chars)
+        const cellContent = fixedHtml.substring(cellContentStart);
+        if (cellContent && !cellContent.includes(`</${cellType}>`)) {
+          // Close the incomplete cell content
+          // If it ends with incomplete LaTeX or special characters, complete or remove them
+          if (cellContent.endsWith('$') && !cellContent.endsWith('$$')) {
+            // Incomplete LaTeX, close it
+            fixedHtml += '$';
+          }
+          
+          // Close the cell
+          if (!unclosedTags.includes(cellType)) {
+            unclosedTags.unshift(cellType);
+          }
+        }
+      }
+    }
+    
+    // Auto-close unclosed tags in the correct order
+    if (unclosedTags.length > 0) {
+      console.warn(`Auto-fixing incomplete table HTML. Unclosed tags: ${unclosedTags.join(', ')}`);
+      
+      // Close tags in the order they appear in unclosedTags (which is reverse order of opening)
+      for (const tag of unclosedTags) {
+        fixedHtml += `</${tag}>`;
+      }
+    }
+    
+    // Validate the structure one more time
+    // Ensure it ends with </table>
+    if (!fixedHtml.endsWith('</table>')) {
+      // Find if there's a </table> somewhere in the string
+      const tableCloseIndex = fixedHtml.lastIndexOf('</table>');
+      if (tableCloseIndex === -1) {
+        // No </table> at all, add it
+        fixedHtml += '</table>';
+      } else if (tableCloseIndex < fixedHtml.length - 8) {
+        // There's content after </table>, which shouldn't happen
+        // Truncate the content after </table>
+        fixedHtml = fixedHtml.substring(0, tableCloseIndex + 8);
+      }
+    }
+    
+    return fixedHtml;
   }
   
   /**
@@ -262,7 +388,7 @@ export class BlockMarkdownGenerator {
    * NOTE: Since all blocks are now wrapped with explicit data-block-index attributes,
    * we don't need sequential mapping anymore. This method returns an empty map.
    */
-  static createBlockMapping(blocks: BlockData[]): Map<number, number> {
+  static createBlockMapping(_blocks: BlockData[]): Map<number, number> {
     const mapping = new Map<number, number>();
     
     // Block mapping: All blocks use explicit data-block-index attributes, no sequential mapping needed

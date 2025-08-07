@@ -193,7 +193,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
           
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground">
-              {isDragActive ? '拖放文件到此处' : '支持 PDF, JPG, PNG • 最多 10 个'}
+              {isDragActive ? '拖放文件到此处' : '支持 PDF, JPG, PNG等格式 • 支持批量'}
             </p>
           </div>
           

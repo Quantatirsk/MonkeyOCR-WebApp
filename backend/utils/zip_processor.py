@@ -770,30 +770,35 @@ class ZipProcessor:
         
         Args:
             html_content: HTML table content to convert
-            extract_title: Whether to extract and embed table title (default True for backward compatibility)
+            extract_title: Whether to extract and embed table title (default False - titles should be separate blocks)
         """
         import re
         from html import unescape
         
         # Clean up the HTML content
         html_content = unescape(html_content)
-        print(f"🔄 Converting table HTML to Markdown: {html_content[:200]}...")
+        print(f"🔄 Converting table HTML to Markdown (extract_title={extract_title}): {html_content[:200]}...")
         
         markdown_lines = []
         
-        # Extract table title from HTML (first colspan header) only if requested
+        # Check if there's a title row (colspan header) to handle
+        has_title_row = False
+        title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
+        title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
+        if title_match:
+            has_title_row = True
+            table_title_content = self._clean_table_cell_content(title_match.group(1))
+            print(f"📋 Found table title row: '{table_title_content}'")
+        
+        # Handle title extraction if requested
         title_extracted = False
-        if extract_title:
-            title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
-            title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
-            if title_match:
-                table_title = self._clean_table_cell_content(title_match.group(1))
-                if table_title.strip():
-                    # Add table title as a separate heading
-                    markdown_lines.append(f"### {table_title}")
-                    markdown_lines.append("")  # Empty line after title
-                    title_extracted = True
-                    print(f"📋 Extracted table title: {table_title}")
+        if extract_title and has_title_row:
+            if table_title_content.strip():
+                # Add table title as a separate heading
+                markdown_lines.append(f"### {table_title_content}")
+                markdown_lines.append("")  # Empty line after title
+                title_extracted = True
+                print(f"📋 Extracted table title: {table_title_content}")
         
         # More flexible header detection - try multiple patterns
         header_patterns = [
@@ -802,34 +807,86 @@ class ZipProcessor:
         ]
         
         headers_found = False
-        for header_pattern in header_patterns:
-            header_match = re.search(header_pattern, html_content, re.DOTALL | re.IGNORECASE)
-            if header_match:
-                header_row = header_match.group(0)
+        
+        # First, check if there's a thead section
+        thead_match = re.search(r'<thead[^>]*>(.*?)</thead>', html_content, re.DOTALL | re.IGNORECASE)
+        if thead_match:
+            thead_content = thead_match.group(1)
+            # Find all rows in thead
+            thead_rows = re.findall(r'<tr[^>]*>(.*?)</tr>', thead_content, re.DOTALL)
+            
+            # Look for the actual header row (usually the last non-empty row in thead)
+            actual_headers = []
+            for row in reversed(thead_rows):
+                # Check if this row has actual content (not just empty cells)
+                cells = re.findall(r'<(?:th|td)[^>]*>(.*?)</(?:th|td)>', row, re.DOTALL)
+                clean_cells = []
+                for cell in cells:
+                    clean_cell = self._clean_table_cell_content(cell)
+                    clean_cells.append(clean_cell if clean_cell else '')
                 
-                # Skip if this is the title row (contains colspan)
-                if 'colspan' in header_row:
-                    continue
+                # If this row has meaningful content, use it as headers
+                if any(c.strip() for c in clean_cells):
+                    # Special handling for complex multi-row headers
+                    # Check if this looks like a multi-column group header (e.g., ReACT, Plan+Execute)
+                    if all('colspan' in row for row in thead_rows[:1]) and len(thead_rows) > 1:
+                        # This is likely a complex header with column groups
+                        # Extract headers from the row with actual column headers
+                        for check_row in thead_rows:
+                            if 'Procedure' in check_row or 'Completion' in check_row:
+                                # This row has the actual column headers
+                                header_cells = re.findall(r'<(?:th|td)[^>]*>(.*?)</(?:th|td)>', check_row, re.DOTALL)
+                                clean_headers = []
+                                for hcell in header_cells:
+                                    clean_hcell = self._clean_table_cell_content(hcell)
+                                    if clean_hcell:  # Only add non-empty headers
+                                        clean_headers.append(clean_hcell)
+                                if len(clean_headers) >= 4:  # Ensure we have enough headers
+                                    actual_headers = clean_headers
+                                    break
                     
-                # Extract all header cells from the matched row
-                header_cells = re.findall(r'<th(?![^>]*colspan)[^>]*>(.*?)</th>', header_row, re.DOTALL)
-                if not header_cells:
-                    # Try td cells as headers
-                    header_cells = re.findall(r'<td[^>]*>(.*?)</td>', header_row, re.DOTALL)
-                
-                if header_cells:
-                    # Clean header cells
-                    clean_headers = []
-                    for cell in header_cells:
-                        clean_cell = self._clean_table_cell_content(cell)
-                        clean_headers.append(clean_cell if clean_cell else ' ')
-                    
-                    # Create markdown header
-                    markdown_lines.append('| ' + ' | '.join(clean_headers) + ' |')
-                    markdown_lines.append('| ' + ' | '.join(['---'] * len(clean_headers)) + ' |')
-                    headers_found = True
-                    print(f"✅ Found table headers: {clean_headers}")
+                    # If we didn't find headers through special handling, use the current row
+                    if not actual_headers:
+                        actual_headers = clean_cells
                     break
+            
+            if actual_headers and any(h.strip() for h in actual_headers):
+                clean_headers = actual_headers
+                markdown_lines.append('| ' + ' | '.join(clean_headers) + ' |')
+                markdown_lines.append('| ' + ' | '.join(['---'] * len(clean_headers)) + ' |')
+                headers_found = True
+                print(f"✅ Found table headers from thead: {clean_headers}")
+        
+        # If no headers found in thead, try the original pattern matching
+        if not headers_found:
+            for header_pattern in header_patterns:
+                header_match = re.search(header_pattern, html_content, re.DOTALL | re.IGNORECASE)
+                if header_match:
+                    header_row = header_match.group(0)
+                    
+                    # Skip if this is the title row (contains colspan)
+                    if 'colspan' in header_row:
+                        continue
+                        
+                    # Extract all header cells from the matched row
+                    header_cells = re.findall(r'<th(?![^>]*colspan)[^>]*>(.*?)</th>', header_row, re.DOTALL)
+                    if not header_cells:
+                        # Try td cells as headers
+                        header_cells = re.findall(r'<td[^>]*>(.*?)</td>', header_row, re.DOTALL)
+                    
+                    if header_cells:
+                        # Clean header cells
+                        clean_headers = []
+                        for cell in header_cells:
+                            clean_cell = self._clean_table_cell_content(cell)
+                            clean_headers.append(clean_cell if clean_cell else ' ')
+                        
+                        # Create markdown header
+                        markdown_lines.append('| ' + ' | '.join(clean_headers) + ' |')
+                        markdown_lines.append('| ' + ' | '.join(['---'] * len(clean_headers)) + ' |')
+                        headers_found = True
+                        print(f"✅ Found table headers: {clean_headers}")
+                        break
         
         # Extract table body rows - try with and without tbody
         body_content = html_content
@@ -838,18 +895,19 @@ class ZipProcessor:
             body_content = tbody_match.group(1)
             print(f"📋 Found tbody section")
         else:
-            # If no tbody, process all rows but skip title and header rows
+            # If no tbody, process all rows but skip title row (if exists) and already-processed header rows
             remaining_content = html_content
             
-            # Skip title row if extracted
-            if title_extracted:
+            # Always skip title row if it exists (regardless of extract_title setting)
+            # Because title should either be extracted as heading or ignored completely
+            if has_title_row:
                 title_row_match = re.search(r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>.*?</tr>', remaining_content, re.DOTALL)
                 if title_row_match:
                     title_row_end = title_row_match.end()
                     remaining_content = remaining_content[title_row_end:]
-                    print(f"📋 Skipped title row in body processing")
+                    print(f"📋 Skipped title row (has_title_row=True, extract_title={extract_title})")
             
-            # Skip header row if found
+            # Skip header row if found and already processed
             if headers_found:
                 # Find first non-colspan header row
                 for pattern in header_patterns:
@@ -857,11 +915,11 @@ class ZipProcessor:
                     if header_match and 'colspan' not in header_match.group(0):
                         header_row_end = header_match.end()
                         remaining_content = remaining_content[header_row_end:]
-                        print(f"📋 Skipped header row in body processing")
+                        print(f"📋 Skipped already-processed header row")
                         break
             
             body_content = remaining_content
-            print(f"📋 No tbody found, processing remaining rows after title/header")
+            print(f"📋 No tbody found, processing remaining rows after skipping title/header")
         
         # Extract all rows from body content
         row_pattern = r'<tr[^>]*>(.*?)</tr>'

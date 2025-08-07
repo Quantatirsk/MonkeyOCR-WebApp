@@ -2,16 +2,16 @@
   "version": "1.0",
   "created_at": "2025-08-07T00:08:06.685530",
   "tasks": {
-    "8aef4d3c-cfdb-4146-a702-89157ae43f81": {
-      "id": "8aef4d3c-cfdb-4146-a702-89157ae43f81",
+    "e791c318-88e4-4104-869e-8ca58b97c4b7": {
+      "id": "e791c318-88e4-4104-869e-8ca58b97c4b7",
       "filename": "2501.13956v1.pdf",
       "file_type": "pdf",
       "status": "completed",
       "progress": 100,
-      "created_at": "2025-08-07T00:16:51.809167",
-      "completed_at": "2025-08-07T00:17:11.424504",
+      "created_at": "2025-08-07T16:04:39.881575",
+      "completed_at": "2025-08-07T16:05:15.609487",
       "error_message": null,
-      "result_url": "/api/download/8aef4d3c-cfdb-4146-a702-89157ae43f81",
+      "result_url": "/api/download/e791c318-88e4-4104-869e-8ca58b97c4b7",
       "file_hash": null,
       "file_size": null,
       "total_pages": 12,
@@ -21,18 +21,60 @@
       "processing_started_at": null,
       "processing_duration": null,
       "extraction_type": null,
-      "updated_at": "2025-08-07T00:17:11.424516"
+      "updated_at": "2025-08-07T16:05:15.609499"
     },
-    "337b6b63-c0e5-4b0d-858a-1f571eabfdd5": {
-      "id": "337b6b63-c0e5-4b0d-858a-1f571eabfdd5",
+    "2d8fb954-ad6d-4d8e-8a8a-cec8d13aa359": {
+      "id": "2d8fb954-ad6d-4d8e-8a8a-cec8d13aa359",
+      "filename": "ZEP_一种用于代理记忆的时间知识图谱架构.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-07T16:04:39.972054",
+      "completed_at": "2025-08-07T16:05:32.736809",
+      "error_message": null,
+      "result_url": "/api/download/2d8fb954-ad6d-4d8e-8a8a-cec8d13aa359",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 10,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-07T16:05:32.736820"
+    },
+    "50eef63b-7282-41b7-9268-951e0c2dc2fc": {
+      "id": "50eef63b-7282-41b7-9268-951e0c2dc2fc",
+      "filename": "demo.pdf",
+      "file_type": "pdf",
+      "status": "completed",
+      "progress": 100,
+      "created_at": "2025-08-07T16:04:40.000544",
+      "completed_at": "2025-08-07T16:05:18.530762",
+      "error_message": null,
+      "result_url": "/api/download/50eef63b-7282-41b7-9268-951e0c2dc2fc",
+      "file_hash": null,
+      "file_size": null,
+      "total_pages": 1,
+      "last_modified": null,
+      "status_history": [],
+      "metadata": {},
+      "processing_started_at": null,
+      "processing_duration": null,
+      "extraction_type": null,
+      "updated_at": "2025-08-07T16:05:18.530775"
+    },
+    "d1ac7cc3-9c11-4b3c-9ee8-b43327367b1f": {
+      "id": "d1ac7cc3-9c11-4b3c-9ee8-b43327367b1f",
       "filename": "discoverworld_crazy_tables.pdf",
       "file_type": "pdf",
       "status": "completed",
       "progress": 100,
-      "created_at": "2025-08-07T00:22:40.856243",
-      "completed_at": "2025-08-07T00:23:32.966355",
+      "created_at": "2025-08-07T16:04:40.204424",
+      "completed_at": "2025-08-07T16:06:59.172289",
       "error_message": null,
-      "result_url": "/api/download/337b6b63-c0e5-4b0d-858a-1f571eabfdd5",
+      "result_url": "/api/download/d1ac7cc3-9c11-4b3c-9ee8-b43327367b1f",
       "file_hash": null,
       "file_size": null,
       "total_pages": 29,
@@ -42,7 +84,7 @@
       "processing_started_at": null,
       "processing_duration": null,
       "extraction_type": null,
-      "updated_at": "2025-08-07T00:23:32.966373"
+      "updated_at": "2025-08-07T16:06:59.172348"
     }
   }
 }

@@ -117,10 +117,14 @@ async def health_check():
 from api.results import router as results_router
 from api.sync import router as sync_router
 from api.upload import router as upload_router
+from api.llm import router as llm_router
+from api.translation import router as translation_router
 
 app.include_router(upload_router)
 app.include_router(results_router)
 app.include_router(sync_router)
+app.include_router(llm_router)
+app.include_router(translation_router)
 
 if __name__ == "__main__":
     import uvicorn

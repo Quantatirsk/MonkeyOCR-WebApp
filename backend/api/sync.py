@@ -304,7 +304,7 @@ async def get_task_preview(task_id: str):
         }
         
         # Add file metadata if file exists
-        if preview_info["file_exists"]:
+        if preview_info["file_exists"] and original_file_path:
             file_stat = os.stat(original_file_path)
             preview_info["file_size"] = file_stat.st_size
             

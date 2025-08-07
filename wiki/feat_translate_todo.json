@@ -1,0 +1,468 @@
+{
+  "project": "MonkeyOCR WebApp - AI Translation Feature",
+  "version": "1.0.0",
+  "created": "2025-08-06",
+  "description": "为项目适配AI翻译 - Add AI translation functionality to MonkeyOCR WebApp with hover tools, block translation, and export capabilities",
+  
+  "phases": [
+    {
+      "id": "P1",
+      "name": "Backend LLM API Implementation",
+      "description": "Implement backend API endpoints for LLM integration compatible with OpenAI SDK",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P1-T001",
+          "name": "Setup Backend Environment Configuration",
+          "description": "Configure .env file support for LLM base_url and api_key",
+          "status": "pending",
+          "files": [
+            "backend/.env.example",
+            "backend/config.py"
+          ],
+          "requirements": [
+            "Add LLM_BASE_URL and LLM_API_KEY to environment configuration",
+            "Create config loader for LLM settings"
+          ]
+        },
+        {
+          "id": "P1-T002", 
+          "name": "Implement /api/llm/* Endpoints",
+          "description": "Create LLM API endpoints compatible with OpenAI SDK",
+          "status": "pending",
+          "files": [
+            "backend/api/llm.py",
+            "backend/main.py"
+          ],
+          "requirements": [
+            "GET /api/llm/models - Get available models list",
+            "POST /api/llm/chat/completions - Chat completion with streaming support",
+            "Support both streaming and non-streaming via stream parameter",
+            "OpenAI SDK compatibility"
+          ]
+        },
+        {
+          "id": "P1-T003",
+          "name": "Add Translation-Specific Endpoints", 
+          "description": "Create dedicated translation endpoints for block and document translation",
+          "status": "pending",
+          "files": [
+            "backend/api/translation.py",
+            "backend/models/translation.py"
+          ],
+          "requirements": [
+            "POST /api/translate/block - Translate single block",
+            "POST /api/translate/document - Translate full document", 
+            "GET /api/translate/status/{id} - Translation status",
+            "GET /api/translate/result/{id} - Translation result",
+            "Support batch translation for multiple blocks"
+          ]
+        },
+        {
+          "id": "P1-T004",
+          "name": "Install Backend Dependencies",
+          "description": "Add required packages for LLM integration",
+          "status": "pending", 
+          "files": [
+            "backend/requirements.txt"
+          ],
+          "requirements": [
+            "openai - OpenAI SDK for LLM integration",
+            "aiohttp - Async HTTP client for streaming",
+            "python-dotenv - Environment variable management"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Frontend LLM Service Layer",
+      "description": "Create frontend LLM wrapper and service integration",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P2-T001",
+          "name": "Extend LLM Wrapper for Translation",
+          "description": "Enhance existing llmwrapper.ts with translation capabilities",
+          "status": "pending",
+          "files": [
+            "frontend/src/lib/llmwrapper.ts"
+          ],
+          "requirements": [
+            "Add translateText method with streaming support",
+            "Add explainText method for content explanation",
+            "Support batch translation of multiple blocks",
+            "Integrate with backend /api/llm/* endpoints"
+          ]
+        },
+        {
+          "id": "P2-T002",
+          "name": "Add Translation Types and Interfaces",
+          "description": "Define TypeScript interfaces for translation functionality",
+          "status": "pending",
+          "files": [
+            "frontend/src/types/translation.ts"
+          ],
+          "requirements": [
+            "TranslationRequest interface",
+            "TranslationResult interface", 
+            "TranslationOptions interface",
+            "TranslationStatus enum",
+            "LanguagePair interface"
+          ]
+        },
+        {
+          "id": "P2-T003",
+          "name": "Extend App Store for Translation State",
+          "description": "Add translation state management to Zustand store",
+          "status": "pending",
+          "files": [
+            "frontend/src/store/appStore.ts"
+          ],
+          "requirements": [
+            "Add translation state properties",
+            "Add translation actions (translate, explain)",
+            "Add language selection state",
+            "Add translation cache management"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P3", 
+      "name": "Translation UI Components",
+      "description": "Implement translation user interface components",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P3-T001",
+          "name": "Create Hover Tools Menu Component",
+          "description": "Implement hover menu with translate/explain options for markdown blocks",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/translation/HoverToolsMenu.tsx"
+          ],
+          "requirements": [
+            "Hover detection on markdown blocks",
+            "Tools menu with translate and explain buttons",
+            "Position menu relative to hovered block",
+            "Smooth animations and transitions",
+            "Ignore image blocks as specified"
+          ]
+        },
+        {
+          "id": "P3-T002",
+          "name": "Create Translation Result Display Component",
+          "description": "Component to display translation results below original blocks",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/translation/TranslationResult.tsx"
+          ],
+          "requirements": [
+            "Display translated text with same styling as original",
+            "Show loading state during translation",
+            "Error handling for failed translations",
+            "Copy and edit functionality for translations",
+            "Language indicator (source → target)"
+          ]
+        },
+        {
+          "id": "P3-T003",
+          "name": "Create Translation Toolbar Component",
+          "description": "Toolbar component for full document translation",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/translation/TranslationToolbar.tsx"
+          ],
+          "requirements": [
+            "Language pair selector (source → target)",
+            "Translate all button for full document",
+            "Progress indicator for batch translation",
+            "Export translated document functionality",
+            "Clear all translations option"
+          ]
+        },
+        {
+          "id": "P3-T004",
+          "name": "Create Language Selector Component",
+          "description": "Reusable language selection dropdown",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/translation/LanguageSelector.tsx"
+          ],
+          "requirements": [
+            "Support common languages (EN, ZH, JP, KR, etc.)",
+            "Auto-detection option",
+            "Search/filter functionality",
+            "Flag icons for visual identification"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Document Viewer Integration", 
+      "description": "Integrate translation functionality into existing DocumentViewer",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P4-T001",
+          "name": "Add Translation Tab to DocumentViewer",
+          "description": "Add new translation tab alongside existing Preview/Compare/Content tabs",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/DocumentViewer.tsx"
+          ],
+          "requirements": [
+            "Add '翻译' (Translation) tab after Content tab",
+            "Tab should show translated version of document",
+            "Maintain existing tab navigation functionality",
+            "Show translation progress in tab label when processing"
+          ]
+        },
+        {
+          "id": "P4-T002",
+          "name": "Enhance ModernMarkdownViewer with Translation",
+          "description": "Add hover tools and translation display to markdown viewer",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/markdown/ModernMarkdownViewer.tsx"
+          ],
+          "requirements": [
+            "Integrate HoverToolsMenu component",
+            "Add block-level hover detection",
+            "Render TranslationResult components below blocks",
+            "Maintain existing markdown rendering features",
+            "Skip image blocks for translation as specified"
+          ]
+        },
+        {
+          "id": "P4-T003",
+          "name": "Add Translation Controls to Content Tab",
+          "description": "Add translation toolbar to existing content tab",
+          "status": "pending", 
+          "files": [
+            "frontend/src/components/DocumentViewer.tsx"
+          ],
+          "requirements": [
+            "Add TranslationToolbar above markdown content",
+            "Full document translation functionality",
+            "Concurrent block translation processing",
+            "Export functionality integration"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Export and Advanced Features",
+      "description": "Implement export functionality and advanced translation features",
+      "status": "pending",
+      "tasks": [
+        {
+          "id": "P5-T001",
+          "name": "Implement Translation Export",
+          "description": "Export translated documents in various formats",
+          "status": "pending",
+          "files": [
+            "frontend/src/utils/exportTranslation.ts",
+            "backend/api/export.py"
+          ],
+          "requirements": [
+            "Export as markdown with translations",
+            "Export as bilingual document (side-by-side)",
+            "Export as HTML with styling", 
+            "Include original images in exported content",
+            "Maintain document structure and formatting"
+          ]
+        },
+        {
+          "id": "P5-T002",
+          "name": "Add Translation Cache and Persistence",
+          "description": "Cache translations and persist across sessions",
+          "status": "pending",
+          "files": [
+            "frontend/src/utils/translationCache.ts",
+            "backend/utils/translation_cache.py"
+          ],
+          "requirements": [
+            "Local storage cache for translations",
+            "Backend cache for expensive translations",
+            "Cache invalidation strategy",
+            "Offline translation viewing"
+          ]
+        },
+        {
+          "id": "P5-T003",
+          "name": "Implement Batch Translation Optimization", 
+          "description": "Optimize concurrent translation of multiple blocks",
+          "status": "pending",
+          "files": [
+            "frontend/src/lib/batchTranslation.ts",
+            "backend/utils/batch_processor.py"
+          ],
+          "requirements": [
+            "Concurrent translation processing",
+            "Rate limiting for API calls",
+            "Priority queue for block translation",
+            "Progress tracking for batch operations",
+            "Error recovery and retry logic"
+          ]
+        },
+        {
+          "id": "P5-T004",
+          "name": "Add Translation Settings and Preferences",
+          "description": "User preferences for translation behavior",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/settings/TranslationSettings.tsx",
+            "frontend/src/store/settingsStore.ts"
+          ],
+          "requirements": [
+            "Default language pair preferences",
+            "Translation quality settings",
+            "Auto-translation toggle",
+            "Hover delay configuration",
+            "Export format preferences"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Testing and Refinement",
+      "description": "Testing, debugging, and feature refinement",
+      "status": "pending", 
+      "tasks": [
+        {
+          "id": "P6-T001",
+          "name": "Frontend Component Testing",
+          "description": "Test all translation UI components",
+          "status": "pending",
+          "files": [
+            "frontend/src/components/translation/__tests__/"
+          ],
+          "requirements": [
+            "Unit tests for translation components",
+            "Integration tests for DocumentViewer",
+            "E2E tests for full translation workflow",
+            "Accessibility testing for translation UI"
+          ]
+        },
+        {
+          "id": "P6-T002", 
+          "name": "Backend API Testing",
+          "description": "Test LLM and translation APIs",
+          "status": "pending",
+          "files": [
+            "backend/tests/test_translation.py"
+          ],
+          "requirements": [
+            "Unit tests for translation endpoints",
+            "Mock LLM API responses",
+            "Performance testing for batch operations",
+            "Error handling validation"
+          ]
+        },
+        {
+          "id": "P6-T003",
+          "name": "Performance Optimization",
+          "description": "Optimize translation performance and user experience",
+          "status": "pending",
+          "files": [],
+          "requirements": [
+            "Minimize API calls through smart caching", 
+            "Optimize hover menu responsiveness",
+            "Reduce bundle size impact",
+            "Improve streaming translation UX"
+          ]
+        },
+        {
+          "id": "P6-T004",
+          "name": "Documentation and Deployment",
+          "description": "Update documentation and deployment configuration",
+          "status": "pending",
+          "files": [
+            "README.md",
+            "wiki/translation-features.md"
+          ],
+          "requirements": [
+            "Update README with translation features",
+            "Create user guide for translation functionality", 
+            "Update environment configuration docs",
+            "Add deployment considerations for LLM integration"
+          ]
+        }
+      ]
+    }
+  ],
+  
+  "technical_specifications": {
+    "backend": {
+      "new_endpoints": [
+        "GET /api/llm/models",
+        "POST /api/llm/chat/completions",
+        "POST /api/translate/block",
+        "POST /api/translate/document", 
+        "GET /api/translate/status/{id}",
+        "GET /api/translate/result/{id}",
+        "POST /api/export/translation"
+      ],
+      "dependencies": [
+        "openai>=1.0.0",
+        "aiohttp>=3.8.0", 
+        "python-dotenv>=1.0.0"
+      ],
+      "environment_variables": [
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL_NAME",
+        "TRANSLATION_CACHE_TTL"
+      ]
+    },
+    "frontend": {
+      "new_components": [
+        "HoverToolsMenu",
+        "TranslationResult", 
+        "TranslationToolbar",
+        "LanguageSelector",
+        "TranslationSettings"
+      ],
+      "enhanced_components": [
+        "DocumentViewer (new translation tab)",
+        "ModernMarkdownViewer (hover functionality)"
+      ],
+      "new_utilities": [
+        "translationCache.ts",
+        "batchTranslation.ts", 
+        "exportTranslation.ts"
+      ]
+    },
+    "integration_points": {
+      "hover_detection": "Block-level hover on markdown elements",
+      "translation_display": "Inline results below original blocks",
+      "batch_processing": "Concurrent translation of multiple blocks",
+      "export_formats": ["markdown", "html", "bilingual"]
+    }
+  },
+  
+  "implementation_notes": {
+    "hover_functionality": "Use CSS :hover and JavaScript mouseover/mouseout events on markdown block elements, ignore img elements as specified",
+    "translation_styling": "Match existing markdown styling for consistency",
+    "streaming_support": "Both backend and frontend support streaming responses for real-time translation",
+    "concurrency": "Full document translation processes multiple blocks concurrently for performance",
+    "caching_strategy": "Cache translations both in frontend (localStorage) and backend (Redis/memory) for performance",
+    "export_integration": "Integrate with existing download functionality in DocumentViewer"
+  },
+  
+  "success_criteria": [
+    "Hover tools menu appears on markdown block hover (excluding images)",
+    "Individual block translation works with translate and explain options",
+    "Full document translation processes all blocks concurrently", 
+    "Translation results display with same styling as original content",
+    "Export functionality produces translated documents in multiple formats",
+    "Backend provides OpenAI SDK compatible LLM endpoints",
+    "Frontend LLM wrapper integrates seamlessly with existing architecture",
+    "Translation features integrate naturally with existing DocumentViewer tabs"
+  ]
+}
