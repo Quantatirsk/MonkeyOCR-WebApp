@@ -78,8 +78,8 @@ export interface UseBlockActionsReturn {
   hasExplanation: boolean;
   
   // 操作方法
-  translateBlock: (blockIndex: number) => Promise<void>;
-  explainBlock: (blockIndex: number) => Promise<void>;
+  translateBlock: (blockIndex: number, force?: boolean) => Promise<void>;
+  explainBlock: (blockIndex: number, force?: boolean) => Promise<void>;
   cancelAction: () => void;
   clearTranslation: (blockIndex: number) => void;
   clearExplanation: (blockIndex?: number) => void;
