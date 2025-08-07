@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Clock,
   CheckCircle,
-  AlertCircle,
   Languages
 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
@@ -52,7 +51,7 @@ export const TranslatedContent: React.FC<TranslatedContentProps> = ({
         title: "Copied to clipboard",
         description: "Translation copied successfully.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Copy failed",
         description: "Could not copy to clipboard.",
@@ -71,7 +70,7 @@ export const TranslatedContent: React.FC<TranslatedContentProps> = ({
         title: "Retranslation complete",
         description: "Block has been retranslated successfully.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Retranslation failed",
         description: "Could not retranslate the content.",
@@ -243,7 +242,7 @@ interface TranslationBlockProps {
 
 export const TranslationBlock: React.FC<TranslationBlockProps> = ({
   blockId,
-  originalText,
+  originalText: _originalText,
   translation,
   isTranslating = false,
   onTranslate,
@@ -263,7 +262,7 @@ export const TranslationBlock: React.FC<TranslationBlockProps> = ({
         title: "Translation started",
         description: "This block is being translated...",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Translation failed",
         description: "Could not start translation.",

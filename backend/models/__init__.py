@@ -2,7 +2,7 @@
 from .schemas import (
     TaskStatusHistory,
     ProcessingTask,
-    ImageResource, 
+    ImageResource,
     DocumentMetadata,
     DocumentResult,
     APIResponse,
@@ -19,7 +19,7 @@ __all__ = [
     "TaskStatusHistory",
     "ProcessingTask",
     "ImageResource",
-    "DocumentMetadata", 
+    "DocumentMetadata",
     "DocumentResult",
     "APIResponse",
     "UploadRequest",

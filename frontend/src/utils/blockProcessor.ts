@@ -5,17 +5,35 @@
 
 import { BlockData, BlockProcessingData, BlockSelection } from '../types';
 
+// Interface for raw block data from API
+interface RawBlockData {
+  index?: number;
+  bbox?: number[];
+  type?: string | number;
+  content?: string;
+  page_num?: number;
+  page_size?: number[];
+}
+
+// Interface for raw data from middle.json
+interface RawProcessingData {
+  preproc_blocks?: RawBlockData[];
+  title?: string;
+  creation_date?: string;
+  [key: string]: unknown;
+}
+
 export class BlockProcessor {
   /**
    * Process raw middle.json data into structured block data
    */
-  static processRawBlockData(rawData: any): BlockProcessingData | null {
+  static processRawBlockData(rawData: RawProcessingData): BlockProcessingData | null {
     if (!rawData || !rawData.preproc_blocks || !Array.isArray(rawData.preproc_blocks)) {
       return null;
     }
 
     try {
-      const processedBlocks: BlockData[] = rawData.preproc_blocks.map((block: any, index: number) => ({
+      const processedBlocks: BlockData[] = rawData.preproc_blocks.map((block: RawBlockData, index: number) => ({
         index: block.index || index,
         bbox: Array.isArray(block.bbox) && block.bbox.length === 4 
           ? [block.bbox[0], block.bbox[1], block.bbox[2], block.bbox[3]] as [number, number, number, number]
@@ -46,7 +64,7 @@ export class BlockProcessor {
   /**
    * Normalize block type to ensure consistency
    */
-  private static normalizeBlockType(type: any): 'text' | 'title' | 'image' {
+  private static normalizeBlockType(type: string | number | undefined): 'text' | 'title' | 'image' {
     const typeStr = String(type || '').toLowerCase();
     
     if (typeStr.includes('title') || typeStr.includes('heading') || typeStr.includes('header')) {

@@ -3,7 +3,7 @@
  * Shows network connection status and provides offline functionality
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   WifiOff, 
   AlertTriangle, 
@@ -31,7 +31,7 @@ export const OfflineIndicator: React.FC = () => {
   const { syncWithServer } = useSyncActions();
 
   // Check server health
-  const checkServerHealth = async () => {
+  const checkServerHealth = useCallback(async () => {
     try {
       const health = await healthChecker.checkHealth();
       setServerHealth(health);
@@ -52,7 +52,7 @@ export const OfflineIndicator: React.FC = () => {
       setLastCheckTime(new Date());
       return false;
     }
-  };
+  }, [isOnline]);
 
   // Handle network status changes
   useEffect(() => {
@@ -94,7 +94,7 @@ export const OfflineIndicator: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
       clearInterval(interval);
     };
-  }, [isOnline, toast]);
+  }, [isOnline, toast, checkServerHealth]);
 
   // Handle retry connection
   const handleRetry = async () => {
@@ -109,7 +109,7 @@ export const OfflineIndicator: React.FC = () => {
           toast({
             description: "连接已恢复，数据已同步",
           });
-        } catch (syncError) {
+        } catch {
           toast({
             variant: "destructive",
             description: "连接已恢复，但数据同步失败",
@@ -121,7 +121,7 @@ export const OfflineIndicator: React.FC = () => {
           description: "服务器仍然不可用",
         });
       }
-    } catch (error) {
+    } catch {
       toast({
         variant: "destructive",
         description: "重试失败，请检查网络连接",

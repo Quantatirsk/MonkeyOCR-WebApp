@@ -95,10 +95,13 @@ class ApiClient {
       });
       
       return response.data;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('File upload failed:', error);
-      console.error('Response data:', error.response?.data);
-      console.error('Response status:', error.response?.status);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { data?: unknown; status?: number } };
+        console.error('Response data:', axiosError.response?.data);
+        console.error('Response status:', axiosError.response?.status);
+      }
       throw new Error(error instanceof Error ? error.message : 'File upload failed');
     }
   }

@@ -13,6 +13,9 @@ import { visit } from 'unist-util-visit';
 import katex from 'katex';
 import { TranslationBlock } from '../translation/TranslatedContent';
 import { useTranslationActions, useTranslationState } from '../../store/appStore';
+import type { Node } from 'unist';
+import type { ReactNode } from 'react';
+import type { Element, Text } from 'hast';
 
 interface ModernMarkdownViewerProps {
   content: string;
@@ -24,17 +27,17 @@ interface ModernMarkdownViewerProps {
 
 // Rehype plugin to handle table math expressions
 function rehypeTableMath() {
-  return (tree: any) => {
-    visit(tree, 'element', (node: any) => {
+  return (tree: Node) => {
+    visit(tree, 'element', (node: Element) => {
       if (node.tagName === 'td' || node.tagName === 'th') {
-        visit(node, 'text', (textNode: any) => {
+        visit(node, 'text', (textNode: Text) => {
           if (typeof textNode.value === 'string') {
             const text = textNode.value;
             
             // Handle inline math expressions $...$
             if (text.includes('$') && text.match(/\$[^$]+\$/)) {
               const parts = text.split(/(\$[^$]+\$)/);
-              const newChildren: any[] = [];
+              const newChildren: Node[] = [];
               
               parts.forEach((part: string) => {
                 if (part.match(/^\$[^$]+\$$/)) {
@@ -55,26 +58,28 @@ function rehypeTableMath() {
                         dangerouslySetInnerHTML: { __html: html }
                       },
                       children: []
-                    });
-                  } catch (error) {
+                    } as Node);
+                  } catch {
                     // Fallback to original text if rendering fails
                     newChildren.push({
                       type: 'text',
                       value: part
-                    });
+                    } as Node);
                   }
                 } else if (part) {
                   // Regular text
                   newChildren.push({
                     type: 'text',
                     value: part
-                  });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  } as any);
                 }
               });
               
               if (newChildren.length > 1) {
                 // Replace the text node with the new structure
-                const parent = textNode.parent;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const parent = (textNode as any).parent;
                 if (parent && parent.children) {
                   const nodeIndex = parent.children.indexOf(textNode);
                   if (nodeIndex !== -1) {
@@ -87,7 +92,7 @@ function rehypeTableMath() {
             // Handle display math expressions $$...$$
             if (text.includes('$$') && text.match(/\$\$[^$]+\$\$/)) {
               const parts = text.split(/(\$\$[^$]+\$\$)/);
-              const newChildren: any[] = [];
+              const newChildren: Node[] = [];
               
               parts.forEach((part: string) => {
                 if (part.match(/^\$\$[^$]+\$\$$/)) {
@@ -108,26 +113,28 @@ function rehypeTableMath() {
                         dangerouslySetInnerHTML: { __html: html }
                       },
                       children: []
-                    });
-                  } catch (error) {
+                    } as Node);
+                  } catch {
                     // Fallback to original text if rendering fails
                     newChildren.push({
                       type: 'text',
                       value: part
-                    });
+                    } as Node);
                   }
                 } else if (part) {
                   // Regular text
                   newChildren.push({
                     type: 'text',
                     value: part
-                  });
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  } as any);
                 }
               });
               
               if (newChildren.length > 1) {
                 // Replace the text node with the new structure
-                const parent = textNode.parent;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const parent = (textNode as any).parent;
                 if (parent && parent.children) {
                   const nodeIndex = parent.children.indexOf(textNode);
                   if (nodeIndex !== -1) {
@@ -177,8 +184,8 @@ function processTableCellMath(text: string): React.ReactNode {
             }} 
           />
         );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
+      } catch (_error) {
+        console.error('KaTeX render error:', _error);
         return <span key={index}>{part}</span>;
       }
     } else if (part.match(/^\$[^$]+\$$/)) {
@@ -198,8 +205,8 @@ function processTableCellMath(text: string): React.ReactNode {
             style={{ background: 'transparent' }} 
           />
         );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
+      } catch (_error) {
+        console.error('KaTeX render error:', _error);
         return <span key={index}>{part}</span>;
       }
     } else {
@@ -228,7 +235,7 @@ function useForceTextWrap(containerRef: React.RefObject<HTMLDivElement>) {
       const allElements = container.querySelectorAll('*');
       let appliedCount = 0;
       
-      allElements.forEach((element: Element) => {
+      allElements.forEach((element) => {
         const htmlElement = element as HTMLElement;
         
         // 跳过已经处理过的元素，避免重复处理
@@ -420,7 +427,7 @@ function useCopyCodeBlock(containerRef: React.RefObject<HTMLDivElement>) {
             const successful = document.execCommand('copy');
             document.body.removeChild(textArea);
             return successful;
-          } catch (err) {
+          } catch {
             document.body.removeChild(textArea);
             return false;
           }
@@ -506,8 +513,8 @@ export function ModernMarkdownViewer({
     const blockId = generateBlockId(taskId, blockIndex);
     try {
       await translateBlock(blockId, block.text);
-    } catch (error) {
-      console.error('Failed to translate block:', error);
+    } catch (_error) {
+      console.error('Failed to translate block:', _error);
     }
   }, [translatableBlocks, taskId, translateBlock]);
   
@@ -518,8 +525,8 @@ export function ModernMarkdownViewer({
     const blockId = generateBlockId(taskId, blockIndex);
     try {
       await translateBlock(blockId, block.text);
-    } catch (error) {
-      console.error('Failed to retranslate block:', error);
+    } catch (_error) {
+      console.error('Failed to retranslate block:', _error);
     }
   }, [translatableBlocks, taskId, translateBlock]);
   
@@ -642,7 +649,7 @@ export function ModernMarkdownViewer({
     if (!content) return '';
 
     // 只替换图片路径，LaTeX处理交给remarkMath和rehypeKatex
-    let processed = content.replace(
+    const processed = content.replace(
       /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
       (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );
@@ -735,7 +742,7 @@ export function ModernMarkdownViewer({
       fontSize: `${fontSize}%`,
     },
     wrapperElement: {
-      'data-color-mode': 'light'
+      'data-color-mode': 'light' as const
     },
     rehypePlugins: [
       rehypeRaw, // 处理HTML表格中的原始HTML
@@ -753,20 +760,20 @@ export function ModernMarkdownViewer({
           "\\QQ": "\\mathbb{Q}",
           "\\CC": "\\mathbb{C}",
         },
-        trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+        trust: (context: { command: string }) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
       }]
-    ],
+    ] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     remarkPlugins: [
       remarkGfm,
       [remarkMath, {
         singleDollarTextMath: true,
         inlineMathDouble: false,
       }]
-    ],
+    ] as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     components: {
       // 自定义表格单元格渲染器，处理数学公式
-      td: ({ children, ...props }: any) => {
-        const processChildren = (children: any): any => {
+      td: ({ children, ...props }: React.TdHTMLAttributes<HTMLTableDataCellElement> & { children?: ReactNode }) => {
+        const processChildren = (children: ReactNode): ReactNode => {
           if (typeof children === 'string') {
             return processTableCellMath(children);
           }
@@ -784,8 +791,8 @@ export function ModernMarkdownViewer({
         return <td {...props}>{processChildren(children)}</td>;
       },
       
-      th: ({ children, ...props }: any) => {
-        const processChildren = (children: any): any => {
+      th: ({ children, ...props }: React.ThHTMLAttributes<HTMLTableHeaderCellElement> & { children?: ReactNode }) => {
+        const processChildren = (children: ReactNode): ReactNode => {
           if (typeof children === 'string') {
             return processTableCellMath(children);
           }
@@ -804,7 +811,7 @@ export function ModernMarkdownViewer({
       },
       
       // 自定义渲染器来处理内联数学公式
-      code: ({ children = [], className, ...props }: any) => {
+      code: ({ children = [], className, ...props }: React.HTMLAttributes<HTMLElement> & { children?: ReactNode }) => {
         const text = String(children);
         
         // 处理内联数学公式 $...$
@@ -818,8 +825,8 @@ export function ModernMarkdownViewer({
               strict: false,
             });
             return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent' }} />;
-          } catch (error) {
-            console.error('KaTeX render error:', error);
+          } catch (_error) {
+            console.error('KaTeX render error:', _error);
             return <code {...props}>{children}</code>;
           }
         }
@@ -835,8 +842,8 @@ export function ModernMarkdownViewer({
               strict: false,
             });
             return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '1em 0' }} />;
-          } catch (error) {
-            console.error('KaTeX render error:', error);
+          } catch (_error) {
+            console.error('KaTeX render error:', _error);
             return <code {...props}>{children}</code>;
           }
         }

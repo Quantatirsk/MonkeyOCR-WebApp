@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -56,12 +56,7 @@ export const TranslationToolbar: React.FC<TranslationToolbarProps> = ({
 
   const supportedLanguages = llmWrapper.getSupportedLanguages();
 
-  useEffect(() => {
-    // Load available models on component mount
-    handleLoadModels();
-  }, []);
-
-  const handleLoadModels = async () => {
+  const handleLoadModels = useCallback(async () => {
     setIsLoadingModels(true);
     try {
       await loadAvailableModels();
@@ -69,7 +64,7 @@ export const TranslationToolbar: React.FC<TranslationToolbarProps> = ({
         title: "Models loaded",
         description: "Available translation models have been updated.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Failed to load models",
         description: "Could not fetch available models. Using default model.",
@@ -78,7 +73,12 @@ export const TranslationToolbar: React.FC<TranslationToolbarProps> = ({
     } finally {
       setIsLoadingModels(false);
     }
-  };
+  }, [loadAvailableModels, toast]);
+
+  useEffect(() => {
+    // Load available models on component mount
+    handleLoadModels();
+  }, [handleLoadModels]);
 
   const handleClearTranslations = () => {
     clearTranslations();

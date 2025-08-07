@@ -11,6 +11,8 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import type { Components } from 'react-markdown';
+import type { ReactNode } from 'react';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
@@ -149,7 +151,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   highlightedBlocks = [],
   syncEnabled = false,
   onBlockClick,
-  onBlockHover, // Kept for compatibility but not used - hover is handled by CSS
+  onBlockHover: _onBlockHover, // Kept for compatibility but not used - hover is handled by CSS
   fontSize = 100,
   className = ''
 }) => {
@@ -229,14 +231,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
 
       // Map paragraphs to blocks based on their order
       let renderedParagraphIndex = 0;
-      let skippedSeparators = 0;
       
       paragraphs.forEach((paragraph) => {
         
         // Skip if this is a page separator or empty
         const textContent = paragraph.textContent?.trim();
         if (!textContent || textContent === '---') {
-          skippedSeparators++;
           return;
         }
 
@@ -317,9 +317,9 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
   }, [selectedBlock, syncEnabled]);
 
   // Markdown components with custom renderers
-  const components = useMemo(() => ({
+  const components = useMemo<Components>(() => ({
     // Custom div renderer for block containers
-    div: ({ children, className, ...props }: any) => {
+    div: ({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: ReactNode }) => {
       // Check if this is a block container
       if (className === 'block-container') {
         // Preserve the data attributes
@@ -334,19 +334,28 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     },
     
     // Custom paragraph renderer
-    p: ({ children, ...props }: any) => {
-      // Check if children contains an image (which would have a div.markdown-image-container)
-      // If so, render as div instead of p to avoid nesting issues
-      const hasImage = React.Children.toArray(children).some((child: any) => 
-        child?.props?.className === 'markdown-image-container'
-      );
+    p: ({ children, node, ...props }: any) => {
+      // Check if this paragraph contains only an image
+      // react-markdown wraps standalone images in paragraphs, which causes nesting issues
+      if (node && node.children && node.children.length === 1 && node.children[0].tagName === 'img') {
+        // Return just the children without the paragraph wrapper
+        return <>{children}</>;
+      }
       
-      if (hasImage) {
-        return (
-          <div {...props} className="markdown-paragraph">
-            {children}
-          </div>
-        );
+      // Check if children contains block-level elements after rendering
+      const hasBlockElement = React.Children.toArray(children).some((child) => {
+        if (React.isValidElement(child)) {
+          // Check for figure elements (our custom image wrapper)
+          const elementType = (child.type as any)?.name || child.type;
+          return elementType === 'figure' || 
+                 child.props?.className?.includes('markdown-image-container');
+        }
+        return false;
+      });
+      
+      if (hasBlockElement) {
+        // Return just the children without any wrapper
+        return <>{children}</>;
       }
       
       return (
@@ -357,32 +366,32 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     },
     
     // Custom heading renderers
-    h1: ({ children, ...props }: any) => (
+    h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h1 {...props} className="markdown-heading markdown-h1">
         {children}
       </h1>
     ),
-    h2: ({ children, ...props }: any) => (
+    h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h2 {...props} className="markdown-heading markdown-h2">
         {children}
       </h2>
     ),
-    h3: ({ children, ...props }: any) => (
+    h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h3 {...props} className="markdown-heading markdown-h3">
         {children}
       </h3>
     ),
-    h4: ({ children, ...props }: any) => (
+    h4: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h4 {...props} className="markdown-heading markdown-h4">
         {children}
       </h4>
     ),
-    h5: ({ children, ...props }: any) => (
+    h5: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h5 {...props} className="markdown-heading markdown-h5">
         {children}
       </h5>
     ),
-    h6: ({ children, ...props }: any) => (
+    h6: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: ReactNode }) => (
       <h6 {...props} className="markdown-heading markdown-h6">
         {children}
       </h6>
@@ -391,12 +400,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
     
 
     // Custom image renderer
-    img: ({ src, alt, ...props }: any) => {
+    img: ({ src, alt, ...props }: React.ImgHTMLAttributes<HTMLImageElement>) => {
       // Convert relative static paths to full URLs
       const imageSrc = src?.startsWith('/static/') ? getStaticFileUrl(src.slice(8)) : src;
       
       return (
-        <div className="markdown-image-container">
+        <figure className="markdown-image-container">
           <img 
             {...props} 
             src={imageSrc} 
@@ -405,26 +414,26 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
             loading="lazy"
           />
           {alt && <figcaption className="markdown-image-caption">{alt}</figcaption>}
-        </div>
+        </figure>
       );
     },
 
     // Custom code block renderer
-    pre: ({ children, ...props }: any) => (
+    pre: ({ children, ...props }: React.HTMLAttributes<HTMLPreElement> & { children?: ReactNode }) => (
       <pre {...props} className="markdown-code-block">
         {children}
       </pre>
     ),
 
     // Custom inline code renderer
-    code: ({ children, ...props }: any) => (
+    code: ({ children, ...props }: React.HTMLAttributes<HTMLElement> & { children?: ReactNode }) => (
       <code {...props} className="markdown-inline-code">
         {children}
       </code>
     ),
 
     // Custom blockquote renderer
-    blockquote: ({ children, ...props }: any) => (
+    blockquote: ({ children, ...props }: React.HTMLAttributes<HTMLQuoteElement> & { children?: ReactNode }) => (
       <blockquote {...props} className="markdown-blockquote">
         {children}
       </blockquote>
@@ -432,30 +441,30 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
 
 
     // Custom table renderers
-    table: ({ children, ...props }: any) => (
+    table: ({ children, ...props }: React.HTMLAttributes<HTMLTableElement> & { children?: ReactNode }) => (
       <div className="markdown-table-container">
         <table {...props} className="markdown-table">
           {children}
         </table>
       </div>
     ),
-    thead: ({ children, ...props }: any) => (
+    thead: ({ children, ...props }: React.HTMLAttributes<HTMLTableSectionElement> & { children?: ReactNode }) => (
       <thead {...props} className="markdown-table-header">
         {children}
       </thead>
     ),
-    tbody: ({ children, ...props }: any) => (
+    tbody: ({ children, ...props }: React.HTMLAttributes<HTMLTableSectionElement> & { children?: ReactNode }) => (
       <tbody {...props} className="markdown-table-body">
         {children}
       </tbody>
     ),
-    tr: ({ children, ...props }: any) => (
+    tr: ({ children, ...props }: React.HTMLAttributes<HTMLTableRowElement> & { children?: ReactNode }) => (
       <tr {...props} className="markdown-table-row">
         {children}
       </tr>
     ),
-    th: ({ children, ...props }: any) => {
-      const processChildren = (children: any): any => {
+    th: ({ children, ...props }: React.ThHTMLAttributes<HTMLTableHeaderCellElement> & { children?: ReactNode }) => {
+      const processChildren = (children: ReactNode): ReactNode => {
         if (typeof children === 'string') {
           return processTableCellContent(children);
         }
@@ -476,8 +485,8 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
         </th>
       );
     },
-    td: ({ children, ...props }: any) => {
-      const processChildren = (children: any): any => {
+    td: ({ children, ...props }: React.TdHTMLAttributes<HTMLTableDataCellElement> & { children?: ReactNode }) => {
+      const processChildren = (children: ReactNode): ReactNode => {
         if (typeof children === 'string') {
           return processTableCellContent(children);
         }
@@ -541,7 +550,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = ({
               "\\QQ": "\\mathbb{Q}",
               "\\CC": "\\mathbb{C}",
             },
-            trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+            trust: (context: { command: string }) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
           }]
         ]}
         className="markdown-content"

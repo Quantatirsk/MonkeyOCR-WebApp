@@ -37,7 +37,7 @@ import {
   ResizableHandle,
 } from "./ui/resizable";
 import { useAppStore, useUIActions, useTranslationActions, useTranslationState } from '../store/appStore';
-import { ImageResource, BlockData } from '../types';
+import { ImageResource, BlockData, BlockSelection, ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
 import { useToast } from '../hooks/use-toast';
 import { useBlockSync } from '../hooks/useBlockSync';
@@ -113,7 +113,7 @@ const BlockSyncMarkdownPanel = React.memo(({
   originalMarkdown: string;
   markdownZoom: number;
   blockData: BlockData[];
-  selectedBlock: any;
+  selectedBlock: BlockSelection;
   highlightedBlocks: number[];
   syncEnabled: boolean;
   onBlockClick?: (blockIndex: number) => void;
@@ -211,13 +211,13 @@ const PDFPreviewPanel = React.memo(({
   onBlockHover,
   pdfContainerRef
 }: {
-  task: any;
+  task: ProcessingTask;
   selectedPage: number | null;
   onPageSelect: (page: number) => void;
   onRotate: (page: number) => void;
   externalPageRotations: { [pageNumber: number]: number };
   blockData?: BlockData[];
-  selectedBlock?: any;
+  selectedBlock?: BlockSelection;
   highlightedBlocks?: number[];
   syncEnabled?: boolean;
   onBlockClick?: (blockIndex: number, pageNumber: number) => void;
@@ -279,7 +279,7 @@ const PDFPreviewPanel = React.memo(({
 const StandardPreviewPanel = React.memo(({
   task
 }: {
-  task: any;
+  task: ProcessingTask;
 }) => {
   // 调试：监控重渲染
   console.log('👁️ StandardPreviewPanel render', { taskId: task.id });
@@ -314,11 +314,15 @@ interface DocumentViewerProps {
 }
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult, activeDocumentTab } = useAppStore();
+  const store = useAppStore();
+  const { searchQuery, setSearchQuery, currentTaskId, results, tasks, loadResult, activeDocumentTab } = store;
   const { setActiveDocumentTab } = useUIActions();
   const { clearTranslations } = useTranslationActions();
   const { translations } = useTranslationState();
   const { toast } = useToast();
+  
+  // Debug: log entire store
+  console.log('🔍 DocumentViewer - Full store:', store);
   
   // PDF操作状态管理
   const [pdfSelectedPage, setPdfSelectedPage] = useState<number | null>(null);
@@ -353,6 +357,10 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     }
   }, [translationEnabled, clearTranslations]);
   
+  // Calculate current result and task directly
+  const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
+  const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
+  
   // Handle translate all functionality
   const handleTranslateAll = React.useCallback(() => {
     if (!currentResult?.markdown_content) return;
@@ -377,22 +385,21 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     return count;
   }, [translations, currentTaskId]);
   
-  // Calculate current result and task directly
-  const currentResult = currentTaskId ? results.get(currentTaskId) || null : null;
-  const currentTask = currentTaskId ? tasks.find(task => task.id === currentTaskId) || null : null;
-  
   // Debug logging (双重渲染是React.StrictMode的正常开发行为)
   React.useEffect(() => {
     console.log('📱 DocumentViewer render - currentTaskId:', currentTaskId);
+    console.log('📱 DocumentViewer render - currentTask:', currentTask);
     console.log('📱 DocumentViewer render - currentResult:', currentResult);
     console.log('📱 DocumentViewer render - results Map:', results);
+    console.log('📱 DocumentViewer render - tasks array:', tasks);
+    console.log('📱 DocumentViewer render - activeDocumentTab:', activeDocumentTab);
     if (currentResult?.images) {
       console.log('🖼️ Images found:', currentResult.images.length);
       currentResult.images.forEach((img, i) => {
         console.log(`🖼️ Image ${i}:`, img.url);
       });
     }
-  }, [currentTaskId, currentResult, results]);
+  }, [currentTaskId, currentTask, currentResult, results, tasks, activeDocumentTab]);
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
   const [activeSearchQuery, setActiveSearchQuery] = useState(''); // 实际用于搜索的查询词
   const [selectedImage, setSelectedImage] = useState<ImageResource | null>(null);
@@ -420,7 +427,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     };
     
     loadTaskResult();
-  }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
+  }, [currentTask, currentResult, loadResult, toast]);
 
   // 加载区块数据：当结果加载完成且处于对照标签页时，或切换任务时
   React.useEffect(() => {
@@ -1007,7 +1014,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                               processedMarkdown={processedMarkdown}
                               markdownZoom={markdownZoom}
                               enableTranslation={translationEnabled}
-                              taskId={currentTaskId}
+                              taskId={currentTaskId || undefined}
                             />
                           )}
                         </div>
@@ -1103,7 +1110,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                   processedMarkdown={processedMarkdown}
                   markdownZoom={markdownZoom}
                   enableTranslation={translationEnabled}
-                  taskId={currentTaskId}
+                  taskId={currentTaskId || undefined}
                 />
               </div>
             ) : (
@@ -1260,8 +1267,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
             )}
             </div>
           </div>
-          </div>
-      </div>
 
       {/* Image preview dialog */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
@@ -1293,6 +1298,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
           )}
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
+      </div>
     </div>
   );
 };

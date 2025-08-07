@@ -3,7 +3,7 @@
  * Displays processing tasks with status, progress, and management controls
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Clock, 
   AlertCircle, 
@@ -70,68 +70,8 @@ export const TaskList: React.FC<TaskListProps> = ({
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
-  // 组件初始化 - 恢复状态和同步
-  useEffect(() => {
-    const initializeComponent = async () => {
-      if (isInitialized) return;
-      
-      try {
-        // 初始化同步管理器（这会自动触发同步）
-        initializeSync();
-        
-        // 等待一小段时间让store的自动同步完成
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        // 恢复处理中任务的计时器状态
-        const now = Date.now();
-        const initialTimers: { [taskId: string]: number } = {};
-        const initialFinalTimes: { [taskId: string]: number } = {};
-        
-        tasks.forEach(task => {
-          if (task.status === 'processing') {
-            // 基于服务器时间戳计算已经过的时间
-            const startTime = new Date(task.created_at).getTime();
-            const elapsed = Math.floor((now - startTime) / 1000);
-            initialTimers[task.id] = Math.max(0, elapsed);
-          } else if (task.status === 'completed' || task.status === 'failed') {
-            // 对于已完成的任务，计算总处理时间
-            if (task.completed_at) {
-              const startTime = new Date(task.created_at).getTime();
-              const endTime = new Date(task.completed_at).getTime();
-              const totalTime = Math.floor((endTime - startTime) / 1000);
-              initialFinalTimes[task.id] = Math.max(0, totalTime);
-            }
-          }
-        });
-        
-        setTimers(initialTimers);
-        setFinalProcessingTimes(initialFinalTimes);
-        
-        // 恢复PDF页数信息
-        await restorePdfPageCounts();
-        
-        console.log('TaskList initialized with recovered state:', {
-          timers: Object.keys(initialTimers).length,
-          finalTimes: Object.keys(initialFinalTimes).length,
-          tasks: tasks.length
-        });
-        
-      } catch (error) {
-        console.error('TaskList initialization failed:', error);
-        toast({
-          variant: "destructive",
-          description: "任务状态恢复失败，可能需要手动刷新"
-        });
-      } finally {
-        setIsInitialized(true);
-      }
-    };
-    
-    initializeComponent();
-  }, [tasks.length, initializeSync, syncWithServer, isInitialized, toast]);
-
   // 恢复PDF页数信息
-  const restorePdfPageCounts = async () => {
+  const restorePdfPageCounts = useCallback(async () => {
     const pdfTasks = tasks.filter(task => task.file_type === 'pdf');
     const pageCounts: { [taskId: string]: number } = {};
     
@@ -191,7 +131,67 @@ export const TaskList: React.FC<TaskListProps> = ({
         }
       }
     }
-  };
+  }, [tasks, results, setPdfPageCounts]);
+
+  // 组件初始化 - 恢复状态和同步
+  useEffect(() => {
+    const initializeComponent = async () => {
+      if (isInitialized) return;
+      
+      try {
+        // 初始化同步管理器（这会自动触发同步）
+        initializeSync();
+        
+        // 等待一小段时间让store的自动同步完成
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // 恢复处理中任务的计时器状态
+        const now = Date.now();
+        const initialTimers: { [taskId: string]: number } = {};
+        const initialFinalTimes: { [taskId: string]: number } = {};
+        
+        tasks.forEach(task => {
+          if (task.status === 'processing') {
+            // 基于服务器时间戳计算已经过的时间
+            const startTime = new Date(task.created_at).getTime();
+            const elapsed = Math.floor((now - startTime) / 1000);
+            initialTimers[task.id] = Math.max(0, elapsed);
+          } else if (task.status === 'completed' || task.status === 'failed') {
+            // 对于已完成的任务，计算总处理时间
+            if (task.completed_at) {
+              const startTime = new Date(task.created_at).getTime();
+              const endTime = new Date(task.completed_at).getTime();
+              const totalTime = Math.floor((endTime - startTime) / 1000);
+              initialFinalTimes[task.id] = Math.max(0, totalTime);
+            }
+          }
+        });
+        
+        setTimers(initialTimers);
+        setFinalProcessingTimes(initialFinalTimes);
+        
+        // 恢复PDF页数信息
+        await restorePdfPageCounts();
+        
+        console.log('TaskList initialized with recovered state:', {
+          timers: Object.keys(initialTimers).length,
+          finalTimes: Object.keys(initialFinalTimes).length,
+          tasks: tasks.length
+        });
+        
+      } catch (error) {
+        console.error('TaskList initialization failed:', error);
+        toast({
+          variant: "destructive",
+          description: "任务状态恢复失败，可能需要手动刷新"
+        });
+      } finally {
+        setIsInitialized(true);
+      }
+    };
+    
+    initializeComponent();
+  }, [tasks, initializeSync, syncWithServer, isInitialized, toast, restorePdfPageCounts]);
 
   // 计时器effect - 为处理中的任务更新计时
   useEffect(() => {

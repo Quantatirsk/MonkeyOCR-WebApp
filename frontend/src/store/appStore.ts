@@ -11,7 +11,6 @@ import {
   ProcessingTask, 
   DocumentResult, 
   APIResponse,
-  TranslationState,
   TranslationSettings,
   BlockTranslation,
   TranslationRequest
@@ -29,15 +28,15 @@ interface SerializableTask extends Omit<ProcessingTask, 'original_file' | 'origi
 }
 
 // Custom storage with data migration
-const customStorage = createJSONStorage<any>(() => localStorage);
+const customStorage = createJSONStorage<AppState>(() => localStorage);
 
 // Migration function from v1 to v2
-function migrateV1toV2(oldState: any) {
+function migrateV1toV2(oldState: Record<string, unknown>) {
   return {
     ...oldState,
-    tasks: (oldState.tasks || []).map((task: any) => {
+    tasks: (oldState.tasks as ProcessingTask[] || []).map((task: ProcessingTask) => {
       // Remove old non-serializable fields and mark if they existed
-      const { original_file, original_file_url, ...cleanTask } = task;
+      const { original_file, ...cleanTask } = task;
       return {
         ...cleanTask,
         has_original_file: !!original_file
@@ -307,9 +306,13 @@ export const useAppStore = create<AppStore>()(
             const reader = stream.getReader();
             
             try {
-              while (true) {
+              let isReading = true;
+              while (isReading) {
                 const { done, value } = await reader.read();
-                if (done) break;
+                if (done) {
+                  isReading = false;
+                  break;
+                }
 
                 if (value.translated_text) {
                   const translation: BlockTranslation = {
@@ -461,7 +464,7 @@ export const useAppStore = create<AppStore>()(
       partialize: (state) => {
         // Remove non-serializable fields before storing
         const tasks = state.tasks?.map((task: ProcessingTask): SerializableTask => {
-          const { original_file, original_file_url, ...serializableTask } = task;
+          const { original_file, ...serializableTask } = task;
           return {
             ...serializableTask,
             has_original_file: !!original_file
@@ -480,7 +483,7 @@ export const useAppStore = create<AppStore>()(
       // Don't persist results and upload state - these should be fresh on reload
       version: STORE_VERSION,
       // Handle version migration
-      migrate: (persistedState: any, version: number) => {
+      migrate: (persistedState: Record<string, unknown>, version: number) => {
         if (version < 2) {
           console.log('Migrating store from version', version, 'to 2');
           return migrateV1toV2(persistedState);

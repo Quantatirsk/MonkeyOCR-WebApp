@@ -386,7 +386,8 @@ ${JSON.stringify(filesInfo, null, 2)}
         
         const processStream = async () => {
           try {
-            while (true) {
+            let isReading = true;
+            while (isReading) {
               const { done, value } = await reader.read()
               
               if (done) {
@@ -395,6 +396,7 @@ ${JSON.stringify(filesInfo, null, 2)}
                   console.warn('Unprocessed data in buffer:', buffer)
                 }
                 controller.close()
+                isReading = false;
                 break
               }
 
@@ -601,11 +603,13 @@ ${JSON.stringify(filesInfo, null, 2)}
         
         const processStream = async () => {
           try {
-            while (true) {
+            let isReading = true;
+            while (isReading) {
               const { done, value } = await reader.read()
               
               if (done) {
                 controller.close()
+                isReading = false;
                 break
               }
 
@@ -661,7 +665,7 @@ ${JSON.stringify(filesInfo, null, 2)}
   async getModels(apiKey?: string, baseUrl?: string): Promise<ModelInfo[]> {
     try {
       // Build request body, only include credentials if provided
-      const requestBody: any = {}
+      const requestBody: { api_key?: string; base_url?: string } = {}
       
       if (apiKey) {
         requestBody.api_key = apiKey
@@ -706,7 +710,15 @@ ${JSON.stringify(filesInfo, null, 2)}
    */
   private async makeRequest(options: ChatCompletionOptions): Promise<Response> {
     // Build request body, only include model if explicitly provided
-    const requestBody: any = {
+    const requestBody: {
+      messages: ChatMessage[];
+      stream: boolean;
+      max_tokens?: number;
+      temperature: number;
+      model?: string;
+      api_key?: string;
+      base_url?: string;
+    } = {
       messages: options.messages,
       stream: options.stream || false,
       max_tokens: options.maxTokens,

@@ -44,7 +44,7 @@ export interface DocumentResult {
 }
 
 // Generic API response interface
-export interface APIResponse<T = any> {
+export interface APIResponse<T = unknown> {
   success: boolean;
   data: T | null;
   message: string;
@@ -172,7 +172,7 @@ export interface FileWithPreview extends File {
 export interface AppError {
   code: string;
   message: string;
-  details?: any;
+  details?: Record<string, unknown>;
 }
 
 // Theme types
@@ -227,11 +227,11 @@ export interface BlockSyncState {
 }
 
 // API endpoint types
-export interface TaskStatusResponse extends APIResponse<ProcessingTask> {}
-export interface TaskResultResponse extends APIResponse<DocumentResult> {}
-export interface TaskListResponse extends APIResponse<ProcessingTask[]> {}
-export interface UploadResponse extends APIResponse<ProcessingTask> {}
-export interface BlockDataResponse extends APIResponse<BlockProcessingData> {}
+export type TaskStatusResponse = APIResponse<ProcessingTask>;
+export type TaskResultResponse = APIResponse<DocumentResult>;
+export type TaskListResponse = APIResponse<ProcessingTask[]>;
+export type UploadResponse = APIResponse<ProcessingTask>;
+export type BlockDataResponse = APIResponse<BlockProcessingData>;
 
 // Translation-related types
 export interface TranslationRequest {

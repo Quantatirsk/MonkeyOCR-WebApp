@@ -4,7 +4,7 @@
  */
 
 import React, { useCallback, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
+import { useDropzone, FileRejection, FileError } from 'react-dropzone';
 import { Upload, X, AlertCircle, CheckCircle, Play, Trash2 } from 'lucide-react';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
@@ -53,12 +53,12 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   });
 
   // Handle file drop and selection
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
     // Handle rejected files
     if (rejectedFiles.length > 0) {
       const errors = rejectedFiles.map(rejected => ({
         file: rejected.file.name,
-        errors: rejected.errors.map((e: any) => e.message).join(', ')
+        errors: rejected.errors.map((e: FileError) => e.message).join(', ')
       }));
       console.warn('Rejected files:', errors);
     }
@@ -260,7 +260,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                   value={uploadOptions.extract_type}
                   onChange={(e) => setUploadOptions(prev => ({ 
                     ...prev, 
-                    extract_type: e.target.value as any 
+                    extract_type: e.target.value as 'standard' | 'split' | 'text' | 'formula' | 'table' 
                   }))}
                   disabled={isUploading}
                 >

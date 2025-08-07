@@ -13,63 +13,67 @@ from typing import List, Optional, Dict, Any
 import aiofiles
 from models import ImageResource, DocumentResult, DocumentMetadata
 
+
 class ZipProcessor:
     """Processes ZIP files returned by MonkeyOCR API"""
-    
+
     def __init__(self):
         self.static_dir = Path("static")
         self.static_dir.mkdir(exist_ok=True)
-    
-    async def process_zip_file(self, zip_path: str, task_id: str) -> DocumentResult:
+
+    async def process_zip_file(
+            self,
+            zip_path: str,
+            task_id: str) -> DocumentResult:
         """
         Process a ZIP file from MonkeyOCR and extract content
-        
+
         Args:
             zip_path: Path to the ZIP file
             task_id: Task ID for organizing extracted files
-            
+
         Returns:
             DocumentResult with processed content
         """
-        
+
         # Create task-specific directory
         task_dir = self.static_dir / task_id
         task_dir.mkdir(exist_ok=True)
-        
+
         try:
             # Extract ZIP file
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                 zip_ref.extractall(task_dir)
-            
+
             # Find markdown files
             markdown_files = list(task_dir.rglob("*.md"))
             if not markdown_files:
                 raise ValueError("No markdown files found in ZIP")
-            
+
             # Process the main markdown file (usually the first or largest)
             main_md_file = self._select_main_markdown_file(markdown_files)
-            
+
             # Read markdown content
             async with aiofiles.open(main_md_file, 'r', encoding='utf-8') as f:
                 raw_markdown = await f.read()
-            
+
             # Process images
             images = await self._process_images(task_dir, task_id)
-            
+
             # Fix markdown image paths
             processed_markdown = self._fix_image_paths(raw_markdown, task_id)
-            
+
             # Write the processed markdown back to the file
             async with aiofiles.open(main_md_file, 'w', encoding='utf-8') as f:
                 await f.write(processed_markdown)
-            
+
             # Generate metadata
             metadata = self._generate_metadata(
-                zip_path, 
-                processed_markdown, 
+                zip_path,
+                processed_markdown,
                 len(images)
             )
-            
+
             # Create result
             result = DocumentResult(
                 task_id=task_id,
@@ -78,117 +82,131 @@ class ZipProcessor:
                 download_url=f"/api/download/{task_id}",
                 metadata=metadata
             )
-            
+
             return result
-            
+
         except Exception as e:
             # Clean up on failure
             if task_dir.exists():
                 shutil.rmtree(task_dir)
             raise Exception(f"Failed to process ZIP file: {str(e)}")
-    
+
     def _select_main_markdown_file(self, markdown_files: List[Path]) -> Path:
         """
         Select the main markdown file from a list of candidates
-        
+
         Args:
             markdown_files: List of markdown file paths
-            
+
         Returns:
             Path to the main markdown file
         """
-        
+
         if len(markdown_files) == 1:
             return markdown_files[0]
-        
+
         # Prefer files with certain names
         preferred_names = ['README.md', 'index.md', 'main.md', 'document.md']
         for preferred in preferred_names:
             for md_file in markdown_files:
                 if md_file.name.lower() == preferred.lower():
                     return md_file
-        
+
         # Fall back to the largest file
         return max(markdown_files, key=lambda f: f.stat().st_size)
-    
-    async def _process_images(self, task_dir: Path, task_id: str) -> List[ImageResource]:
+
+    async def _process_images(
+            self,
+            task_dir: Path,
+            task_id: str) -> List[ImageResource]:
         """
         Process images found in the extracted directory
-        
+
         Args:
             task_dir: Directory containing extracted files
             task_id: Task ID for URL generation
-            
+
         Returns:
             List of ImageResource objects
         """
-        
+
         images = []
-        image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'}
-        
+        image_extensions = {
+            '.jpg',
+            '.jpeg',
+            '.png',
+            '.gi',
+            '.bmp',
+            '.webp',
+            '.svg'}
+
         # Look for images in the extracted directory
         for image_file in task_dir.rglob("*"):
             if image_file.is_file() and image_file.suffix.lower() in image_extensions:
                 # Calculate relative path from task directory
                 relative_path = image_file.relative_to(task_dir)
-                
+
                 # Create static URL
                 static_url = f"/static/{task_id}/{relative_path}"
-                
+
                 images.append(ImageResource(
                     filename=image_file.name,
                     path=str(relative_path),
                     url=static_url,
                     alt=f"Image: {image_file.stem}"
                 ))
-        
+
         return images
-    
+
     def _fix_image_paths(self, markdown_content: str, task_id: str) -> str:
         """
         Fix image paths in markdown to use our static URLs
-        
+
         Args:
             markdown_content: Original markdown content
             task_id: Task ID for URL generation
-            
+
         Returns:
             Markdown content with fixed image paths
         """
-        
+
         # Pattern to match markdown image syntax: ![alt](path)
         image_pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
-        
+
         def replace_image_path(match):
             alt_text = match.group(1)
             original_path = match.group(2)
-            
+
             # Skip if it's already a full URL
             if original_path.startswith(('http://', 'https://', '/static/')):
                 return match.group(0)
-            
+
             # Extract filename from path
             path_parts = original_path.replace('\\', '/').split('/')
             filename = path_parts[-1]
-            
+
             # Try to find the directory structure
             if len(path_parts) > 1:
-                # Preserve directory structure but handle filename prefix mismatch
+                # Preserve directory structure but handle filename prefix
+                # mismatch
                 directory = '/'.join(path_parts[:-1])  # e.g., "images"
-                
+
                 # First try exact match
                 exact_path = f"static/{task_id}/{directory}/{filename}"
                 if Path(exact_path).exists():
                     new_url = f"/static/{task_id}/{directory}/{filename}"
                 else:
-                    # Look for files with the same suffix (handle prefix mismatch)
+                    # Look for files with the same suffix (handle prefix
+                    # mismatch)
                     directory_path = Path(f"static/{task_id}/{directory}")
                     if directory_path.exists():
-                        matching_files = list(directory_path.glob(f"*_{filename}"))
+                        matching_files = list(
+                            directory_path.glob(f"*_{filename}"))
                         if not matching_files:
                             # Also try files that end with the filename
-                            matching_files = list(directory_path.glob(f"*{filename}"))
-                        
+                            matching_files = list(
+                                directory_path.glob(f"*{filename}"))
+
                         if matching_files:
                             # Use the first match
                             actual_filename = matching_files[0].name
@@ -201,138 +219,149 @@ class ZipProcessor:
             else:
                 # Just the filename - look in common directories
                 new_url = f"/static/{task_id}/{filename}"
-                
+
                 # Check if it might be in an images subdirectory
                 if not Path(f"static/{task_id}/{filename}").exists():
                     potential_dirs = ["images", "img", "assets"]
-                    
+
                     for dir_name in potential_dirs:
                         # First try exact filename match
-                        exact_path = Path(f"static/{task_id}/{dir_name}/{filename}")
+                        exact_path = Path(
+                            f"static/{task_id}/{dir_name}/{filename}")
                         if exact_path.exists():
                             new_url = f"/static/{task_id}/{dir_name}/{filename}"
                             break
-                        
+
                         # Then try prefix-suffixed filename match
                         directory_path = Path(f"static/{task_id}/{dir_name}")
                         if directory_path.exists():
-                            matching_files = list(directory_path.glob(f"*_{filename}"))
+                            matching_files = list(
+                                directory_path.glob(f"*_{filename}"))
                             if not matching_files:
-                                matching_files = list(directory_path.glob(f"*{filename}"))
-                            
+                                matching_files = list(
+                                    directory_path.glob(f"*{filename}"))
+
                             if matching_files:
                                 actual_filename = matching_files[0].name
                                 new_url = f"/static/{task_id}/{dir_name}/{actual_filename}"
                                 break
-            
+
             return f"![{alt_text}]({new_url})"
-        
+
         # Replace all image references
-        fixed_content = re.sub(image_pattern, replace_image_path, markdown_content)
-        
+        fixed_content = re.sub(
+            image_pattern,
+            replace_image_path,
+            markdown_content)
+
         return fixed_content
-    
+
     def _generate_metadata(
-        self, 
-        zip_path: str, 
-        markdown_content: str, 
+        self,
+        zip_path: str,
+        markdown_content: str,
         image_count: int
     ) -> DocumentMetadata:
         """
         Generate metadata for the processed document
-        
+
         Args:
             zip_path: Path to the original ZIP file
             markdown_content: Processed markdown content
             image_count: Number of images found
-            
+
         Returns:
             DocumentMetadata object
         """
-        
+
         # Get file size
         file_size = os.path.getsize(zip_path)
-        
+
         # Estimate page count from content
         # This is a rough estimate - MonkeyOCR might provide better metadata
         line_count = len(markdown_content.split('\n'))
         estimated_pages = max(1, line_count // 50)  # Rough estimate
-        
+
         # Look for page indicators in markdown
-        page_markers = re.findall(r'page[\s_-]*(\d+)', markdown_content, re.IGNORECASE)
+        page_markers = re.findall(
+            r'page[\s_-]*(\d+)',
+            markdown_content,
+            re.IGNORECASE)
         if page_markers:
             try:
                 max_page = max(int(marker) for marker in page_markers)
                 estimated_pages = max(estimated_pages, max_page)
             except (ValueError, TypeError):
                 pass
-        
+
         return DocumentMetadata(
             total_pages=estimated_pages,
             processing_time=0,  # This should be tracked during processing
             file_size=file_size,
             extraction_type="standard"  # This should be passed from the request
         )
-    
+
     def cleanup_task_directory(self, task_id: str):
         """
         Clean up the task directory
-        
+
         Args:
             task_id: Task ID
         """
-        
+
         task_dir = self.static_dir / task_id
         if task_dir.exists():
             shutil.rmtree(task_dir)
-    
-    async def extract_block_data(self, task_id: str) -> Optional[Dict[str, Any]]:
+
+    async def extract_block_data(
+            self, task_id: str) -> Optional[Dict[str, Any]]:
         """
         Extract block data from middle.json file if it exists
-        
+
         Args:
             task_id: Task ID to locate the extracted directory
-            
+
         Returns:
             Dictionary containing block data or None if not found
         """
         task_dir = self.static_dir / task_id
-        
+
         # Look for middle.json files with pattern tmpXXX_middle.json
         middle_json_files = list(task_dir.rglob("*_middle.json"))
-        
+
         if not middle_json_files:
             return None
-        
+
         # Use the first middle.json file found
         middle_json_path = middle_json_files[0]
-        
+
         try:
             async with aiofiles.open(middle_json_path, 'r', encoding='utf-8') as f:
                 content = await f.read()
                 raw_data = json.loads(content)
-                
+
                 # Store task_id context for image path processing
                 self._current_task_id = task_id
-                
+
                 # Transform raw data to frontend-compatible format
                 result = self._transform_block_data(raw_data)
-                
+
                 # Clear task_id context
                 self._current_task_id = None
-                
+
                 return result
         except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
             print(f"Error reading middle.json file {middle_json_path}: {e}")
             return None
-    
-    def _transform_block_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _transform_block_data(
+            self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Transform raw middle.json data to frontend-compatible BlockProcessingData format
-        
+
         Args:
             raw_data: Raw data from middle.json file
-            
+
         Returns:
             Transformed data compatible with frontend BlockProcessingData interface
         """
@@ -341,26 +370,30 @@ class ZipProcessor:
                 'preproc_blocks': [],
                 'total_pages': 0
             }
-        
+
         page_count = len(raw_data['pdf_info'])
-        
+
         print(f"🔍 Processing {page_count} pages of block data...")
-        
+
         # First, collect all blocks with their original positions and metadata
         all_raw_blocks = []
         processed_images = set()  # Track processed images to avoid duplication
-        
+
         for page_idx, page_info in enumerate(raw_data['pdf_info']):
             page_num = page_idx + 1
-            page_size = page_info.get('page_size', [595, 842])  # Default A4 size
+            page_size = page_info.get(
+                'page_size', [
+                    595, 842])  # Default A4 size
             preproc_blocks = page_info.get('preproc_blocks', [])
             images = page_info.get('images', [])
             tables = page_info.get('tables', [])
-            
-            # Collect preproc_blocks with processing metadata (excluding image and table blocks to avoid duplication)
+
+            # Collect preproc_blocks with processing metadata (excluding image
+            # and table blocks to avoid duplication)
             for block in preproc_blocks:
                 # Skip image blocks from preproc_blocks to avoid duplication with images array
-                # Skip table blocks from preproc_blocks to avoid duplication with tables array
+                # Skip table blocks from preproc_blocks to avoid duplication
+                # with tables array
                 if block.get('type') not in ['image', 'table']:
                     all_raw_blocks.append({
                         'source_type': 'preproc',
@@ -370,11 +403,14 @@ class ZipProcessor:
                         'original_index': block.get('index', 0),
                         'bbox': block.get('bbox', [0, 0, 0, 0])
                     })
-            
-            # Collect image blocks with processing metadata and deduplication  
+
+            # Collect image blocks with processing metadata and deduplication
             for image_block in images:
                 # Create unique identifier for image based on bbox and page
-                image_id = f"{page_num}_{image_block.get('bbox', [0,0,0,0])}"
+                image_id = f"{page_num}_{
+                    image_block.get(
+                        'bbox', [
+                            0, 0, 0, 0])}"
                 if image_id not in processed_images:
                     processed_images.add(image_id)
                     all_raw_blocks.append({
@@ -385,7 +421,7 @@ class ZipProcessor:
                         'original_index': image_block.get('index', 0),
                         'bbox': image_block.get('bbox', [0, 0, 0, 0])
                     })
-            
+
             # Collect table blocks with processing metadata
             for table_block in tables:
                 all_raw_blocks.append({
@@ -396,58 +432,65 @@ class ZipProcessor:
                     'original_index': table_block.get('index', 0),
                     'bbox': table_block.get('bbox', [0, 0, 0, 0])
                 })
-        
-        # Sort all blocks by page first, then by original reading order (Y position, then X position)
+
+        # Sort all blocks by page first, then by original reading order (Y
+        # position, then X position)
         def get_sort_key(raw_block):
             page_num = raw_block['page_num']
             bbox = raw_block['bbox']
             original_index = raw_block['original_index']
-            
+
             # Primary: page number
             # Secondary: original index from MonkeyOCR (semantic reading order)
             # Tertiary: Y position (top to bottom)
-            # Quaternary: X position (left to right) 
+            # Quaternary: X position (left to right)
             return (page_num, original_index, bbox[1], bbox[0])
-        
+
         sorted_raw_blocks = sorted(all_raw_blocks, key=get_sort_key)
-        
-        print(f"📋 Sorted block order: {[(rb['page_num'], rb['original_index'], rb['source_type']) for rb in sorted_raw_blocks]}")
-        
+
+        print(f"📋 Sorted block order: {[(rb['page_num'],
+                                         rb['original_index'],
+                                         rb['source_type']) for rb in sorted_raw_blocks]}")
+
         # Now process sorted blocks and assign sequential index
         all_blocks = []
         global_block_index = 1  # 全文档连续编号，从1开始
-        
+
         for raw_block in sorted_raw_blocks:
             source_type = raw_block['source_type']
             data = raw_block['data']
             page_num = raw_block['page_num']
             page_size = raw_block['page_size']
-            
+
             processed_blocks = []
             if source_type == 'preproc':
-                processed_block = self._process_block(data, page_num, page_size, global_block_index)
+                processed_block = self._process_block(
+                    data, page_num, page_size, global_block_index)
                 if processed_block:
                     processed_blocks.append(processed_block)
                     global_block_index += 1
             elif source_type == 'image':
-                processed_block = self._process_image_block(data, page_num, page_size, global_block_index)
+                processed_block = self._process_image_block(
+                    data, page_num, page_size, global_block_index)
                 if processed_block:
                     processed_blocks.append(processed_block)
                     global_block_index += 1
             elif source_type == 'table':
                 # Process table block - table titles should be separate text/title blocks
                 # NOT extracted from the table HTML content
-                processed_block = self._process_table_block(data, page_num, page_size, global_block_index)
+                processed_block = self._process_table_block(
+                    data, page_num, page_size, global_block_index)
                 if processed_block:
                     processed_blocks.append(processed_block)
                     global_block_index += 1
-            
+
             all_blocks.extend(processed_blocks)
-        
+
         # Final debug: show the complete index sequence
-        print(f"📊 Final block sequence: {[block['index'] for block in all_blocks]}")
+        print(
+            f"📊 Final block sequence: {[block['index'] for block in all_blocks]}")
         print(f"📊 Total blocks processed: {len(all_blocks)}")
-        
+
         return {
             'preproc_blocks': all_blocks,
             'total_pages': page_count,
@@ -457,20 +500,27 @@ class ZipProcessor:
                 'parse_type': raw_data.get('_parse_type', 'unknown')
             }
         }
-    
-    def _process_block(self, block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+
+    def _process_block(self,
+                       block: Dict[str,
+                                   Any],
+                       page_num: int,
+                       page_size: list,
+                       global_index: int) -> Optional[Dict[str,
+                                                           Any]]:
         """
         Process a regular block (text, title, or image from preproc_blocks)
         """
         block_type = block.get('type', 'text')
-        
+
         if block_type == 'image':
             # Handle image blocks with nested structure
-            return self._process_image_block_from_preproc(block, page_num, page_size, global_index)
+            return self._process_image_block_from_preproc(
+                block, page_num, page_size, global_index)
         else:
             # Handle text and title blocks
             content = self._extract_text_content(block)
-            
+
             return {
                 'index': global_index,
                 'bbox': block.get('bbox', [0, 0, 0, 0]),
@@ -481,14 +531,20 @@ class ZipProcessor:
                 '_raw_index': block.get('index', None),
                 '_global_index': global_index
             }
-    
-    def _process_image_block_from_preproc(self, block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+
+    def _process_image_block_from_preproc(self,
+                                          block: Dict[str,
+                                                      Any],
+                                          page_num: int,
+                                          page_size: list,
+                                          global_index: int) -> Optional[Dict[str,
+                                                                              Any]]:
         """
         Process image block from preproc_blocks (has nested blocks structure)
         """
         image_path = None
         caption = ""
-        
+
         # Extract image path and caption from blocks structure
         if 'blocks' in block:
             for sub_block in block['blocks']:
@@ -496,23 +552,26 @@ class ZipProcessor:
                     # Extract image path from spans
                     image_path = self._extract_image_path_from_spans(sub_block)
                 elif sub_block.get('type') == 'image_caption':
-                    # Only use the first caption that contains "Fig" for figure images
+                    # Only use the first caption that contains "Fig" for figure
+                    # images
                     extracted_caption = self._extract_text_content(sub_block)
                     if caption == "":  # Use first caption if we don't have one yet
                         caption = extracted_caption
                     elif "Fig" in extracted_caption and "Fig" not in caption:
                         # Prefer figure captions for images
                         caption = extracted_caption
-        
+
         if not image_path:
             return None
-            
+
         # Find the actual image file that matches the image_path
-        actual_image_path = self._find_matching_image_file(image_path, global_index)
-        
-        # Create markdown content for image (caption only in alt text to avoid duplication)
+        actual_image_path = self._find_matching_image_file(
+            image_path, global_index)
+
+        # Create markdown content for image (caption only in alt text to avoid
+        # duplication)
         content = f"![{caption or 'Image'}]({actual_image_path})"
-        
+
         return {
             'index': global_index,
             'bbox': block.get('bbox', [0, 0, 0, 0]),
@@ -525,14 +584,20 @@ class ZipProcessor:
             '_raw_index': block.get('index', None),
             '_global_index': global_index
         }
-    
-    def _process_image_block(self, image_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+
+    def _process_image_block(self,
+                             image_block: Dict[str,
+                                               Any],
+                             page_num: int,
+                             page_size: list,
+                             global_index: int) -> Optional[Dict[str,
+                                                                 Any]]:
         """
         Process image block from images array
         """
         image_path = None
         caption = ""
-        
+
         # Extract image path and caption
         if 'blocks' in image_block:
             for sub_block in image_block['blocks']:
@@ -540,23 +605,26 @@ class ZipProcessor:
                     image_path = self._extract_image_path_from_spans(sub_block)
                 elif sub_block.get('type') == 'image_caption':
                     # Only use the first caption that contains "Fig" for figure images
-                    # This avoids picking up table captions that might be nearby
+                    # This avoids picking up table captions that might be
+                    # nearby
                     extracted_caption = self._extract_text_content(sub_block)
                     if caption == "":  # Use first caption if we don't have one yet
                         caption = extracted_caption
                     elif "Fig" in extracted_caption and "Fig" not in caption:
                         # Prefer figure captions for images
                         caption = extracted_caption
-        
+
         if not image_path:
             return None
-        
+
         # Find the actual image file that matches the image_path
-        actual_image_path = self._find_matching_image_file(image_path, global_index)
-        
-        # Create markdown content for image (caption only in alt text to avoid duplication)
+        actual_image_path = self._find_matching_image_file(
+            image_path, global_index)
+
+        # Create markdown content for image (caption only in alt text to avoid
+        # duplication)
         content = f"![{caption or 'Image'}]({actual_image_path})"
-        
+
         return {
             'index': global_index,
             'bbox': image_block.get('bbox', [0, 0, 0, 0]),
@@ -569,14 +637,20 @@ class ZipProcessor:
             '_raw_index': image_block.get('index', None),
             '_global_index': global_index
         }
-    
-    def _process_table_block(self, table_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
+
+    def _process_table_block(self,
+                             table_block: Dict[str,
+                                               Any],
+                             page_num: int,
+                             page_size: list,
+                             global_index: int) -> Optional[Dict[str,
+                                                                 Any]]:
         """
         Process table block from tables array
         """
         html_content = None
         image_path = None
-        
+
         # Extract HTML and image path from table spans
         if 'blocks' in table_block:
             for sub_block in table_block['blocks']:
@@ -585,18 +659,20 @@ class ZipProcessor:
                         for line in sub_block['lines']:
                             if 'spans' in line:
                                 for span in line['spans']:
-                                    if span.get('type') == 'table' and 'html' in span:
+                                    if span.get(
+                                            'type') == 'table' and 'html' in span:
                                         html_content = span['html']
                                         image_path = span.get('image_path')
                                         break
-        
+
         if not html_content:
             return None
-        
+
         # Convert HTML table to markdown WITHOUT any title extraction
         # Titles should be separate blocks in the document
-        markdown_content = self._convert_html_table_to_markdown(html_content, extract_title=False)
-        
+        markdown_content = self._convert_html_table_to_markdown(
+            html_content, extract_title=False)
+
         return {
             'index': global_index,
             'bbox': table_block.get('bbox', [0, 0, 0, 0]),
@@ -609,23 +685,31 @@ class ZipProcessor:
             '_raw_index': table_block.get('index', None),
             '_global_index': global_index
         }
-    
-    def _process_table_with_title_extraction(self, table_block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+
+    def _process_table_with_title_extraction(self,
+                                             table_block: Dict[str,
+                                                               Any],
+                                             page_num: int,
+                                             page_size: list,
+                                             global_index: int) -> tuple[Optional[Dict[str,
+                                                                                       Any]],
+                                                                         Optional[Dict[str,
+                                                                                       Any]]]:
         """
         Process table block with title extraction as separate blocks
-        
+
         Args:
             table_block: Raw table block data
             page_num: Page number
             page_size: Page dimensions
             global_index: Starting global index (will be used for title if present)
-            
+
         Returns:
             Tuple of (title_block, table_block) - either can be None
         """
         html_content = None
         image_path = None
-        
+
         # Extract HTML and image path from table spans
         if 'blocks' in table_block:
             for sub_block in table_block['blocks']:
@@ -634,23 +718,25 @@ class ZipProcessor:
                         for line in sub_block['lines']:
                             if 'spans' in line:
                                 for span in line['spans']:
-                                    if span.get('type') == 'table' and 'html' in span:
+                                    if span.get(
+                                            'type') == 'table' and 'html' in span:
                                         html_content = span['html']
                                         image_path = span.get('image_path')
                                         break
-        
+
         if not html_content:
             return None, None
-        
+
         # Extract table title separately
         title_block = None
         table_title = self._extract_table_title_from_html(html_content)
         if table_title:
             # Create a separate title block that appears before the table
             # Use the SAME bbox as the table to ensure proper reading order
-            # The global_index sequence will determine the order, not bbox positioning
+            # The global_index sequence will determine the order, not bbox
+            # positioning
             table_bbox = table_block.get('bbox', [0, 0, 0, 0])
-            
+
             title_block = {
                 'index': global_index,
                 'bbox': table_bbox,  # Use same bbox as table - order controlled by index
@@ -663,11 +749,13 @@ class ZipProcessor:
                 '_table_title': True,  # Mark as extracted table title
                 '_table_order_priority': -1  # Ensure title appears before table in same position
             }
-            print(f"📋 Created separate title block: '{table_title}' (index {global_index})")
-        
+            print(
+                f"📋 Created separate title block: '{table_title}' (index {global_index})")
+
         # Convert HTML table to markdown WITHOUT embedded title
-        markdown_content = self._convert_html_table_to_markdown(html_content, extract_title=False)
-        
+        markdown_content = self._convert_html_table_to_markdown(
+            html_content, extract_title=False)
+
         # Create table block with updated index
         table_index = global_index + (1 if title_block else 0)
         processed_table_block = {
@@ -683,18 +771,19 @@ class ZipProcessor:
             '_global_index': table_index,
             '_table_order_priority': 0  # Normal table priority
         }
-        
+
         print(f"🔄 Processed table block (index {table_index})")
-        
+
         return title_block, processed_table_block
-    
-    def _extract_table_title_from_html_if_present(self, table_block: Dict[str, Any]) -> Optional[str]:
+
+    def _extract_table_title_from_html_if_present(
+            self, table_block: Dict[str, Any]) -> Optional[str]:
         """
         Extract table title from table block's HTML content if present
-        
+
         Args:
             table_block: Raw table block data containing HTML
-            
+
         Returns:
             Table title string or None if not found
         """
@@ -707,38 +796,43 @@ class ZipProcessor:
                         for line in sub_block['lines']:
                             if 'spans' in line:
                                 for span in line['spans']:
-                                    if span.get('type') == 'table' and 'html' in span:
+                                    if span.get(
+                                            'type') == 'table' and 'html' in span:
                                         html_content = span['html']
                                         break
-        
+
         if not html_content:
             return None
-        
+
         return self._extract_table_title_from_html(html_content)
-    
-    def _extract_table_title_from_html(self, html_content: str) -> Optional[str]:
+
+    def _extract_table_title_from_html(
+            self, html_content: str) -> Optional[str]:
         """
         Extract table title from HTML content
-        
+
         Args:
             html_content: HTML table content
-            
+
         Returns:
             Table title string or None if not found
         """
         import re
-        
+
         # Extract table title from HTML (first colspan header)
         title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
-        title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
-        
+        title_match = re.search(
+            title_pattern,
+            html_content,
+            re.DOTALL | re.IGNORECASE)
+
         if title_match:
             table_title = self._clean_table_cell_content(title_match.group(1))
             if table_title.strip():
                 return table_title.strip()
-        
+
         return None
-    
+
     def _extract_text_content(self, block: Dict[str, Any]) -> str:
         """
         Extract text content from lines/spans structure
@@ -751,8 +845,9 @@ class ZipProcessor:
                         if 'content' in span and span['content'].strip():
                             content_parts.append(span['content'].strip())
         return ' '.join(content_parts)
-    
-    def _extract_image_path_from_spans(self, block: Dict[str, Any]) -> Optional[str]:
+
+    def _extract_image_path_from_spans(
+            self, block: Dict[str, Any]) -> Optional[str]:
         """
         Extract image_path from spans structure
         """
@@ -760,182 +855,237 @@ class ZipProcessor:
             for line in block['lines']:
                 if 'spans' in line and line['spans']:
                     for span in line['spans']:
-                        if span.get('type') == 'image' and 'image_path' in span:
+                        if span.get(
+                                'type') == 'image' and 'image_path' in span:
                             return span['image_path']
         return None
-    
-    def _convert_html_table_to_markdown(self, html_content: str, extract_title: bool = False) -> str:
+
+    def _convert_html_table_to_markdown(
+            self,
+            html_content: str,
+            extract_title: bool = False) -> str:
         """
         Convert HTML table to Markdown format with enhanced robustness
-        
+
         Args:
             html_content: HTML table content to convert
             extract_title: Whether to extract and embed table title (default True for backward compatibility)
         """
         import re
         from html import unescape
-        
+
         # Clean up the HTML content
         html_content = unescape(html_content)
         print(f"🔄 Converting table HTML to Markdown: {html_content[:200]}...")
-        
+
         markdown_lines = []
-        
-        # Extract table title from HTML (first colspan header) only if requested
+
+        # Extract table title from HTML (first colspan header) only if
+        # requested
         title_extracted = False
         if extract_title:
             title_pattern = r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>(.*?)</th>\s*</tr>'
-            title_match = re.search(title_pattern, html_content, re.DOTALL | re.IGNORECASE)
+            title_match = re.search(
+                title_pattern,
+                html_content,
+                re.DOTALL | re.IGNORECASE)
             if title_match:
-                table_title = self._clean_table_cell_content(title_match.group(1))
+                table_title = self._clean_table_cell_content(
+                    title_match.group(1))
                 if table_title.strip():
                     # Add table title as a separate heading
                     markdown_lines.append(f"### {table_title}")
                     markdown_lines.append("")  # Empty line after title
                     title_extracted = True
                     print(f"📋 Extracted table title: {table_title}")
-        
+
         # More flexible header detection - try multiple patterns
         header_patterns = [
-            r'<tr[^>]*>\s*<th(?![^>]*colspan)[^>]*>(.*?)</th>.*?</tr>',  # Standard th header
-            r'<tr[^>]*>\s*<td[^>]*(?:class="[^"]*header[^"]*"|style="[^"]*font-weight[^"]*bold[^"]*")[^>]*>(.*?)</td>.*?</tr>',  # Styled header
+            # Standard th header
+            r'<tr[^>]*>\s*<th(?![^>]*colspan)[^>]*>(.*?)</th>.*?</tr>',
+            # Styled header
+            r'<tr[^>]*>\s*<td[^>]*(?:class="[^"]*header[^"]*"|style="[^"]*font-weight[^"]*bold[^"]*")[^>]*>(.*?)</td>.*?</tr>',
         ]
-        
+
         headers_found = False
         for header_pattern in header_patterns:
-            header_match = re.search(header_pattern, html_content, re.DOTALL | re.IGNORECASE)
+            header_match = re.search(
+                header_pattern,
+                html_content,
+                re.DOTALL | re.IGNORECASE)
             if header_match:
                 header_row = header_match.group(0)
-                
+
                 # Skip if this is the title row (contains colspan)
                 if 'colspan' in header_row:
                     continue
-                    
+
                 # Extract all header cells from the matched row
-                header_cells = re.findall(r'<th(?![^>]*colspan)[^>]*>(.*?)</th>', header_row, re.DOTALL)
+                header_cells = re.findall(
+                    r'<th(?![^>]*colspan)[^>]*>(.*?)</th>', header_row, re.DOTALL)
                 if not header_cells:
                     # Try td cells as headers
-                    header_cells = re.findall(r'<td[^>]*>(.*?)</td>', header_row, re.DOTALL)
-                
+                    header_cells = re.findall(
+                        r'<td[^>]*>(.*?)</td>', header_row, re.DOTALL)
+
                 if header_cells:
                     # Clean header cells
                     clean_headers = []
                     for cell in header_cells:
                         clean_cell = self._clean_table_cell_content(cell)
                         clean_headers.append(clean_cell if clean_cell else ' ')
-                    
+
                     # Create markdown header
-                    markdown_lines.append('| ' + ' | '.join(clean_headers) + ' |')
-                    markdown_lines.append('| ' + ' | '.join(['---'] * len(clean_headers)) + ' |')
+                    markdown_lines.append(
+                        '| ' + ' | '.join(clean_headers) + ' |')
+                    markdown_lines.append(
+                        '| ' +
+                        ' | '.join(
+                            ['---'] *
+                            len(clean_headers)) +
+                        ' |')
                     headers_found = True
                     print(f"✅ Found table headers: {clean_headers}")
                     break
-        
+
         # Extract table body rows - try with and without tbody
         body_content = html_content
-        tbody_match = re.search(r'<tbody[^>]*>(.*?)</tbody>', html_content, re.DOTALL)
+        tbody_match = re.search(
+            r'<tbody[^>]*>(.*?)</tbody>',
+            html_content,
+            re.DOTALL)
         if tbody_match:
             body_content = tbody_match.group(1)
-            print(f"📋 Found tbody section")
+            print("📋 Found tbody section")
         else:
             # If no tbody, process all rows but skip title and header rows
             remaining_content = html_content
-            
+
             # Skip title row if extracted
             if title_extracted:
-                title_row_match = re.search(r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>.*?</tr>', remaining_content, re.DOTALL)
+                title_row_match = re.search(
+                    r'<tr[^>]*>\s*<th[^>]*colspan[^>]*>.*?</tr>',
+                    remaining_content,
+                    re.DOTALL)
                 if title_row_match:
                     title_row_end = title_row_match.end()
                     remaining_content = remaining_content[title_row_end:]
-                    print(f"📋 Skipped title row in body processing")
-            
+                    print("📋 Skipped title row in body processing")
+
             # Skip header row if found
             if headers_found:
                 # Find first non-colspan header row
                 for pattern in header_patterns:
-                    header_match = re.search(pattern, remaining_content, re.DOTALL | re.IGNORECASE)
+                    header_match = re.search(
+                        pattern, remaining_content, re.DOTALL | re.IGNORECASE)
                     if header_match and 'colspan' not in header_match.group(0):
                         header_row_end = header_match.end()
                         remaining_content = remaining_content[header_row_end:]
-                        print(f"📋 Skipped header row in body processing")
+                        print("📋 Skipped header row in body processing")
                         break
-            
+
             body_content = remaining_content
-            print(f"📋 No tbody found, processing remaining rows after title/header")
-        
+            print("📋 No tbody found, processing remaining rows after title/header")
+
         # Extract all rows from body content
         row_pattern = r'<tr[^>]*>(.*?)</tr>'
         rows = re.findall(row_pattern, body_content, re.DOTALL)
-        
+
         print(f"📊 Found {len(rows)} table body rows")
-        
+
         for row_idx, row in enumerate(rows):
             # Extract cells from each row - handle both td and th
             cell_patterns = [
                 r'<td[^>]*>(.*?)</td>',  # Standard data cells
                 r'<th[^>]*>(.*?)</th>',  # Header cells (might be in body)
             ]
-            
+
             cells = []
             for pattern in cell_patterns:
                 found_cells = re.findall(pattern, row, re.DOTALL)
                 cells.extend(found_cells)
-            
+
             if cells:
                 # Clean cell content
                 clean_cells = []
                 for cell in cells:
                     clean_cell = self._clean_table_cell_content(cell)
                     clean_cells.append(clean_cell if clean_cell else ' ')
-                
+
                 # Create markdown row
                 markdown_row = '| ' + ' | '.join(clean_cells) + ' |'
                 markdown_lines.append(markdown_row)
-                
+
                 if row_idx == 0 and not headers_found:
                     # If no headers were found, treat first row as headers
-                    separator = '| ' + ' | '.join(['---'] * len(clean_cells)) + ' |'
+                    separator = '| ' + \
+                        ' | '.join(['---'] * len(clean_cells)) + ' |'
                     markdown_lines.append(separator)
                     headers_found = True
                     print(f"✅ Using first row as headers: {clean_cells}")
             else:
                 print(f"⚠️ No cells found in row {row_idx}: {row[:100]}...")
-        
+
         result = '\n'.join(markdown_lines)
-        print(f"📝 Generated markdown table ({len(markdown_lines)} lines): {result[:200]}...")
-        
+        print(
+            f"📝 Generated markdown table ({len(markdown_lines)} lines): {result[:200]}...")
+
         if not result.strip():
-            print(f"❌ Table conversion failed, returning fallback")
-            return "| Content | \n| --- |\n| Table conversion failed |" 
-        
+            print("❌ Table conversion failed, returning fallback")
+            return "| Content | \n| --- |\n| Table conversion failed |"
+
         return result
-    
+
     def _clean_table_cell_content(self, cell_content: str) -> str:
         """
         Clean individual table cell content while preserving formatting
         """
         # Remove HTML tags but preserve some formatting
-        clean_cell = re.sub(r'<i[^>]*>(.*?)</i>', r'*\1*', cell_content)  # Italic
-        clean_cell = re.sub(r'<em[^>]*>(.*?)</em>', r'*\1*', clean_cell)  # Emphasis
-        clean_cell = re.sub(r'<b[^>]*>(.*?)</b>', r'**\1**', clean_cell)  # Bold
-        clean_cell = re.sub(r'<strong[^>]*>(.*?)</strong>', r'**\1**', clean_cell)  # Strong
-        clean_cell = re.sub(r'<sup[^>]*>(.*?)</sup>', r'^\1^', clean_cell)  # Superscript
-        clean_cell = re.sub(r'<sub[^>]*>(.*?)</sub>', r'~\1~', clean_cell)  # Subscript
-        clean_cell = re.sub(r'<[^>]+>', '', clean_cell)  # Remove remaining tags
-        clean_cell = clean_cell.replace('\n', ' ').replace('\r', ' ')  # Clean line breaks
+        clean_cell = re.sub(
+            r'<i[^>]*>(.*?)</i>',
+            r'*\1*',
+            cell_content)  # Italic
+        clean_cell = re.sub(
+            r'<em[^>]*>(.*?)</em>',
+            r'*\1*',
+            clean_cell)  # Emphasis
+        clean_cell = re.sub(
+            r'<b[^>]*>(.*?)</b>',
+            r'**\1**',
+            clean_cell)  # Bold
+        clean_cell = re.sub(
+            r'<strong[^>]*>(.*?)</strong>',
+            r'**\1**',
+            clean_cell)  # Strong
+        clean_cell = re.sub(
+            r'<sup[^>]*>(.*?)</sup>',
+            r'^\1^',
+            clean_cell)  # Superscript
+        clean_cell = re.sub(
+            r'<sub[^>]*>(.*?)</sub>',
+            r'~\1~',
+            clean_cell)  # Subscript
+        # Remove remaining tags
+        clean_cell = re.sub(r'<[^>]+>', '', clean_cell)
+        clean_cell = clean_cell.replace(
+            '\n', ' ').replace(
+            '\r', ' ')  # Clean line breaks
         clean_cell = re.sub(r'\s+', ' ', clean_cell)  # Normalize whitespace
         clean_cell = clean_cell.strip()
-        
+
         return clean_cell
-    
-    def _find_matching_image_file(self, image_path: str, global_index: int) -> str:
+
+    def _find_matching_image_file(
+            self,
+            image_path: str,
+            global_index: int) -> str:
         """
         Find the actual image file that matches the given image_path
-        
+
         Args:
             image_path: The image path from middle.json (usually just filename)
             global_index: Global index for fallback identification
-            
+
         Returns:
             Corrected image path with proper directory structure
         """
@@ -944,21 +1094,21 @@ class ZipProcessor:
         if not task_id:
             # If no task_id context, just return as-is with absolute path
             return f"/static/{task_id or 'unknown'}/images/{image_path}"
-        
+
         task_dir = self.static_dir / task_id
-        
+
         # Try common image directories
         potential_dirs = ['images', 'img', 'assets', '']
-        
+
         for dir_name in potential_dirs:
             if dir_name:
                 search_dir = task_dir / dir_name
             else:
                 search_dir = task_dir
-            
+
             if not search_dir.exists():
                 continue
-                
+
             # Try exact filename match first
             exact_file = search_dir / image_path
             if exact_file.exists():
@@ -966,15 +1116,17 @@ class ZipProcessor:
                     return f"/static/{task_id}/{dir_name}/{image_path}"
                 else:
                     return f"/static/{task_id}/{image_path}"
-            
-            # Try files that end with the given filename (handle prefix mismatch)
+
+            # Try files that end with the given filename (handle prefix
+            # mismatch)
             for existing_file in search_dir.glob("*"):
                 if existing_file.is_file() and existing_file.name.endswith(image_path):
                     if dir_name:
                         return f"/static/{task_id}/{dir_name}/{existing_file.name}"
                     else:
                         return f"/static/{task_id}/{existing_file.name}"
-        
-        # Fallback: return the path as-is with images directory and absolute path
+
+        # Fallback: return the path as-is with images directory and absolute
+        # path
         print(f"⚠️ Could not find matching image file for: {image_path}")
         return f"/static/{task_id}/images/{image_path}"

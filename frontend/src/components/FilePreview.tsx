@@ -5,6 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
 // Import react-pdf styles to fix TextLayer warning
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -80,7 +81,11 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
-  const [previewInfo, setPreviewInfo] = useState<any>(null);
+  const [previewInfo, setPreviewInfo] = useState<{
+    filename?: string;
+    file_size?: number;
+    file_type?: string;
+  } | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const internalContainerRef = React.useRef<HTMLDivElement>(null);
   
@@ -172,7 +177,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         clearTimeout(dragTimeoutRef.current);
       }
     };
-  }, [containerWidth]); // Simplified - CSS handles scaling automatically
+  }, [containerWidth, containerRef, isDragging]); // Simplified - CSS handles scaling automatically
 
 
   
@@ -267,7 +272,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     if (task.file_type === 'image' && fileUrl && selectedPage === null) {
       setSelectedPage(1);
     }
-  }, [task.file_type, fileUrl, selectedPage]);
+  }, [task.file_type, fileUrl, selectedPage, setSelectedPage]);
 
   // Update block overlay visibility when sync is enabled/disabled
   React.useEffect(() => {
@@ -275,7 +280,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   }, [syncEnabled]);
 
   // PDF文档加载成功回调
-  const onDocumentLoadSuccess = React.useCallback(async (pdf: any) => {
+  const onDocumentLoadSuccess = React.useCallback(async (pdf: PDFDocumentProxy) => {
     setNumPages(pdf.numPages);
     setError(null);
     
@@ -304,7 +309,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   }, []);
 
   // 页面加载完成通知 - 不再需要scale计算
-  const onPageLoadSuccess = React.useCallback((_page: any, pageNumber: number) => {
+  const onPageLoadSuccess = React.useCallback((_page: PDFPageProxy, pageNumber: number) => {
     console.log(`✅ Page ${pageNumber} loaded, CSS will handle responsive scaling`);
   }, []);
 
@@ -488,7 +493,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
 
       {/* PDF Content - 高级响应式版本 */}
       <div className="flex-1 overflow-hidden">
-        <ScrollArea ref={containerRef as any} className="h-full w-full">
+        <ScrollArea ref={containerRef as React.RefObject<HTMLDivElement>} className="h-full w-full">
           <div className="flex flex-col items-center p-4 space-y-4 min-h-full">
             <Document
               key={`${task.id}-${fileUrl}`}
