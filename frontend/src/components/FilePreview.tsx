@@ -295,8 +295,13 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setError('无法加载PDF文件');
   }, []);
 
-  // Loading state
+  // Loading state - 在同步模式下不显示，让外层骨架屏处理
   if (isLoadingFile) {
+    // 如果是同步模式（对照视图），返回一个空的占位符以保持布局
+    if (syncEnabled) {
+      return <div className={`${className} h-full`}></div>;
+    }
+    // 否则显示普通加载状态
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
         <div className="flex flex-col items-center space-y-4 p-8">
@@ -310,8 +315,13 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     );
   }
 
-  // No file or error state
+  // No file or error state - 在同步模式下不显示，让外层骨架屏处理
   if (!fileUrl || error) {
+    // 如果是同步模式（对照视图），返回一个空的占位符以保持布局
+    if (syncEnabled) {
+      return <div className={`${className} h-full`}></div>;
+    }
+    // 否则显示错误状态
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
         <div className="flex flex-col items-center space-y-4 p-8">
@@ -482,6 +492,9 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
               file={fileUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
+              loading={syncEnabled ? null : <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>}
             >
               {numPages > 0 && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
                 const pageRotation = currentPageRotations[pageNum] || 0;

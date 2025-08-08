@@ -39,7 +39,7 @@
 
 /* Block content wrapper - gives padding around content for better hover/selected area */
 .block-content-wrapper {
-  padding: 8px; /* 与翻译/分析框的 p-2 (8px) 保持一致 */
+  padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
   margin: 0; /* 移除负边距，让宽度与翻译/分析结果框保持一致 */
   border-radius: 4px;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -75,7 +75,7 @@
 .block-paragraph {
   display: block;
   position: relative;
-  padding: 8px; /* 与翻译/分析框的 p-2 (8px) 保持一致 */
+  padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
   margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
   border-radius: 4px;
   transition: background-color 0.15s ease, border-color 0.15s ease; /* 仅对不影响布局的属性过渡 */

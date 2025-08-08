@@ -242,7 +242,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
     
     setFinalProcessingTimes(prevFinalTimes => {
-      const now = Date.now();
       const newFinalTimes = { ...prevFinalTimes };
       let hasChanges = false;
       
@@ -537,7 +536,9 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleClearAllConfirm = async () => {
     try {
-      toast.info("正在删除所有任务...");
+      // 使用带 ID 的 toast，这样可以更新或关闭它
+      const loadingToastId = 'clear-all-loading';
+      toast.info("正在删除所有任务...", { id: loadingToastId });
 
       // Delete all tasks in parallel
       const deletePromises = tasks.map(task => apiClient.deleteTask(task.id));
@@ -558,6 +559,9 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       // Force a full sync with server to ensure consistency
       await syncWithServer();
+      
+      // 关闭加载提示
+      toast.dismiss(loadingToastId);
       
       if (failedCount === 0) {
         toast.success(`成功删除所有 ${successCount} 个任务`);
@@ -624,7 +628,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               {getFileTypeIcon(task.file_type)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-tight break-words line-clamp-2" title={task.filename}>
+              <p className="text-sm font-medium leading-tight truncate" title={task.filename}>
                 {task.filename}
               </p>
             </div>
@@ -637,7 +641,7 @@ export const TaskList: React.FC<TaskListProps> = ({
                   <Zap className="w-3.5 h-3.5" />
                 </div>
               )}
-              <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5">
+              <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 whitespace-nowrap">
                 {task.status === 'pending' ? '等待' :
                  task.status === 'processing' ? '处理中' :
                  task.status === 'completed' ? '完成' :
@@ -647,23 +651,23 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
           {/* 第二行：元信息 */}
           <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <span className="font-medium">{task.file_type.toUpperCase()}</span>
-              <span>•</span>
-              <span title={`提交于 ${formatTimeAgo(task.created_at)}`}>{formatSubmissionTime(task.created_at)}</span>
+            <div className="flex items-center gap-1 flex-1 min-w-0 flex-nowrap overflow-hidden">
+              <span className="font-medium flex-shrink-0">{task.file_type.toUpperCase()}</span>
+              <span className="flex-shrink-0">•</span>
+              <span className="truncate" title={`提交于 ${formatTimeAgo(task.created_at)}`}>{formatSubmissionTime(task.created_at)}</span>
               
               {/* 处理时间或进度信息 */}
               {task.status === 'processing' ? (
                 <>
-                  <span>•</span>
-                  <div className="flex items-center gap-1">
+                  <span className="flex-shrink-0">•</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <Clock className="w-3 h-3" />
-                    <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
+                    <span className="font-mono text-blue-600 whitespace-nowrap">{formatDuration(timers[task.id] || 0)}</span>
                   </div>
                   {getProcessingInfo(task) && (
                     <>
-                      <span>•</span>
-                      <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                      <span className="flex-shrink-0">•</span>
+                      <span className="font-mono text-green-600 whitespace-nowrap">{getProcessingInfo(task)}</span>
                     </>
                   )}
                 </>
@@ -671,10 +675,10 @@ export const TaskList: React.FC<TaskListProps> = ({
                 <>
                   {getTaskProcessingTime(task) && (
                     <>
-                      <span>•</span>
-                      <div className="flex items-center gap-1">
+                      <span className="flex-shrink-0">•</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <Clock className="w-3 h-3" />
-                        <span className={`font-mono ${task.from_cache ? 'text-yellow-600' : 'text-blue-600'}`}>
+                        <span className={`font-mono whitespace-nowrap ${task.from_cache ? 'text-yellow-600' : 'text-blue-600'}`}>
                           {task.from_cache && task.status === 'completed' ? '< 1s' : formatDuration(getTaskProcessingTime(task)!)}
                         </span>
                       </div>
@@ -682,8 +686,8 @@ export const TaskList: React.FC<TaskListProps> = ({
                   )}
                   {getProcessingInfo(task) && (
                     <>
-                      <span>•</span>
-                      <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                      <span className="flex-shrink-0">•</span>
+                      <span className="font-mono text-green-600 whitespace-nowrap">{getProcessingInfo(task)}</span>
                     </>
                   )}
                 </>
@@ -692,7 +696,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
 
           {/* 第三行：操作按钮 */}
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-0.5 flex-shrink-0">
             {task.status === 'completed' && hasResult && (
               <Button
                 variant="ghost"
@@ -701,11 +705,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                   e.stopPropagation();
                   handleDownload(task);
                 }}
-                className="h-7 px-2 text-xs hover:bg-blue-50 hover:text-blue-600"
+                className="h-6 px-1.5 text-xs hover:bg-blue-50 hover:text-blue-600"
                 title="下载结果"
               >
-                <Download className="w-3 h-3 mr-1" />
-                下载
+                <Download className="w-3 h-3 mr-0.5" />
+                <span className="hidden sm:inline">下载</span>
               </Button>
             )}
             
@@ -717,11 +721,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                   e.stopPropagation();
                   handleRetry(task);
                 }}
-                className="h-7 px-2 text-xs hover:bg-orange-50 hover:text-orange-600"
+                className="h-6 px-1.5 text-xs hover:bg-orange-50 hover:text-orange-600"
                 title="重试"
               >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                重试
+                <RotateCcw className="w-3 h-3 mr-0.5" />
+                <span className="hidden sm:inline">重试</span>
               </Button>
             )}
             
@@ -732,11 +736,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                 e.stopPropagation();
                 handleDeleteClick(task.id);
               }}
-              className="h-7 px-2 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
+              className="h-6 px-1.5 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
               title="删除"
             >
-              <Trash2 className="w-3 h-3 mr-1" />
-              删除
+              <Trash2 className="w-3 h-3 mr-0.5" />
+              <span className="hidden sm:inline">删除</span>
             </Button>
           </div>
         </div>

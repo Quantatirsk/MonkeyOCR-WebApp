@@ -1,0 +1,60 @@
+/**
+ * Transition styles for smooth content switching
+ */
+
+/* Smooth transition for markdown content switching */
+.markdown-content-transition {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Block sync markdown panel transition */
+.block-sync-markdown-panel {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Prevent layout shift during loading */
+.block-sync-markdown-panel .animate-pulse,
+.pdf-skeleton-container .animate-pulse {
+  min-height: 200px;
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* PDF skeleton specific styles */
+.pdf-skeleton-container {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Smooth transition for block containers */
+.block-container {
+  animation: blockFadeIn 0.2s ease-in-out;
+}
+
+@keyframes blockFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .markdown-content-transition,
+  .block-sync-markdown-panel,
+  .block-container {
+    animation: none;
+    transition: none;
+  }
+}

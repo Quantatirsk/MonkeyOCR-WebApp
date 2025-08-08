@@ -46,8 +46,13 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   isDragging = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hoveredBlock, setHoveredBlock] = React.useState<number | null>(null);
+  // 使用 ref 而不是 state 来避免重渲染
+  const hoveredBlockRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  
+  // 使用 ref 存储最新的 props，避免闭包问题
+  const propsRef = useRef({ selectedBlock, highlightedBlocks });
+  propsRef.current = { selectedBlock, highlightedBlocks };
 
   // Canvas uses 100% dimensions to bind with PDF page - no JavaScript scaling needed
   // We'll use percentage-based coordinates instead of absolute scaling
@@ -70,8 +75,8 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     return sorted;
   }, [blocks, pageNumber]);
 
-  // Draw blocks on canvas
-  const drawBlocks = useCallback(() => {
+  // Draw blocks on canvas - 不使用 useCallback，因为需要访问最新的 ref 值
+  const drawBlocks = () => {
     const canvas = canvasRef.current;
     if (!canvas || !syncEnabled) return;
 
@@ -85,9 +90,11 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     // This ensures smaller blocks appear on top for better interaction
     const blocksToRender = [...pageBlocks].reverse();
     blocksToRender.forEach((block) => {
-      const isSelected = selectedBlock.blockIndex === block.index && selectedBlock.isActive;
-      const isHighlighted = highlightedBlocks.includes(block.index);
-      const isHovered = hoveredBlock === block.index;
+      // 使用 ref 中的最新值
+      const currentProps = propsRef.current;
+      const isSelected = currentProps.selectedBlock.blockIndex === block.index && currentProps.selectedBlock.isActive;
+      const isHighlighted = currentProps.highlightedBlocks.includes(block.index);
+      const isHovered = hoveredBlockRef.current === block.index;
 
       // Get color scheme
       const colorScheme = BlockProcessor.getBlockColorScheme(block.type);
@@ -151,41 +158,26 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       ctx.strokeRect(x1, y1, width, height);
 
     });
-  }, [
-    pageBlocks,
-    pageSize,
-    canvasWidth,
-    canvasHeight,
-    selectedBlock,
-    highlightedBlocks,
-    hoveredBlock,
-    syncEnabled,
-    isDragging
-  ]);
+  };
 
   // RAF-driven redraw scheduler with performance optimization
-  const scheduleRedraw = useCallback(() => {
+  const scheduleRedraw = () => {
     if (animationFrameRef.current) return; // Already scheduled
     
-    if (isDragging) {
-      // High-performance mode: prioritize smooth animation over precision
-      animationFrameRef.current = requestAnimationFrame(() => {
-        drawBlocks();
-        animationFrameRef.current = null;
-      });
-    } else {
-      // High-precision mode: slight delay for better accuracy
-      animationFrameRef.current = requestAnimationFrame(() => {
-        drawBlocks();
-        animationFrameRef.current = null;
-      });
-    }
-  }, [drawBlocks, isDragging]);
+    animationFrameRef.current = requestAnimationFrame(() => {
+      drawBlocks();
+      animationFrameRef.current = null;
+    });
+  };
 
   // Handle canvas click
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
       if (!syncEnabled || !onBlockClick) return;
+      
+      // 防止事件冒泡，确保点击被正确处理
+      event.preventDefault();
+      event.stopPropagation();
 
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -197,6 +189,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       // Convert click coordinates to canvas space
       const canvasX = (x / rect.width) * canvasWidth;
       const canvasY = (y / rect.height) * canvasHeight;
+
 
       // Find clicked block using percentage-based coordinates
       for (const block of pageBlocks) {
@@ -216,13 +209,25 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
         // Check if click is inside block
         if (canvasX >= blockX1 && canvasX <= adjustedBlockX2 && 
             canvasY >= blockY1 && canvasY <= adjustedBlockY2) {
+          // 立即触发点击，不管 hover 状态
           onBlockClick(block.index, pageNumber);
+          // 更新 hover ref
+          hoveredBlockRef.current = block.index;
+          // 立即触发重绘以显示选中状态
+          scheduleRedraw();
+          // 延迟再次重绘，确保状态更新后能正确显示
+          setTimeout(() => scheduleRedraw(), 50);
           return;
         }
       }
 
       // Click outside blocks - clear selection
       onBlockClick(-1, pageNumber);
+      // 清除 hover ref
+      hoveredBlockRef.current = null;
+      // 触发重绘
+      scheduleRedraw();
+      setTimeout(() => scheduleRedraw(), 50);
     },
     [syncEnabled, onBlockClick, pageBlocks, pageNumber, pageSize, canvasWidth, canvasHeight]
   );
@@ -267,8 +272,10 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
         }
       }
 
-      if (foundBlock !== hoveredBlock) {
-        setHoveredBlock(foundBlock);
+      if (foundBlock !== hoveredBlockRef.current) {
+        hoveredBlockRef.current = foundBlock;
+        // 手动触发重绘，因为不再使用 state
+        scheduleRedraw();
         if (onBlockHover) {
           onBlockHover(foundBlock, pageNumber);
         }
@@ -277,13 +284,14 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       // Update cursor
       canvas.style.cursor = foundBlock !== null ? 'pointer' : 'default';
     },
-    [syncEnabled, pageBlocks, pageNumber, pageSize, canvasWidth, canvasHeight, hoveredBlock, onBlockHover]
+    [syncEnabled, pageBlocks, pageNumber, pageSize, canvasWidth, canvasHeight, onBlockHover]
   );
 
   // Handle canvas mouse leave
   const handleCanvasMouseLeave = useCallback(() => {
-    if (hoveredBlock !== null) {
-      setHoveredBlock(null);
+    if (hoveredBlockRef.current !== null) {
+      hoveredBlockRef.current = null;
+      scheduleRedraw();
       if (onBlockHover) {
         onBlockHover(null, pageNumber);
       }
@@ -291,12 +299,18 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     if (canvasRef.current) {
       canvasRef.current.style.cursor = 'default';
     }
-  }, [hoveredBlock, onBlockHover, pageNumber]);
+  }, [onBlockHover, pageNumber]);
 
   // Schedule redraw when dependencies change using RAF
   useEffect(() => {
     scheduleRedraw();
-  }, [scheduleRedraw]);
+  }, [
+    pageBlocks, 
+    selectedBlock.blockIndex,  // 使用具体的属性而不是整个对象
+    selectedBlock.isActive,    // 这样可以正确检测到变化
+    highlightedBlocks, 
+    syncEnabled
+  ]);
 
   // Handle canvas resize
   useEffect(() => {
@@ -309,7 +323,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
 
     // Schedule redraw using RAF
     scheduleRedraw();
-  }, [canvasWidth, canvasHeight, scheduleRedraw]);
+  }, [canvasWidth, canvasHeight]);
 
   // Cleanup animation frame on unmount
   useEffect(() => {

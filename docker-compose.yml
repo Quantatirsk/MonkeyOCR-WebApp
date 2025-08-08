@@ -1,20 +1,14 @@
-version: '3.8'
-
 services:
   monkeyocr-webapp:
     build:
       context: .
       dockerfile: Dockerfile
-      target: ${BUILD_TARGET:-production}  # backend-build for dev, production for prod
     ports:
-      - "${FRONTEND_PORT:-3000}:80"
-      - "${BACKEND_PORT:-8001}:8001"  # Only exposed in dev mode
+      - "${API_PORT:-8001}:8001"  # Full-stack app: API + Frontend (SPA fallback)
     environment:
       # Backend configuration
       - PYTHONPATH=/app
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       - DEBUG=${DEBUG:-false}
-      - RELOAD=${RELOAD:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       
       # API configuration
@@ -25,58 +19,41 @@ services:
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o-mini}
+      
+      # Redis configuration
+      - REDIS_ENABLED=${REDIS_ENABLED:-true}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+      # Timezone
+      - TZ=Asia/Shanghai
     volumes:
-      # Source code (only mounted in dev)
-      - ${SOURCE_MOUNT:-/dev/null}:/app:ro
-      - ${FRONTEND_MOUNT:-/dev/null}:/app/static/frontend:ro
-      # Persistent data storage
+      # Persistent data storage  
       - ./data:/app/data
-      - ./static:/app/static
-    restart: ${RESTART_POLICY:-unless-stopped}
-    command: ${COMMAND:-}  # Override in dev mode
+      # Note: ./static removed to avoid overriding built-in frontend files
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
-      - monkeyocr-network
-    deploy:
-      resources:
-        limits:
-          cpus: ${CPU_LIMIT:-2.0}
-          memory: ${MEMORY_LIMIT:-2G}
-        reservations:
-          cpus: ${CPU_RESERVATION:-0.5}
-          memory: ${MEMORY_RESERVATION:-512M}
-    logging:
-      driver: ${LOG_DRIVER:-json-file}
-      options:
-        max-size: ${LOG_MAX_SIZE:-10m}
-        max-file: ${LOG_MAX_FILES:-3}
+      - api-network
+    depends_on:
+      - redis
 
-  # Redis for caching and session management
   redis:
     image: redis:7-alpine
-    restart: ${RESTART_POLICY:-unless-stopped}
+    restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY:-256mb} --maxmemory-policy allkeys-lru
     volumes:
-      - redis_data:/data
+      - ./redis_data:/data
     networks:
-      - monkeyocr-network
-    ports:
-      - "${REDIS_PORT:-6379}:6379"  # Optional: expose for debugging
-    environment:
-      - REDIS_REPLICATION_MODE=master
-    deploy:
-      resources:
-        limits:
-          cpus: ${REDIS_CPU_LIMIT:-0.5}
-          memory: ${REDIS_MEMORY_LIMIT:-256M}
-        reservations:
-          cpus: ${REDIS_CPU_RESERVATION:-0.1}
-          memory: ${REDIS_MEMORY_RESERVATION:-64M}
+      - api-network
+    # Remove external port exposure for production security
+    # ports:
+    #   - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -85,14 +62,5 @@ services:
       start_period: 10s
 
 networks:
-  monkeyocr-network:
+  api-network:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: monkeyocr0
-
-volumes:
-  redis_data:
-    driver: local
-
-# Development override example:
-# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up

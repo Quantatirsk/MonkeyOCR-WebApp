@@ -5,9 +5,10 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from middleware import add_security_middleware
 
 # Set up logging
@@ -157,11 +158,56 @@ if not os.path.exists(static_dir):
 
 app.mount("/static", StaticFilesWithCORS(directory=static_dir), name="static")
 
-# Basic API routes
-@app.get("/")
-async def root():
-    return {"message": "MonkeyOCR WebApp API", "version": "1.0.0"}
+# Mount frontend static files before defining routes
+frontend_dir = os.path.join(os.path.dirname(__file__), "static", "frontend")
+if os.path.exists(frontend_dir):
+    # Mount frontend assets
+    assets_dir = os.path.join(frontend_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
+# Frontend root route
+@app.get("/")
+async def serve_frontend():
+    """Serve the frontend application"""
+    base_dir = os.path.dirname(__file__)
+    frontend_dir = os.path.join(base_dir, "static", "frontend")
+    index_file = os.path.join(frontend_dir, "index.html")
+    
+    # Debug information
+    debug_info = {
+        "base_dir": base_dir,
+        "frontend_dir": frontend_dir,
+        "index_file": index_file,
+        "frontend_dir_exists": os.path.exists(frontend_dir),
+        "index_file_exists": os.path.exists(index_file),
+        "static_dir_contents": [],
+        "frontend_dir_contents": []
+    }
+    
+    static_dir = os.path.join(base_dir, "static")
+    if os.path.exists(static_dir):
+        debug_info["static_dir_contents"] = os.listdir(static_dir)
+        
+    if os.path.exists(frontend_dir):
+        debug_info["frontend_dir_contents"] = os.listdir(frontend_dir)
+    
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    
+    return {"message": "Frontend not found", "debug": debug_info}
+
+# Frontend PDF worker route
+@app.get("/pdf.worker.min.js")
+async def get_pdf_worker():
+    """Serve PDF.js worker file"""
+    if os.path.exists(frontend_dir):
+        worker_file = os.path.join(frontend_dir, "pdf.worker.min.js")
+        if os.path.exists(worker_file):
+            return FileResponse(worker_file, media_type="application/javascript")
+    return {"error": "PDF worker not found"}
+
+# Basic API routes
 @app.get("/health")
 async def health_check():
     """Basic health check"""

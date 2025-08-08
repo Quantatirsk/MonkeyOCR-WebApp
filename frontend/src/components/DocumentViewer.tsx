@@ -46,6 +46,7 @@ import { BlockMarkdownGenerator } from '../utils/blockMarkdownGenerator';
 // Styles
 import './markdown/markdown-styles.css';
 import './translation/animations.css';
+import './document/transitions.css';
 
 interface DocumentViewerProps {
   className?: string;
@@ -109,11 +110,13 @@ const BlockSyncMarkdownPanel = React.memo(({
 
   // Generate block-based markdown content
   const blockBasedMarkdown = useMemo(() => {
-    if (!syncEnabled || blockData.length === 0) {
-      return originalMarkdown;
+    // 简化逻辑：只有当有区块数据且同步启用时才生成内容
+    if (syncEnabled && blockData.length > 0) {
+      return BlockMarkdownGenerator.generateFromBlocks(blockData, taskId);
     }
-    return BlockMarkdownGenerator.generateFromBlocks(blockData, taskId);
-  }, [blockData, syncEnabled, originalMarkdown, taskId]);
+    // 否则返回空字符串，不显示原始 markdown
+    return '';
+  }, [blockData, syncEnabled, taskId]);
   
   // Generate clean markdown for copying (without HTML wrappers)
   const cleanMarkdownForCopy = useMemo(() => {
@@ -227,72 +230,141 @@ const BlockSyncMarkdownPanel = React.memo(({
     blockActions.actionState.selectedBlockIndex
   ]);
   
+  // 简化判断：只要没有区块数据就显示加载状态
+  const shouldShowLoading = blockData.length === 0;
+  
   return (
     <div className="flex-1 overflow-hidden block-sync-markdown-panel">
       <ScrollArea className="h-full w-full">
         <div className="p-3 pr-4 min-w-0 w-full">
-          <BlockMarkdownViewer 
-            content={processedMarkdown}
-            blockData={blockData}
-            selectedBlock={selectedBlock}
-            highlightedBlocks={highlightedBlocks}
-            syncEnabled={syncEnabled}
-            onBlockClick={onBlockClick}
-            fontSize={markdownZoom}
-            className="w-full min-w-0"
-            translations={blockActions.actionState.translations}
-            explanations={blockActions.actionState.explanations}
-            streamingTranslation={streamingTranslation}
-            onRefreshTranslation={(blockIndex) => {
-              // 防止在处理中重复刷新
-              if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
-                return;
-              }
-              // 清除现有翻译并重新生成（使用force参数强制刷新）
-              blockActions.clearTranslation(blockIndex);
-              setTimeout(() => {
-                blockActions.translateBlock(blockIndex, true);
-              }, 100); // 短暂延迟确保UI更新
-            }}
-            onRefreshExplanation={(blockIndex) => {
-              // 防止在处理中重复刷新
-              if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
-                return;
-              }
-              // 清除现有解释并重新生成（使用force参数强制刷新）
-              blockActions.clearExplanation(blockIndex);
-              setTimeout(() => {
-                blockActions.explainBlock(blockIndex, true);
-              }, 100); // 短暂延迟确保UI更新
-            }}
-          />
+          {/* 没有区块数据时始终显示骨架屏 */}
+          {shouldShowLoading ? (
+            <div className="animate-pulse space-y-3">
+              {/* 模拟标题 */}
+              <div className="h-7 bg-muted rounded-md w-3/5 mb-4"></div>
+              {/* 模拟段落 */}
+              <div className="space-y-2">
+                <div className="h-4 bg-muted rounded w-full"></div>
+                <div className="h-4 bg-muted rounded w-11/12"></div>
+                <div className="h-4 bg-muted rounded w-4/5"></div>
+              </div>
+              {/* 模拟另一个段落 */}
+              <div className="space-y-2 pt-2">
+                <div className="h-4 bg-muted rounded w-full"></div>
+                <div className="h-4 bg-muted rounded w-5/6"></div>
+                <div className="h-4 bg-muted rounded w-3/4"></div>
+              </div>
+              {/* 模拟列表 */}
+              <div className="space-y-2 pt-2">
+                <div className="h-4 bg-muted rounded w-2/3 ml-4"></div>
+                <div className="h-4 bg-muted rounded w-3/4 ml-4"></div>
+                <div className="h-4 bg-muted rounded w-1/2 ml-4"></div>
+              </div>
+              {/* 模拟另一个标题 */}
+              <div className="h-6 bg-muted rounded-md w-2/5 mt-4 mb-2"></div>
+              {/* 模拟更多内容 */}
+              <div className="space-y-2">
+                <div className="h-4 bg-muted rounded w-full"></div>
+                <div className="h-4 bg-muted rounded w-5/6"></div>
+              </div>
+            </div>
+          ) : (
+            <BlockMarkdownViewer 
+              content={processedMarkdown}
+              blockData={blockData}
+              selectedBlock={selectedBlock}
+              highlightedBlocks={highlightedBlocks}
+              syncEnabled={syncEnabled}
+              onBlockClick={onBlockClick}
+              fontSize={markdownZoom}
+              className="w-full min-w-0 markdown-content-transition"
+              translations={blockActions.actionState.translations}
+              explanations={blockActions.actionState.explanations}
+              streamingTranslation={streamingTranslation}
+              onRefreshTranslation={(blockIndex) => {
+                // 防止在处理中重复刷新
+                if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
+                  return;
+                }
+                // 清除现有翻译并重新生成（使用force参数强制刷新）
+                blockActions.clearTranslation(blockIndex);
+                setTimeout(() => {
+                  blockActions.translateBlock(blockIndex, true);
+                }, 100); // 短暂延迟确保UI更新
+              }}
+              onRefreshExplanation={(blockIndex) => {
+                // 防止在处理中重复刷新
+                if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
+                  return;
+                }
+                // 清除现有解释并重新生成（使用force参数强制刷新）
+                blockActions.clearExplanation(blockIndex);
+                setTimeout(() => {
+                  blockActions.explainBlock(blockIndex, true);
+                }, 100); // 短暂延迟确保UI更新
+              }}
+            />
+          )}
         </div>
       </ScrollArea>
     </div>
   );
 });
 
-// PDF preview panel
-const PDFPreviewPanel = React.memo((props: any) => (
-  <div className="flex-1 overflow-hidden">
-    <FilePreview 
-      key={`shared-${props.task.id}`}
-      task={props.task} 
-      className="h-full" 
-      hideToolbar={true}
-      selectedPage={props.selectedPage}
-      onPageSelect={props.onPageSelect}
-      onRotate={props.onRotate}
-      externalPageRotations={props.externalPageRotations}
-      blockData={props.blockData}
-      selectedBlock={props.selectedBlock}
-      highlightedBlocks={props.highlightedBlocks}
-      syncEnabled={props.syncEnabled}
-      onBlockClick={props.onBlockClick}
-      containerRef={props.pdfContainerRef}
-    />
-  </div>
-));
+// PDF preview panel - 在对照模式下统一使用骨架屏
+const PDFPreviewPanel = React.memo((props: any) => {
+  // 在同步模式下，如果没有区块数据，显示骨架屏
+  const shouldShowSkeleton = props.syncEnabled && (!props.blockData || props.blockData.length === 0);
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      {/* 始终渲染 FilePreview，但在需要时用骨架屏覆盖 */}
+      <div className="relative h-full">
+        <FilePreview 
+          key={`shared-${props.task.id}`}
+          task={props.task} 
+          className="h-full" 
+          hideToolbar={true}
+          selectedPage={props.selectedPage}
+          onPageSelect={props.onPageSelect}
+          onRotate={props.onRotate}
+          externalPageRotations={props.externalPageRotations}
+          blockData={props.blockData}
+          selectedBlock={props.selectedBlock}
+          highlightedBlocks={props.highlightedBlocks}
+          syncEnabled={props.syncEnabled}
+          onBlockClick={props.onBlockClick}
+          containerRef={props.pdfContainerRef}
+        />
+        
+        {/* 骨架屏覆盖层 */}
+        {shouldShowSkeleton && (
+          <div className="absolute inset-0 bg-background z-50">
+            <div className="h-full w-full p-4 flex items-center justify-center pdf-skeleton-container">
+              <div className="w-full max-w-2xl">
+                <div className="animate-pulse space-y-4">
+                  {/* 模拟 PDF 页面 */}
+                  <div className="aspect-[210/297] bg-muted rounded-lg shadow-lg">
+                    <div className="p-8 space-y-4">
+                      <div className="h-6 bg-muted-foreground/10 rounded w-3/4"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-full"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-5/6"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-full"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-2/3"></div>
+                      <div className="mt-6 h-32 bg-muted-foreground/10 rounded"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-full"></div>
+                      <div className="h-4 bg-muted-foreground/10 rounded w-4/5"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // Standard preview panel
 const StandardPreviewPanel = React.memo(({ task }: { task: any }) => (
@@ -324,7 +396,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   
   // Custom hooks
   const pdfState = usePdfState(currentTaskId || undefined);
-  const { blockData } = useBlockDataLoader({
+  const { blockData, loading: blockDataLoading } = useBlockDataLoader({
     taskId: currentTaskId,
     hasResult: !!currentResult,
     activeTab: activeDocumentTab,
@@ -335,11 +407,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     initialQuery: searchQuery
   });
   
-  // Block sync hooks
+  // Block sync hooks - 简化逻辑
   const blockSyncEnabled = blockData.length > 0 && activeDocumentTab === TAB_TYPES.COMPARE;
+  // 在对照模式下始终使用 BlockSyncMarkdownPanel
+  const shouldUseBlockSync = activeDocumentTab === TAB_TYPES.COMPARE;
+  // 重要：在对照模式下始终启用 blockSync，即使 blockData 还未加载
   const blockSync = useBlockSync({
     blockData,
-    enabled: blockSyncEnabled
+    enabled: activeDocumentTab === TAB_TYPES.COMPARE  // 修改为只依赖于 tab，不依赖于 blockData
   });
   
   const scrollSync = useScrollSync({
@@ -395,11 +470,8 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const handleMarkdownBlockClickWithTimestamp = useCallback((blockIndex: number) => {
     lastMarkdownClickRef.current = Date.now();
     blockSync.handleMarkdownBlockClick(blockIndex);
-    
-    if (blockSyncEnabled) {
-      scrollSync.scrollToBlockInPdf(blockIndex);
-    }
-  }, [blockSync, blockSyncEnabled, scrollSync]);
+    // 滚动由 useEffect 处理，避免重复触发
+  }, [blockSync]);
   
   // Document actions
   const handleFontSizeChange = useCallback(() => {
@@ -589,7 +661,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             blockData={blockData}
                             selectedBlock={blockSync.selectedBlock}
                             highlightedBlocks={blockSync.highlightedBlocks}
-                            syncEnabled={blockSync.isSyncEnabled}
+                            syncEnabled={true}  // 在对照模式下始终为 true
                             onBlockClick={blockSync.handlePdfBlockClick}
                             pdfContainerRef={scrollSync.pdfContainerRef}
                           />
@@ -617,7 +689,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             searchQuery={documentSearch.localQuery}
                             onSearch={handleSearch}
                           />
-                          {blockSyncEnabled ? (
+                          {shouldUseBlockSync ? (
                             <BlockSyncMarkdownPanel 
                               originalMarkdown={currentResult?.markdown_content || ''}
                               markdownZoom={markdownZoom}

@@ -73,8 +73,6 @@ export const useBlockSync = ({
     scrollSyncEnabled: enabled
   }));
 
-  // Hover tracking
-  const [hoveredBlock, setHoveredBlock] = useState<number | null>(null);
   
   // Refs for avoiding stale closures
   const syncStateRef = useRef(syncState);
@@ -164,13 +162,8 @@ export const useBlockSync = ({
   }, [selectBlock, clearSelection]);
 
   const handlePdfBlockHover = useCallback((blockIndex: number | null, _pageNumber: number) => {
-    setHoveredBlock(blockIndex);
-    
-    // Disable hover propagation to reduce re-renders
-    // Hover is only used for visual feedback, not for data updates
-    // if (blockIndex !== null && onBlockInteraction) {
-    //   onBlockInteraction(blockIndex, 'hover');
-    // }
+    // Hover is handled directly in PDFBlockOverlay for performance
+    // No state updates needed here
   }, []);
 
   // Markdown interaction handlers
@@ -179,13 +172,8 @@ export const useBlockSync = ({
   }, [selectBlock]);
 
   const handleMarkdownBlockHover = useCallback((blockIndex: number | null) => {
-    setHoveredBlock(blockIndex);
-    
-    // Disable hover propagation to reduce re-renders
-    // Hover is only used for visual feedback, not for data updates
-    // if (blockIndex !== null && onBlockInteraction) {
-    //   onBlockInteraction(blockIndex, 'hover');
-    // }
+    // Hover is handled directly in components for performance
+    // No state updates needed here
   }, []);
 
   // Utility functions
@@ -197,17 +185,11 @@ export const useBlockSync = ({
     return BlockProcessor.getBlocksForPage(blockData, pageNumber);
   }, [blockData]);
 
-  // Enhanced highlighted blocks including hover
-  const enhancedHighlightedBlocks = [...syncState.highlightedBlocks];
-  if (hoveredBlock !== null && !enhancedHighlightedBlocks.includes(hoveredBlock)) {
-    enhancedHighlightedBlocks.push(hoveredBlock);
-  }
-
   return {
     // State
     syncState,
     selectedBlock: syncState.selectedBlock,
-    highlightedBlocks: enhancedHighlightedBlocks,
+    highlightedBlocks: syncState.highlightedBlocks,
     isSyncEnabled: syncState.syncEnabled,
     isScrollSyncEnabled: syncState.scrollSyncEnabled,
     

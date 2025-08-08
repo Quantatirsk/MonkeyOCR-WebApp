@@ -1,0 +1,31 @@
+# Debug version - single stage build
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install Python and dependencies
+RUN apk add --no-cache python3 py3-pip curl gcc musl-dev libffi-dev python3-dev
+
+# Copy and build frontend
+COPY frontend/package*.json ./frontend/
+WORKDIR /app/frontend
+RUN npm ci
+COPY frontend/ .
+RUN npm run build
+RUN ls -la dist/ || echo "No dist directory"
+
+# Copy backend
+WORKDIR /app
+COPY backend/ ./
+
+# Install Python requirements
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+# Copy frontend build to backend static
+RUN mkdir -p static/frontend
+RUN cp -r frontend/dist/* static/frontend/ || echo "Copy failed"
+RUN ls -la static/frontend/ || echo "No frontend static"
+
+# Start the app
+EXPOSE 8001
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

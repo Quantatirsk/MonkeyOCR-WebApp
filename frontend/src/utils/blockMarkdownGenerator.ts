@@ -37,9 +37,8 @@ export class BlockMarkdownGenerator {
     // }));
 
     for (const block of sortedBlocks) {
-      // Add page break if we're on a new page
+      // Update current page (removed page separator)
       if (block.page_num > currentPage) {
-        markdownParts.push('\n---\n'); // Page separator
         currentPage = block.page_num;
       }
 

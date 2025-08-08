@@ -397,10 +397,15 @@ export const useBlockActions = ({
       }
 
       // 发起流式翻译请求
+      // 计算合理的 token 限制
+      // 中文字符通常需要 2-3 个 tokens，翻译后可能会扩展
+      // 使用更保守的估算：原文长度 * 4，最小 1000，最大 8000
+      const estimatedTokens = Math.min(8000, Math.max(1000, block.content.length * 4));
+      
       const stream = await llmWrapper.streamChat({
         messages,
         temperature: 0.3,
-        maxTokens: block.content.length * 2
+        maxTokens: estimatedTokens
       });
 
       // 处理流式响应

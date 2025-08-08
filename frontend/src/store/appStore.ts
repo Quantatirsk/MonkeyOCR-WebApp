@@ -18,12 +18,6 @@ import { syncManager, SyncStatus } from '../utils/syncManager';
 // Store version for migration
 const STORE_VERSION = 2;
 
-// Type for serializable task (without File objects)
-interface SerializableTask extends Omit<ProcessingTask, 'original_file' | 'original_file_url'> {
-  // Keep track of whether original file exists for reconstruction
-  has_original_file?: boolean;
-}
-
 // Custom storage with data migration
 const customStorage = createJSONStorage<any>(() => localStorage);
 
@@ -31,14 +25,8 @@ const customStorage = createJSONStorage<any>(() => localStorage);
 function migrateV1toV2(oldState: any) {
   return {
     ...oldState,
-    tasks: (oldState.tasks || []).map((task: any) => {
-      // Remove old non-serializable fields and mark if they existed
-      const { original_file, original_file_url, ...cleanTask } = task;
-      return {
-        ...cleanTask,
-        has_original_file: !!original_file
-      };
-    }),
+    // Don't migrate tasks - they'll be fetched fresh from server
+    // This ensures we always have the latest data
     // Clear old results - they'll be fetched fresh from server
     results: {},
     _version: 2
@@ -284,36 +272,41 @@ export const useAppStore = create<AppStore>()(
 
       syncWithServer: async () => {
         try {
-          const serverTasks = await syncManager.smartSync();
+          // 如果本地没有任务，强制执行全量同步
+          const { tasks: localTasks } = get();
+          const forceFullSync = localTasks.length === 0;
           
-          if (serverTasks.length > 0) {
-            const { tasks, results } = get();
-            const mergedTasks = syncManager.mergeTasks(tasks, serverTasks);
-            
-            set({ tasks: mergedTasks });
-            
-            // 处理任务状态变化
-            mergedTasks.forEach(async (task) => {
-              if (task.status === 'processing') {
-                // 重新启动处理中任务的轮询
-                get().pollTaskStatus(task.id);
-              } else if (task.status === 'completed') {
-                // 为已完成的任务加载OCR结果（如果还没有加载）
-                if (!results.has(task.id)) {
-                  try {
-                    await get().loadResult(task.id);
-                  } catch (error) {
-                    // 如果是404错误，说明任务可能已被删除，静默处理
-                    if (error instanceof Error && error.message.includes('Resource not found')) {
-                      console.warn(`Task ${task.id} result not found, likely deleted`);
-                    } else {
-                      console.error(`Failed to load result for task ${task.id}:`, error);
-                    }
+          const syncResult = await syncManager.smartSync(forceFullSync);
+          const { tasks: serverTasks, syncType } = syncResult;
+          
+          // 对于全量同步或有数据更新的增量同步，更新任务列表
+          const { results } = get();
+          const mergedTasks = syncManager.mergeTasks(localTasks, serverTasks, syncType === 'full');
+          
+          // 更新任务列表
+          set({ tasks: mergedTasks });
+          
+          // 处理任务状态变化
+          mergedTasks.forEach(async (task) => {
+            if (task.status === 'processing') {
+              // 重新启动处理中任务的轮询
+              get().pollTaskStatus(task.id);
+            } else if (task.status === 'completed') {
+              // 为已完成的任务加载OCR结果（如果还没有加载）
+              if (!results.has(task.id)) {
+                try {
+                  await get().loadResult(task.id);
+                } catch (error) {
+                  // 如果是404错误，说明任务可能已被删除，静默处理
+                  if (error instanceof Error && error.message.includes('Resource not found')) {
+                    console.warn(`Task ${task.id} result not found, likely deleted`);
+                  } else {
+                    console.error(`Failed to load result for task ${task.id}:`, error);
                   }
                 }
               }
-            });
-          }
+            }
+          });
         } catch (error) {
           console.error('Sync with server failed:', error);
           throw error;
@@ -325,17 +318,10 @@ export const useAppStore = create<AppStore>()(
       storage: customStorage,
       // Only persist certain parts of the state with custom serialization
       partialize: (state) => {
-        // Remove non-serializable fields before storing
-        const tasks = state.tasks?.map((task: ProcessingTask): SerializableTask => {
-          const { original_file, original_file_url, ...serializableTask } = task;
-          return {
-            ...serializableTask,
-            has_original_file: !!original_file
-          };
-        }) || [];
-        
+        // DON'T persist tasks - they should always come from server
+        // This avoids sync issues when refreshing the page
         return {
-          tasks,
+          // tasks removed - always fetch fresh from server
           currentTaskId: state.currentTaskId,
           theme: state.theme,
           searchQuery: state.searchQuery,
@@ -355,11 +341,13 @@ export const useAppStore = create<AppStore>()(
       // Trigger rehydration callback
       onRehydrateStorage: () => (state) => {
         if (state) {
-          console.log('Store rehydrated with', state.tasks?.length || 0, 'tasks');
-          // Initialize empty results map if not present
-          if (!state.results || !(state.results instanceof Map)) {
+          // Don't clear tasks here - they should be managed by sync
+          // Only ensure results map is initialized
+          if (!state.results) {
             state.results = new Map();
           }
+          // Tasks will be synced from server automatically
+          console.log('Store rehydrated - ready for sync');
         }
       },
     }

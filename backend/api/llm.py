@@ -199,9 +199,9 @@ async def create_chat_completion(request: ChatCompletionRequest):
                         
                         # Simulate streaming by splitting content into chunks
                         import asyncio
-                        # Split into sentences for better streaming simulation
-                        sentences = complete_content.replace('\n\n', '\n<PARA>\n').split('\n')
-                        chunk_size = 1  # One sentence/line per chunk
+                        # Split content into smaller chunks while preserving formatting
+                        # Don't split by lines to preserve original line breaks
+                        chunk_size = 50  # Characters per chunk
                         
                         # Send initial chunk with metadata
                         first_chunk = {
@@ -217,27 +217,25 @@ async def create_chat_completion(request: ChatCompletionRequest):
                         }
                         yield f"data: {json.dumps(first_chunk)}\n\n"
                         
-                        # Stream content in chunks
-                        for i, sentence in enumerate(sentences):
-                            if sentence.strip():
-                                # Restore paragraph breaks
-                                chunk_content = sentence.replace('<PARA>', '\n') + ('\n' if '<PARA>' in sentence else '')
-                                
-                                chunk = {
-                                    "id": cached_response['id'],
-                                    "object": "chat.completion.chunk", 
-                                    "created": cached_response['created'],
-                                    "model": cached_response['model'],
-                                    "choices": [{
-                                        "index": 0,
-                                        "delta": {"content": chunk_content},
-                                        "finish_reason": None
-                                    }]
-                                }
-                                yield f"data: {json.dumps(chunk)}\n\n"
-                                
-                                # Small delay to simulate real streaming
-                                await asyncio.sleep(0.05)
+                        # Stream content in character chunks to preserve all formatting
+                        for i in range(0, len(complete_content), chunk_size):
+                            chunk_content = complete_content[i:i+chunk_size]
+                            
+                            chunk = {
+                                "id": cached_response['id'],
+                                "object": "chat.completion.chunk", 
+                                "created": cached_response['created'],
+                                "model": cached_response['model'],
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"content": chunk_content},
+                                    "finish_reason": None
+                                }]
+                            }
+                            yield f"data: {json.dumps(chunk)}\n\n"
+                            
+                            # Small delay to simulate real streaming
+                            await asyncio.sleep(0.01)
                         
                         # Send final chunk
                         final_chunk = {

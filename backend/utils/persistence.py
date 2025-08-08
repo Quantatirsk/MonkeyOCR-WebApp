@@ -202,7 +202,8 @@ class PersistenceManager:
         with self._lock:
             if task_id in self._tasks_cache:
                 del self._tasks_cache[task_id]
-                self._save_tasks()
+                # 删除操作必须强制保存，避免并发删除时的数据丢失
+                self._save_tasks(force=True)
                 logger.info(f"Deleted task {task_id}")
                 return True
             return False

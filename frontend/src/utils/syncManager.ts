@@ -13,6 +13,11 @@ export interface SyncResponse {
   sync_type: 'full' | 'incremental';
 }
 
+export interface SyncResult {
+  tasks: ProcessingTask[];
+  syncType: 'full' | 'incremental';
+}
+
 export interface SyncStatus {
   last_sync: string | null;
   is_syncing: boolean;
@@ -83,10 +88,18 @@ class SyncManager {
 
   /**
    * 智能同步 - 根据服务器状态选择增量或全量同步，带重试机制
+   * @param forceFullSync - 是否强制全量同步
    */
-  async smartSync(): Promise<ProcessingTask[]> {
+  async smartSync(forceFullSync: boolean = false): Promise<SyncResult> {
     return this.syncWithRetry(async () => {
       try {
+        // 如果强制全量同步，直接执行
+        if (forceFullSync) {
+          console.log('Forced full sync requested');
+          const tasks = await this.syncAll();
+          return { tasks, syncType: 'full' };
+        }
+
         // 检查服务器状态
         const statusResponse = await fetch(`${this.baseURL}/api/sync/status`, {
           signal: AbortSignal.timeout(5000) // 5秒超时
@@ -102,14 +115,17 @@ class SyncManager {
         // 如果服务器数据哈希与本地不同，执行全量同步
         if (serverHash && serverHash !== this.serverDataHash) {
           console.log('Server data changed, performing full sync');
-          return this.syncAll();
+          const tasks = await this.syncAll();
+          return { tasks, syncType: 'full' };
         }
 
         // 否则执行增量同步
-        return this.syncIncremental();
+        const tasks = await this.syncIncremental();
+        return { tasks, syncType: 'incremental' };
       } catch (error) {
         console.error('Smart sync failed, falling back to full sync:', error);
-        return this.syncAll();
+        const tasks = await this.syncAll();
+        return { tasks, syncType: 'full' };
       }
     });
   }
@@ -246,31 +262,29 @@ class SyncManager {
 
   /**
    * 合并任务列表，处理冲突
-   * 服务器数据为权威数据源，特别是对于删除操作
+   * 增量同步：合并更新
+   * 全量同步：完全替换
    */
-  mergeTasks(localTasks: ProcessingTask[], serverTasks: ProcessingTask[]): ProcessingTask[] {
+  mergeTasks(localTasks: ProcessingTask[], serverTasks: ProcessingTask[], isFullSync: boolean = false): ProcessingTask[] {
     const merged = new Map<string, ProcessingTask>();
     
-    // 以服务器任务为权威数据源（特别是对于删除操作）
-    serverTasks.forEach(serverTask => {
-      const localTask = localTasks.find(t => t.id === serverTask.id);
-      
-      if (!localTask) {
-        // 服务器有但本地没有的新任务，直接添加
-        merged.set(serverTask.id, serverTask);
-      } else {
-        // 服务器和本地都有的任务，服务器数据优先
-        // 但可以保留一些本地的 UI 状态（如果需要的话）
-        const mergedTask: ProcessingTask = {
-          ...serverTask,
-          // 这里可以添加保留本地特定字段的逻辑，但要小心不要覆盖服务器的核心数据
-        };
-        merged.set(serverTask.id, mergedTask);
-      }
+    // 如果是全量同步，直接使用服务器数据
+    if (isFullSync) {
+      serverTasks.forEach(task => {
+        merged.set(task.id, task);
+      });
+      return Array.from(merged.values());
+    }
+    
+    // 增量同步：先保留所有本地任务
+    localTasks.forEach(task => {
+      merged.set(task.id, task);
     });
     
-    // 注意：本地有但服务器没有的任务将被移除（意味着已被删除）
-    // 这确保了删除操作的正确同步
+    // 然后用服务器返回的任务更新或添加
+    serverTasks.forEach(serverTask => {
+      merged.set(serverTask.id, serverTask);
+    });
     
     return Array.from(merged.values());
   }
