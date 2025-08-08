@@ -64,7 +64,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 
     // Process accepted files
     const newFiles: FileUploadItem[] = acceptedFiles.map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       file: file,
       progress: 0,
       status: 'pending' as const,
@@ -120,8 +120,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         .filter(f => f.status === 'pending')
         .map(f => f.file);
 
-      toast.info(`开始上传 ${filesToUpload.length} 个文件...`);
-
       await uploadFiles(filesToUpload, uploadOptions);
       
       // Mark files as completed
@@ -129,7 +127,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 }))
       );
       
-      toast.success("上传完成");
+      toast.success(`${filesToUpload.length} 个文件上传完成`);
       
       // Clear queue after successful upload
       clearAll();
