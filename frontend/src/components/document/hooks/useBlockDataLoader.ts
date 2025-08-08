@@ -33,19 +33,15 @@ export const useBlockDataLoader = ({
   const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
-    // 预加载策略：如果有结果就加载区块数据，不等待切换到对照 tab
-    // 这样可以避免切换时的延迟
     const shouldLoad = 
       enabled &&
       taskId &&
       hasResult &&
+      activeTab === TAB_TYPES.COMPARE &&
       !loading &&
       loadedTaskId !== taskId;
 
-    const shouldLoadImmediately = shouldLoad && activeTab === TAB_TYPES.COMPARE;
-    const shouldPreload = shouldLoad && blockData.length === 0;
-
-    if (shouldLoadImmediately || shouldPreload) {
+    if (shouldLoad) {
       const loadBlockData = async () => {
         setLoading(true);
         setError(null);

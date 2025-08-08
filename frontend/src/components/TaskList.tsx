@@ -536,9 +536,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   const handleClearAllConfirm = async () => {
     try {
-      // 使用带 ID 的 toast，这样可以更新或关闭它
-      const loadingToastId = 'clear-all-loading';
-      toast.info("正在删除所有任务...", { id: loadingToastId });
+      toast.info("正在删除所有任务...");
 
       // Delete all tasks in parallel
       const deletePromises = tasks.map(task => apiClient.deleteTask(task.id));
@@ -559,9 +557,6 @@ export const TaskList: React.FC<TaskListProps> = ({
       
       // Force a full sync with server to ensure consistency
       await syncWithServer();
-      
-      // 关闭加载提示
-      toast.dismiss(loadingToastId);
       
       if (failedCount === 0) {
         toast.success(`成功删除所有 ${successCount} 个任务`);
