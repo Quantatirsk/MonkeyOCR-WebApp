@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
+import { Card } from './ui/card';
 import { Separator } from './ui/separator';
 import {
   AlertDialog,
@@ -125,7 +125,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     };
     
     initializeComponent();
-  }, [tasks.length, initializeSync, syncWithServer, isInitialized, toast]);
+  }, [tasks.length, isInitialized]); // Removed function deps causing re-renders
 
   // 恢复PDF页数信息
   const restorePdfPageCounts = async () => {
@@ -223,34 +223,44 @@ export const TaskList: React.FC<TaskListProps> = ({
   useEffect(() => {
     if (!isInitialized) return;
     
-    const now = Date.now();
-    const newTimers: { [taskId: string]: number } = {};
-    const newFinalTimes: { [taskId: string]: number } = {};
-    
-    tasks.forEach(task => {
-      if (task.status === 'processing' && !timers[task.id]) {
-        // 新的处理中任务，计算已经过的时间
-        const startTime = new Date(task.created_at).getTime();
-        const elapsed = Math.floor((now - startTime) / 1000);
-        newTimers[task.id] = Math.max(0, elapsed);
-      } else if ((task.status === 'completed' || task.status === 'failed') && 
-                 !finalProcessingTimes[task.id] && task.completed_at) {
-        // 新完成的任务，计算总处理时间
-        const startTime = new Date(task.created_at).getTime();
-        const endTime = new Date(task.completed_at).getTime();
-        const totalTime = Math.floor((endTime - startTime) / 1000);
-        newFinalTimes[task.id] = Math.max(0, totalTime);
-      }
+    setTimers(prevTimers => {
+      const now = Date.now();
+      const newTimers = { ...prevTimers };
+      let hasChanges = false;
+      
+      tasks.forEach(task => {
+        if (task.status === 'processing' && !newTimers[task.id]) {
+          // 新的处理中任务，计算已经过的时间
+          const startTime = new Date(task.created_at).getTime();
+          const elapsed = Math.floor((now - startTime) / 1000);
+          newTimers[task.id] = Math.max(0, elapsed);
+          hasChanges = true;
+        }
+      });
+      
+      return hasChanges ? newTimers : prevTimers;
     });
     
-    if (Object.keys(newTimers).length > 0) {
-      setTimers(prev => ({ ...prev, ...newTimers }));
-    }
-    
-    if (Object.keys(newFinalTimes).length > 0) {
-      setFinalProcessingTimes(prev => ({ ...prev, ...newFinalTimes }));
-    }
-  }, [tasks, isInitialized, timers, finalProcessingTimes]);
+    setFinalProcessingTimes(prevFinalTimes => {
+      const now = Date.now();
+      const newFinalTimes = { ...prevFinalTimes };
+      let hasChanges = false;
+      
+      tasks.forEach(task => {
+        if ((task.status === 'completed' || task.status === 'failed') && 
+            !newFinalTimes[task.id] && task.completed_at) {
+          // 新完成的任务，计算总处理时间
+          const startTime = new Date(task.created_at).getTime();
+          const endTime = new Date(task.completed_at).getTime();
+          const totalTime = Math.floor((endTime - startTime) / 1000);
+          newFinalTimes[task.id] = Math.max(0, totalTime);
+          hasChanges = true;
+        }
+      });
+      
+      return hasChanges ? newFinalTimes : prevFinalTimes;
+    });
+  }, [tasks, isInitialized]); // Only depend on tasks and isInitialized
 
 
   // 跟踪正在加载的任务，避免并发请求
@@ -757,20 +767,20 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   if (filteredTasks.length === 0) {
     return (
-      <div className={`flex flex-col h-full ${className}`}>
+      <Card className={`flex flex-col h-full shadow-sm ${className}`}>
         <div className="flex-1 flex flex-col items-center justify-center space-y-2 p-4">
           <Clock className="w-6 h-6 text-muted-foreground" />
           <p className="text-xs text-muted-foreground text-center">暂无任务</p>
           <p className="text-xs text-muted-foreground/60 text-center">上传文件开始处理</p>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <Card className={`flex flex-col h-full shadow-sm ${className}`}>
       {/* Header */}
-      <div className="border-b bg-muted/5 p-2">
+      <div className="flex-shrink-0 border-b bg-muted/5 p-2">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold">
             任务列表 ({filteredTasks.length})
@@ -815,9 +825,15 @@ export const TaskList: React.FC<TaskListProps> = ({
       </div>
       
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full px-2 py-2">
-          <div className="space-y-2">
+      <div className="flex-1 min-h-0">
+        <div 
+          className="h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar"
+          style={{ 
+            height: '100%',
+            scrollbarGutter: 'stable'
+          }}
+        >
+          <div className="space-y-2 px-2 py-2">
             {/* Processing tasks first */}
             {groupedTasks.processing.map(renderTaskItem)}
             
@@ -843,7 +859,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Delete confirmation dialogs */}
@@ -886,7 +902,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 };
 

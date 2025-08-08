@@ -61,11 +61,11 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     // This ensures consistent mapping between PDF and Markdown content even in complex layouts
     const sorted = blocksForPage.sort((a, b) => a.index - b.index);
     
-    console.log(`📋 PDF Page ${pageNumber} blocks order (by index):`, sorted.map(b => ({
-      index: b.index,
-      y: b.bbox[1],
-      content: b.content.substring(0, 30) + '...'
-    })));
+    // console.log(`📋 PDF Page ${pageNumber} blocks order (by index):`, sorted.map(b => ({
+    //   index: b.index,
+    //   y: b.bbox[1],
+    //   content: b.content.substring(0, 30) + '...'
+    // })));
     
     return sorted;
   }, [blocks, pageNumber]);

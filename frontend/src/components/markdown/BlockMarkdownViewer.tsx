@@ -10,6 +10,7 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
+import { visit } from 'unist-util-visit';
 import 'katex/dist/katex.min.css';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
@@ -56,6 +57,36 @@ interface BlockMapping {
   blockIndex: number;
   paragraphIndex: number;
   blockType: 'text' | 'title' | 'image' | 'table';
+}
+
+// Rehype plugin to sanitize unknown HTML tags
+function rehypeSanitizeUnknownTags() {
+  return (tree: any) => {
+    visit(tree, 'element', (node: any) => {
+      // List of known HTML tags that should be preserved
+      const knownTags = new Set([
+        'div', 'span', 'p', 'a', 'img', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'em', 'strong', 'b', 'i', 'u',
+        'br', 'hr', 'sup', 'sub', 'del', 'ins', 'mark', 'small', 'big', 'cite', 'abbr', 'time',
+        'section', 'article', 'nav', 'aside', 'header', 'footer', 'main', 'figure', 'figcaption',
+        'details', 'summary', 'iframe', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math'
+      ]);
+      
+      // If the tag is unknown, convert it to a div with a custom class
+      if (!knownTags.has(node.tagName)) {
+        const originalTag = node.tagName;
+        node.tagName = 'div';
+        node.properties = node.properties || {};
+        node.properties.className = node.properties.className || [];
+        if (Array.isArray(node.properties.className)) {
+          node.properties.className.push(`custom-tag-${originalTag}`);
+        } else {
+          node.properties.className = [`custom-tag-${originalTag}`];
+        }
+        node.properties['data-original-tag'] = originalTag;
+      }
+    });
+  };
 }
 
 
@@ -405,15 +436,33 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     
     // Custom paragraph renderer with LaTeX support
     p: ({ children, ...props }: any) => {
+      // Check if children contains block-level elements that can't be inside <p>
+      const hasBlockElement = React.Children.toArray(children).some((child: any) => {
+        // Check for img elements or elements with type 'img'
+        if (child?.type === 'img' || 
+            child?.props?.mdxType === 'img' ||
+            (typeof child === 'object' && child?.type?.name === 'img')) {
+          return true;
+        }
+        
+        // Check for div elements (including block-container divs)
+        if (child?.type === 'div' || 
+            (typeof child === 'object' && child?.type?.name === 'div') ||
+            child?.props?.className?.includes('block-container')) {
+          return true;
+        }
+        
+        // Check if this is a BlockContainer component
+        if (child?.type?.name === 'BlockContainer') {
+          return true;
+        }
+        
+        return false;
+      });
+      
       const processedChildren = processChildrenWithLatex(children);
       
-      // Check if children contains an image (which would have a div.markdown-image-container)
-      // If so, render as div instead of p to avoid nesting issues
-      const hasImage = React.Children.toArray(children).some((child: any) => 
-        child?.props?.className === 'markdown-image-container'
-      );
-      
-      if (hasImage) {
+      if (hasBlockElement) {
         return (
           <div {...props} className="markdown-paragraph">
             {processedChildren}
@@ -443,22 +492,25 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     
     
 
-    // Custom image renderer
+    // Custom image renderer - returns just the img element, no wrapper
     img: ({ src, alt, ...props }: any) => {
       // Convert relative static paths to full URLs
       const imageSrc = src?.startsWith('/static/') ? getStaticFileUrl(src.slice(8)) : src;
       
+      // Return image with optional caption as a fragment
+      // The parent component will handle proper wrapping
       return (
-        <div className="markdown-image-container">
+        <>
           <img 
             {...props} 
             src={imageSrc} 
             alt={alt}
             className="markdown-image"
             loading="lazy"
+            style={{ maxWidth: '100%', height: 'auto' }}
           />
-          {alt && <figcaption className="markdown-image-caption">{alt}</figcaption>}
-        </div>
+          {alt && <span className="markdown-image-caption" style={{ display: 'block', textAlign: 'center', fontSize: '0.9em', marginTop: '0.5em' }}>{alt}</span>}
+        </>
       );
     },
 
@@ -570,6 +622,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
           ]}
           rehypePlugins={[
             rehypeRaw,
+            rehypeSanitizeUnknownTags,
             [rehypeKatex, {
               strict: false,
               throwOnError: false,

@@ -17,6 +17,36 @@ interface ModernMarkdownViewerProps {
   fontSize?: number; // 字号百分比
 }
 
+// Rehype plugin to sanitize unknown HTML tags
+function rehypeSanitizeUnknownTags() {
+  return (tree: any) => {
+    visit(tree, 'element', (node: any) => {
+      // List of known HTML tags that should be preserved
+      const knownTags = new Set([
+        'div', 'span', 'p', 'a', 'img', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'em', 'strong', 'b', 'i', 'u',
+        'br', 'hr', 'sup', 'sub', 'del', 'ins', 'mark', 'small', 'big', 'cite', 'abbr', 'time',
+        'section', 'article', 'nav', 'aside', 'header', 'footer', 'main', 'figure', 'figcaption',
+        'details', 'summary', 'iframe', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math'
+      ]);
+      
+      // If the tag is unknown, convert it to a div with a custom class
+      if (!knownTags.has(node.tagName)) {
+        const originalTag = node.tagName;
+        node.tagName = 'div';
+        node.properties = node.properties || {};
+        node.properties.className = node.properties.className || [];
+        if (Array.isArray(node.properties.className)) {
+          node.properties.className.push(`custom-tag-${originalTag}`);
+        } else {
+          node.properties.className = [`custom-tag-${originalTag}`];
+        }
+        node.properties['data-original-tag'] = originalTag;
+      }
+    });
+  };
+}
+
 // Rehype plugin to handle table math expressions
 function rehypeTableMath() {
   return (tree: any) => {
@@ -97,9 +127,10 @@ function rehypeTableMath() {
                     });
                     newChildren.push({
                       type: 'element',
-                      tagName: 'div',
+                      tagName: 'span',
                       properties: {
                         className: ['katex-rendered', 'katex-display'],
+                        style: { display: 'block', textAlign: 'center', margin: '0.5em 0' },
                         dangerouslySetInnerHTML: { __html: html }
                       },
                       children: []
@@ -162,18 +193,19 @@ function processTableCellMath(text: string): React.ReactNode {
           strict: false,
         });
         return (
-          <div 
+          <span 
             key={index}
             dangerouslySetInnerHTML={{ __html: html }} 
             style={{ 
               background: 'transparent', 
               textAlign: 'center', 
-              margin: '0.5em 0' 
+              margin: '0.5em 0',
+              display: 'block'
             }} 
           />
         );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
+      } catch {
+        // KaTeX 渲染失败，返回原始文本
         return <span key={index}>{part}</span>;
       }
     } else if (part.match(/^\$[^$]+\$$/)) {
@@ -193,8 +225,8 @@ function processTableCellMath(text: string): React.ReactNode {
             style={{ background: 'transparent' }} 
           />
         );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
+      } catch {
+        // KaTeX 渲染失败，返回原始文本
         return <span key={index}>{part}</span>;
       }
     } else {
@@ -266,10 +298,6 @@ function useForceTextWrap(containerRef: React.RefObject<HTMLDivElement>) {
         appliedElementsRef.current.add(htmlElement);
         appliedCount++;
       });
-      
-      if (appliedCount > 0) {
-        console.log(`✅ 新应用样式到 ${appliedCount} 个元素`);
-      }
     };
 
     // 初始应用
@@ -478,7 +506,6 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
     `;
     
     document.head.appendChild(styleElement);
-    console.log('🎨 已注入强制CSS换行规则');
     
     return () => {
       const element = document.getElementById(styleId);
@@ -496,11 +523,6 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
       /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
       (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );
-
-    // Debug: 检查LaTeX公式
-    if (processed.includes('uparrow') || processed.includes('downarrow')) {
-      console.log('🔬 找到LaTeX箭头符号:', processed.match(/\$[^$]*(?:uparrow|downarrow)[^$]*\$/g));
-    }
 
     return processed;
   }, [content]);
@@ -531,6 +553,7 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
         }}
         rehypePlugins={[
           rehypeRaw, // 处理HTML表格中的原始HTML
+          rehypeSanitizeUnknownTags, // 处理未知的HTML标签
           rehypeTableMath, // 处理表格内的数学公式
           [rehypeKatex, {
             strict: false,
@@ -556,6 +579,54 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
           }]
         ]}
         components={{
+          // Custom paragraph renderer to handle images and block elements properly
+          p: ({ children, ...props }: any) => {
+            // Check if children contains block-level elements or block math
+            const hasBlockElement = React.Children.toArray(children).some((child: any) => {
+              // Check for divs, images, or other block elements
+              if (child?.type === 'div' || 
+                  child?.type === 'img' ||
+                  child?.props?.tagName === 'div' ||
+                  child?.props?.tagName === 'img' ||
+                  (typeof child === 'object' && child?.type?.name === 'img')) {
+                return true;
+              }
+              
+              // Check for code blocks that might contain block math ($$...$$)
+              if (child?.type === 'code' || child?.props?.tagName === 'code') {
+                const text = child?.props?.children || '';
+                if (typeof text === 'string' && text.includes('$$')) {
+                  return true;
+                }
+              }
+              
+              // Check for spans with display:block style
+              if (child?.props?.style?.display === 'block') {
+                return true;
+              }
+              
+              return false;
+            });
+            
+            if (hasBlockElement) {
+              return <div {...props} className="markdown-paragraph">{children}</div>;
+            }
+            
+            return <p {...props}>{children}</p>;
+          },
+          
+          // Custom image renderer to avoid nesting issues
+          img: ({ src, alt, ...props }: any) => {
+            return (
+              <img 
+                {...props} 
+                src={src} 
+                alt={alt}
+                style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '0.5em auto' }}
+              />
+            );
+          },
+          
           // 自定义表格单元格渲染器，处理数学公式
           td: ({ children, ...props }: any) => {
             const processChildren = (children: any): any => {
@@ -626,7 +697,8 @@ export function ModernMarkdownViewer({ content, className = '', fontSize = 100 }
                   output: 'html',
                   strict: false,
                 });
-                return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '1em 0' }} />;
+                // Use span with display:block instead of div to avoid nesting issues
+                return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '1em 0', display: 'block' }} />;
               } catch (error) {
                 console.error('KaTeX render error:', error);
                 return <code {...props}>{children}</code>;

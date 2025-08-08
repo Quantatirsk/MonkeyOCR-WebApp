@@ -27,21 +27,23 @@ export function MainContent() {
   // 🔧 修复：使用CSS Grid避免组件实例重新创建，保持DocumentViewer稳定
   return (
     <div 
-      className="flex-1 overflow-hidden transition-all duration-300 ease-in-out"
+      className="h-full transition-all duration-300 ease-in-out"
       style={{
         display: 'grid',
         gridTemplateColumns: taskListVisible ? `${25}% 2px 1fr` : '0px 0px 1fr',
-        height: '100%'
+        gridTemplateRows: '1fr',
+        height: '100%',
+        overflow: 'hidden' // Contained overflow for layout only
       }}
     >
       {/* 任务列表区域 - 始终存在，通过Grid控制显示 */}
       <div 
-        className={`bg-muted/10 flex flex-col transition-all duration-300 ease-in-out ${
+        className={`bg-muted/10 flex flex-col transition-all duration-300 ease-in-out overflow-hidden ${
           taskListVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          overflow: taskListVisible ? 'visible' : 'hidden',
-          minWidth: taskListVisible ? `${minSizePercent}%` : '0px'
+          minWidth: taskListVisible ? `${minSizePercent}%` : '0px',
+          height: '100%'
         }}
       >
         {/* 上传区域 */}
@@ -57,8 +59,8 @@ export function MainContent() {
         </div>
 
         {/* 任务列表 */}
-        <div className="flex-1 px-4 pb-4 min-h-0">
-          <TaskList />
+        <div className="flex-1 px-4 pb-4 min-h-0 overflow-hidden">
+          <TaskList className="h-full" />
         </div>
       </div>
       

@@ -64,14 +64,17 @@ export class BlockMarkdownGenerator {
           }
           
           // Wrap in a proper list item
-          markdownParts.push(`<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<ul class="markdown-unordered-list"><li class="markdown-list-item">${cleanContent}</li></ul>\n\n</div>`);
+          // Add extra newlines before and after to ensure div is not inside a paragraph
+          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<ul class="markdown-unordered-list"><li class="markdown-list-item">${cleanContent}</li></ul>\n\n</div>\n\n`);
         } else {
-          markdownParts.push(`<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${formattedContent}\n\n</div>`);
+          // Add extra newlines before and after to ensure div is not inside a paragraph
+          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${formattedContent}\n\n</div>\n\n`);
         }
       }
     }
 
-    return markdownParts.join('\n\n');
+    // Join with single newline since we already have newlines in each part
+    return markdownParts.join('\n');
   }
 
 
@@ -325,7 +328,8 @@ export class BlockMarkdownGenerator {
     }
     
     if (!taskId) {
-      console.warn('Cannot determine task ID for image path processing');
+      // If we can't determine the task ID, return the content as-is
+      // This is not critical as the image might still work with relative paths
       return markdownContent;
     }
     
@@ -431,7 +435,8 @@ export class BlockMarkdownGenerator {
       }
     }
 
-    return markdownParts.join('\n\n');
+    // Join with single newline since we already have newlines in each part
+    return markdownParts.join('\n');
   }
 
   /**
@@ -470,6 +475,7 @@ export class BlockMarkdownGenerator {
       }
     }
 
-    return markdownParts.join('\n\n');
+    // Join with single newline since we already have newlines in each part
+    return markdownParts.join('\n');
   }
 }
