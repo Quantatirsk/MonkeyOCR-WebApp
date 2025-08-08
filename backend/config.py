@@ -13,11 +13,10 @@ load_dotenv()
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
     
-    # LLM Configuration for Translation
+    # LLM Configuration
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_model_name: str = os.getenv("LLM_MODEL_NAME", "gpt-4.1-nano")
-    translation_cache_ttl: int = int(os.getenv("TRANSLATION_CACHE_TTL", "3600"))
     
     # MonkeyOCR Configuration
     monkeyocr_api_key: str = os.getenv("MONKEYOCR_API_KEY", "")
@@ -26,9 +25,26 @@ class Settings(BaseSettings):
     debug: bool = os.getenv("DEBUG", "True").lower() == "true"
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
     
+    # Redis Configuration
+    redis_enabled: bool = os.getenv("REDIS_ENABLED", "False").lower() == "true"
+    redis_host: str = os.getenv("REDIS_HOST", "redis")
+    redis_port: int = int(os.getenv("REDIS_PORT", "6379"))
+    redis_db: int = int(os.getenv("REDIS_DB", "0"))
+    redis_password: Optional[str] = os.getenv("REDIS_PASSWORD", None)
+    redis_url: Optional[str] = os.getenv("REDIS_URL", None)
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
+    
+    @property
+    def get_redis_url(self) -> str:
+        """Get Redis connection URL"""
+        if self.redis_url:
+            return self.redis_url
+        if self.redis_password:
+            return f"redis://:{self.redis_password}@{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        return f"redis://{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
 
 # Global settings instance

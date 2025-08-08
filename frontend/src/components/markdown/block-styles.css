@@ -15,13 +15,13 @@
 .block-container {
   display: block;
   position: relative;
-  padding: 2px 4px;
+  padding: 0; /* 移除padding，由.block-content-wrapper提供内边距 */
   margin: 0.15em 0 0.25em 0 !important;
   border-radius: 3px;
   /* Remove transition for instant response */
   cursor: pointer;
   background-color: transparent;
-  border-left: 4px solid transparent;
+  border-left: 0; /* 移除边框，由.block-content-wrapper处理 */
 }
 
 /* Ensure paragraphs inside block containers don't add extra margin */
@@ -39,29 +39,30 @@
 
 /* Block content wrapper - gives padding around content for better hover/selected area */
 .block-content-wrapper {
-  padding: 6px 8px;
-  margin: -6px -8px;
+  padding: 8px; /* 与翻译/分析框的 p-2 (8px) 保持一致 */
+  margin: 0; /* 移除负边距，让宽度与翻译/分析结果框保持一致 */
   border-radius: 4px;
-  transition: background-color 0.15s ease, border-left-color 0.15s ease;
-  border-left: 4px solid transparent;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  border: 1px solid transparent; /* 默认透明边框，hover时显示 */
+  background-color: transparent;
 }
 
-/* Pure CSS hover - apply to content wrapper */
+/* Pure CSS hover - apply to content wrapper - 蓝色风格 */
 .block-container:hover .block-content-wrapper {
-  background-color: rgba(59, 130, 246, 0.1) !important;
-  border-left-color: rgba(59, 130, 246, 0.4) !important;
+  background-color: rgba(59, 130, 246, 0.1) !important; /* 浅蓝色背景 */
+  border: 1px solid #3B82F6 !important; /* blue-500 */
 }
 
 
-/* Apply background to the content wrapper inside selected containers */
+/* Apply background to the content wrapper inside selected containers - 原始红色风格 */
 .block-container.block-selected .block-content-wrapper {
-  background-color: rgba(239, 68, 68, 0.15) !important; /* 浅淡红色，与PDF区块选中色保持一致 */
-  border-left-color: rgba(239, 68, 68, 0.4) !important;
+  background-color: rgba(239, 68, 68, 0.15) !important; /* 原始红色背景 */
+  border: 1px solid #EF4444 !important; /* red-500 */
 }
 
-.block-container.block-highlighted {
+.block-container.block-highlighted .block-content-wrapper {
   background-color: hsl(var(--secondary) / 0.2) !important;
-  border-left-color: hsl(var(--secondary) / 0.4) !important;
+  border: 1px solid hsl(var(--secondary) / 0.4) !important;
 }
 
 /* Removed .block-hovered class - using :hover pseudo-class instead */
@@ -74,13 +75,13 @@
 .block-paragraph {
   display: block;
   position: relative;
-  padding: 2px 4px;
+  padding: 8px; /* 与翻译/分析框的 p-2 (8px) 保持一致 */
   margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
-  border-radius: 3px;
-  transition: background-color 0.15s ease, box-shadow 0.15s ease; /* 仅对不影响布局的属性过渡 */
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease; /* 仅对不影响布局的属性过渡 */
   cursor: pointer;
   background-color: transparent;
-  border-left: 4px solid transparent; /* 预设边框避免hover时布局变化 */
+  border: 1px solid transparent; /* 预设边框避免hover时布局变化 */
   text-align: justify; /* 区块内文字两端对齐 */
   text-justify: inter-word; /* 单词间对齐 */
 }
@@ -110,40 +111,40 @@
 
 /* Removed duplicate hover rule - see line 140 for the active hover style */
 
-/* Block type specific styling */
+/* Block type specific styling - 蓝色 hover 风格 */
 .block-paragraph.block-type-text:hover {
-  background-color: rgba(59, 130, 246, 0.1); /* blue-500 with alpha */
-  /* 移除transform，仅保留背景色变化 */
+  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
+  border: 1px solid #3B82F6; /* blue-500 */
 }
 
 .block-paragraph.block-type-title:hover {
-  background-color: rgba(16, 185, 129, 0.1); /* green-500 with alpha */
-  /* 移除transform，仅保留背景色变化 */
+  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
+  border: 1px solid #3B82F6; /* blue-500 */
 }
 
 .block-paragraph.block-type-image:hover {
-  background-color: rgba(245, 158, 11, 0.1); /* amber-500 with alpha */
-  /* 移除transform，仅保留背景色变化 */
+  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
+  border: 1px solid #3B82F6; /* blue-500 */
 }
 
-/* Block states */
+/* Block states - 原始红色风格 */
 .block-paragraph.block-selected {
-  background-color: rgba(239, 68, 68, 0.15); /* 浅淡红色，与PDF区块选中色保持一致 */
-  border-radius: 3px;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+  background-color: rgba(239, 68, 68, 0.15); /* 原始红色背景 */
+  border: 1px solid #EF4444; /* red-500 */
+  border-radius: 4px;
   /* 移除translateX位移，保持布局稳定 */
 }
 
 .block-paragraph.block-highlighted {
   background-color: hsl(var(--secondary) / 0.2);
-  border-left-color: hsl(var(--secondary) / 0.4);
-  /* 仅改变预设边框颜色，不改变宽度 */
+  border: 1px solid hsl(var(--secondary) / 0.4);
+  border-radius: 4px;
 }
 
-/* Use :hover for paragraphs too - removed .block-hovered class */
+/* Use :hover for paragraphs too - 蓝色风格 */
 .block-paragraph:hover {
-  background-color: rgba(59, 130, 246, 0.08) !important;
-  border-left-color: rgba(59, 130, 246, 0.3) !important;
+  background-color: rgba(59, 130, 246, 0.1) !important; /* 浅蓝色背景 */
+  border: 1px solid #3B82F6 !important; /* blue-500 */
 }
 
 /* Block marker */
@@ -514,13 +515,17 @@
 /* High contrast mode */
 @media (prefers-contrast: high) {
   .block-paragraph {
-    border-left-color: hsl(var(--border)); /* 显示预设边框，不改变宽度 */
+    border-color: hsl(var(--border)); /* 显示预设边框 */
   }
   
   .block-paragraph.block-selected {
-    border-left-color: rgba(239, 68, 68, 0.8); /* 红色边框 */
+    border-color: #EF4444; /* red-500 原始红色 */
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
-    /* 不改变边框宽度，仅改变颜色 */
+  }
+  
+  .block-container.block-selected .block-content-wrapper {
+    border-color: #EF4444; /* red-500 原始红色 */
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
   }
 }
 

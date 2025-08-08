@@ -4,13 +4,15 @@ Compatible with OpenAI SDK for chat completion functionality
 """
 import logging
 import json
+import time
 from typing import Optional, List, Union, Dict, Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 
-from config import get_llm_config, validate_llm_config
+from config import get_llm_config, validate_llm_config, settings
+from utils.llm_cache import llm_cache
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +176,133 @@ async def create_chat_completion(request: ChatCompletionRequest):
             completion_params["max_tokens"] = request.max_tokens
         
         if request.stream:
-            # Streaming response
+            # Streaming response with intelligent caching
             async def generate_stream():
                 try:
-                    stream = await client.chat.completions.create(**completion_params)
-                    async for chunk in stream:
-                        chunk_data = chunk.model_dump()
-                        yield f"data: {json.dumps(chunk_data)}\n\n"
-                    yield "data: [DONE]\n\n"
+                    # Check cache first (only if Redis is enabled)
+                    cached_response = None
+                    if settings.redis_enabled:
+                        cached_response = await llm_cache.get_cached_response(
+                            openai_messages, 
+                            request.model,
+                            temperature=request.temperature,
+                            max_tokens=request.max_tokens,
+                            top_p=request.top_p
+                        )
+                    
+                    if cached_response:
+                        # Simulate streaming from cached complete response
+                        logger.info("Streaming cached LLM response")
+                        
+                        # Get the complete content from cache
+                        complete_content = cached_response['choices'][0]['message']['content']
+                        
+                        # Simulate streaming by splitting content into chunks
+                        import asyncio
+                        # Split into sentences for better streaming simulation
+                        sentences = complete_content.replace('\n\n', '\n<PARA>\n').split('\n')
+                        chunk_size = 1  # One sentence/line per chunk
+                        
+                        # Send initial chunk with metadata
+                        first_chunk = {
+                            "id": cached_response['id'],
+                            "object": "chat.completion.chunk",
+                            "created": cached_response['created'],
+                            "model": cached_response['model'],
+                            "choices": [{
+                                "index": 0,
+                                "delta": {"role": "assistant", "content": ""},
+                                "finish_reason": None
+                            }]
+                        }
+                        yield f"data: {json.dumps(first_chunk)}\n\n"
+                        
+                        # Stream content in chunks
+                        for i, sentence in enumerate(sentences):
+                            if sentence.strip():
+                                # Restore paragraph breaks
+                                chunk_content = sentence.replace('<PARA>', '\n') + ('\n' if '<PARA>' in sentence else '')
+                                
+                                chunk = {
+                                    "id": cached_response['id'],
+                                    "object": "chat.completion.chunk", 
+                                    "created": cached_response['created'],
+                                    "model": cached_response['model'],
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {"content": chunk_content},
+                                        "finish_reason": None
+                                    }]
+                                }
+                                yield f"data: {json.dumps(chunk)}\n\n"
+                                
+                                # Small delay to simulate real streaming
+                                await asyncio.sleep(0.05)
+                        
+                        # Send final chunk
+                        final_chunk = {
+                            "id": cached_response['id'],
+                            "object": "chat.completion.chunk",
+                            "created": cached_response['created'], 
+                            "model": cached_response['model'],
+                            "choices": [{
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "stop"
+                            }]
+                        }
+                        yield f"data: {json.dumps(final_chunk)}\n\n"
+                        yield "data: [DONE]\n\n"
+                        
+                    else:
+                        # No cache hit, make real API call and cache the result
+                        logger.info("Making fresh LLM API call for streaming")
+                        complete_content = ""
+                        chunks_data = []
+                        
+                        stream = await client.chat.completions.create(**completion_params)
+                        async for chunk in stream:
+                            chunk_data = chunk.model_dump()
+                            chunks_data.append(chunk_data)
+                            
+                            # Accumulate content for caching
+                            if (chunk_data.get('choices') and 
+                                chunk_data['choices'][0].get('delta') and 
+                                chunk_data['choices'][0]['delta'].get('content')):
+                                complete_content += chunk_data['choices'][0]['delta']['content']
+                            
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                        
+                        # Cache the complete response (if Redis is enabled)
+                        if settings.redis_enabled and complete_content.strip():
+                            # Create a complete response object for caching
+                            complete_response = {
+                                "id": chunks_data[0]['id'] if chunks_data else "unknown",
+                                "object": "chat.completion",
+                                "created": chunks_data[0]['created'] if chunks_data else int(time.time()),
+                                "model": request.model,
+                                "choices": [{
+                                    "index": 0,
+                                    "message": {
+                                        "role": "assistant",
+                                        "content": complete_content
+                                    },
+                                    "finish_reason": "stop"
+                                }]
+                            }
+                            
+                            await llm_cache.cache_response(
+                                openai_messages,
+                                request.model,
+                                complete_response,
+                                temperature=request.temperature,
+                                max_tokens=request.max_tokens,
+                                top_p=request.top_p
+                            )
+                            logger.info("Cached streaming response for future use")
+                        
+                        yield "data: [DONE]\n\n"
+                        
                 except Exception as e:
                     error_data = {
                         "error": {
@@ -201,9 +322,37 @@ async def create_chat_completion(request: ChatCompletionRequest):
                 }
             )
         else:
-            # Non-streaming response
+            # Non-streaming response with caching
+            # Try to get cached response first (only if Redis is enabled)
+            if settings.redis_enabled:
+                cached_response = await llm_cache.get_cached_response(
+                    openai_messages, 
+                    request.model,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    top_p=request.top_p
+                )
+                
+                if cached_response:
+                    logger.info("Returning cached LLM response")
+                    return cached_response
+            
+            # Make actual API call
             completion = await client.chat.completions.create(**completion_params)
-            return completion.model_dump()
+            response_data = completion.model_dump()
+            
+            # Cache the response (only if Redis is enabled)
+            if settings.redis_enabled:
+                await llm_cache.cache_response(
+                    openai_messages,
+                    request.model,
+                    response_data,
+                    temperature=request.temperature,
+                    max_tokens=request.max_tokens,
+                    top_p=request.top_p
+                )
+            
+            return response_data
             
     except Exception as e:
         logger.error(f"Error in chat completion: {e}")

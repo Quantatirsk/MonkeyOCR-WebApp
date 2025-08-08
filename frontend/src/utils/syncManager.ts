@@ -4,6 +4,7 @@
  */
 
 import { ProcessingTask, APIResponse } from '../types';
+import { getApiUrl } from '../config';
 
 export interface SyncResponse {
   tasks: ProcessingTask[];
@@ -32,8 +33,8 @@ class SyncManager {
   private maxRetries: number = 3;
   private lastSyncError: string | null = null;
 
-  constructor(baseURL: string = 'http://localhost:8001/api') {
-    this.baseURL = baseURL;
+  constructor(baseURL: string = getApiUrl('/')) {
+    this.baseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
     this.loadSyncState();
   }
 
@@ -87,7 +88,7 @@ class SyncManager {
     return this.syncWithRetry(async () => {
       try {
         // 检查服务器状态
-        const statusResponse = await fetch(`${this.baseURL}/sync/status`, {
+        const statusResponse = await fetch(`${this.baseURL}/api/sync/status`, {
           signal: AbortSignal.timeout(5000) // 5秒超时
         });
         
@@ -187,7 +188,7 @@ class SyncManager {
     try {
       console.log(`Executing ${type} sync...`);
       
-      const url = `${this.baseURL}/sync`;
+      const url = `${this.baseURL}/api/sync`;
       const params = new URLSearchParams();
       
       if (type === 'incremental' && this.lastSyncTimestamp) {
@@ -288,14 +289,14 @@ class SyncManager {
    * 获取原始文件预览URL
    */
   getOriginalFileUrl(taskId: string): string {
-    return `${this.baseURL}/files/${taskId}/original`;
+    return `${this.baseURL}/api/files/${taskId}/original`;
   }
 
   /**
    * 获取任务预览信息
    */
   async getTaskPreview(taskId: string): Promise<APIResponse<any>> {
-    const response = await fetch(`${this.baseURL}/tasks/${taskId}/preview`);
+    const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`);
     
     if (!response.ok) {
       throw new Error(`Preview request failed: ${response.statusText}`);

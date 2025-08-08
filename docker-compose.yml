@@ -5,19 +5,35 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-production}  # backend-build for dev, production for prod
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
+      - "${BACKEND_PORT:-8001}:8001"  # Only exposed in dev mode
     environment:
       # Backend configuration
       - PYTHONPATH=/app
-      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://0.0.0.0:3000
-      # Optional: External API configuration
-      - MONKEYOCR_API_BASE_URL=https://ocr.teea.cn
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - DEBUG=${DEBUG:-false}
+      - RELOAD=${RELOAD:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # API configuration
+      - MONKEYOCR_API_BASE_URL=${MONKEYOCR_API_BASE_URL:-https://ocr.teea.cn}
+      - MONKEYOCR_API_KEY=${MONKEYOCR_API_KEY}
+      
+      # LLM configuration (optional)
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_MODEL_NAME=${LLM_MODEL_NAME:-gpt-4o-mini}
     volumes:
+      # Source code (only mounted in dev)
+      - ${SOURCE_MOUNT:-/dev/null}:/app:ro
+      - ${FRONTEND_MOUNT:-/dev/null}:/app/static/frontend:ro
       # Persistent data storage
       - ./data:/app/data
       - ./static:/app/static
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
+    command: ${COMMAND:-}  # Override in dev mode
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
       interval: 30s
@@ -29,26 +45,44 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: ${CPU_LIMIT:-2.0}
+          memory: ${MEMORY_LIMIT:-2G}
         reservations:
-          cpus: '0.5'
-          memory: 512M
+          cpus: ${CPU_RESERVATION:-0.5}
+          memory: ${MEMORY_RESERVATION:-512M}
+    logging:
+      driver: ${LOG_DRIVER:-json-file}
+      options:
+        max-size: ${LOG_MAX_SIZE:-10m}
+        max-file: ${LOG_MAX_FILES:-3}
 
-  # Optional: Redis for caching/sessions (uncomment if needed)
-  # redis:
-  #   image: redis:7-alpine
-  #   restart: unless-stopped
-  #   volumes:
-  #     - redis_data:/data
-  #   networks:
-  #     - monkeyocr-network
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 256M
-  #       reservations:
-  #         memory: 64M
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    restart: ${RESTART_POLICY:-unless-stopped}
+    command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY:-256mb} --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - monkeyocr-network
+    ports:
+      - "${REDIS_PORT:-6379}:6379"  # Optional: expose for debugging
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    deploy:
+      resources:
+        limits:
+          cpus: ${REDIS_CPU_LIMIT:-0.5}
+          memory: ${REDIS_MEMORY_LIMIT:-256M}
+        reservations:
+          cpus: ${REDIS_CPU_RESERVATION:-0.1}
+          memory: ${REDIS_MEMORY_RESERVATION:-64M}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 networks:
   monkeyocr-network:

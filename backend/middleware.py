@@ -4,7 +4,8 @@ Security middleware for MonkeyOCR WebApp
 import time
 from collections import defaultdict, deque
 from fastapi import FastAPI, Request, Response
-from fastapi.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
 import logging
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple rate limiting middleware"""
     
-    def __init__(self, app: FastAPI, calls: int = 100, period: int = 60):
+    def __init__(self, app: ASGIApp, calls: int = 10000, period: int = 60):
         super().__init__(app)
         self.calls = calls
         self.period = period
@@ -99,8 +100,8 @@ def add_security_middleware(app: FastAPI):
     """Add all security middleware to the FastAPI app"""
     logger.info("Adding security middleware...")
     
-    # Add rate limiting (100 requests per minute per IP)
-    app.add_middleware(RateLimitMiddleware, calls=100, period=60)
+    # Add rate limiting (10000 requests per minute per IP)
+    app.add_middleware(RateLimitMiddleware, calls=10000, period=60)
     
     # Add security headers
     app.add_middleware(SecurityHeadersMiddleware)

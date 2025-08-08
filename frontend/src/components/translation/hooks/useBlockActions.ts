@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { llmWrapper, LLMWrapper } from '../../../lib/llmwrapper';
+import { getStaticFileUrl } from '../../../config';
 import { 
   buildTranslateMessages, 
   buildExplainMessages,
@@ -38,7 +39,7 @@ function extractImageInfo(content: string): { url: string; title: string } | nul
     const title = match[1] || '';
     const url = match[2];
     // 如果是相对路径，转换为完整URL
-    const fullUrl = url.startsWith('/static/') ? `http://localhost:8001${url}` : url;
+    const fullUrl = url.startsWith('/static/') ? getStaticFileUrl(url.slice(8)) : url;
     return { url: fullUrl, title };
   }
   return null;

@@ -26,6 +26,15 @@ async def lifespan(app: FastAPI):
     # 启动时初始化
     logger.info("Starting MonkeyOCR WebApp backend...")
     
+    # 初始化 Redis 连接（如果启用）
+    if os.getenv("REDIS_ENABLED", "False").lower() == "true":
+        from utils.redis_client import RedisClient
+        redis_connected = await RedisClient.initialize()
+        if redis_connected:
+            logger.info("Redis connection initialized successfully")
+        else:
+            logger.warning("Redis connection failed, using fallback storage")
+    
     # 初始化持久化管理器并恢复任务状态
     from utils.persistence import init_persistence
     persistence_manager = init_persistence()
@@ -77,6 +86,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("No tasks to save on shutdown")
     
+    # 关闭 Redis 连接（如果启用）
+    if os.getenv("REDIS_ENABLED", "False").lower() == "true":
+        from utils.redis_client import RedisClient
+        await RedisClient.close()
+        logger.info("Redis connection closed")
+    
     logger.info("Backend shutdown completed")
 
 app = FastAPI(
@@ -107,15 +122,40 @@ app.add_middleware(
 # Add security middleware
 add_security_middleware(app)
 
-# Static file serving for extracted images
+# Static file serving for extracted images with CORS support
+from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope, Receive, Send
+
+class StaticFilesWithCORS(StaticFiles):
+    """Custom StaticFiles class that adds CORS headers"""
+    
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """
+        The ASGI application interface.
+        """
+        # Handle the request normally first
+        if scope["type"] == "http" and scope["path"].startswith("/static"):
+            # Create a wrapper for send to inject CORS headers
+            async def send_wrapper(message):
+                if message["type"] == "http.response.start":
+                    headers = list(message.get("headers", []))
+                    # Add CORS headers
+                    headers.append((b"access-control-allow-origin", b"*"))
+                    headers.append((b"access-control-allow-methods", b"GET, OPTIONS"))
+                    headers.append((b"access-control-allow-headers", b"Accept, Content-Type"))
+                    message["headers"] = headers
+                await send(message)
+            
+            await super().__call__(scope, receive, send_wrapper)
+        else:
+            await super().__call__(scope, receive, send)
+
 static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-else:
-    print(f"Warning: Static directory not found at {static_dir}")
-    # Create the directory if it doesn't exist  
+if not os.path.exists(static_dir):
+    print(f"Creating static directory at {static_dir}")
     os.makedirs(static_dir, exist_ok=True)
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+app.mount("/static", StaticFilesWithCORS(directory=static_dir), name="static")
 
 # Basic API routes
 @app.get("/")
@@ -124,20 +164,38 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Basic health check"""
+    health_status = {
+        "status": "healthy",
+        "services": {}
+    }
+    
+    # Check Redis if enabled
+    if os.getenv("REDIS_ENABLED", "False").lower() == "true":
+        from utils.redis_client import RedisClient
+        try:
+            client = await RedisClient.get_client()
+            if client:
+                await client.ping()
+                health_status["services"]["redis"] = "healthy"
+            else:
+                health_status["services"]["redis"] = "disconnected"
+        except Exception as e:
+            health_status["services"]["redis"] = f"error: {str(e)}"
+            health_status["status"] = "degraded"
+    
+    return health_status
 
 # Include API routes
 from api.results import router as results_router
 from api.sync import router as sync_router
 from api.upload import router as upload_router
 from api.llm import router as llm_router
-from api.translation import router as translation_router
 
 app.include_router(upload_router)
 app.include_router(results_router)
 app.include_router(sync_router)
 app.include_router(llm_router)
-app.include_router(translation_router)
 
 if __name__ == "__main__":
     import uvicorn

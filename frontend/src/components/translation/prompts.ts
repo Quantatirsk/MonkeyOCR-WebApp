@@ -54,8 +54,10 @@ const TABLE_PROMPTS: BlockPrompts = {
 - 每个单元格的内容必须准确对应翻译
 - 保持表格的行列结构完全一致
 
-重要：输出必须是可直接在网页中渲染的HTML表格！`,
-    userPromptTemplate: (content: string) => `请严格按要求翻译以下HTML表格，只翻译文字内容，保持所有HTML标签和结构不变：\n\n${content}\n\n注意：必须输出完整的HTML表格代码！`
+输出格式要求：
+- 直接输出HTML表格代码，不要使用任何markdown代码块包裹
+- 不要输出任何额外的说明文字`,
+    userPromptTemplate: (content: string) => `请严格按要求翻译以下HTML表格，只翻译文字内容，保持所有HTML标签和结构不变：\n\n${content}\n\n重要提醒：\n1. 直接输出HTML代码，不要使用markdown代码块\n2. 不要在输出前后添加\`\`\`或其他格式标记\n3. 只输出翻译后的HTML表格，不要有任何额外说明`
   },
   explain: {
     systemPrompt: `你是专业的表格数据分析专家。专注于分析HTML表格的数据含义。

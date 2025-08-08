@@ -12,7 +12,8 @@ import {
   RotateCcw, 
   Trash2,
   Download,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
@@ -434,6 +435,31 @@ export const TaskList: React.FC<TaskListProps> = ({
     return date.toLocaleDateString('zh-CN');
   };
 
+  // Format submission time for display
+  const formatSubmissionTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      // 今天的任务显示具体时间
+      return date.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } else {
+      // 其他日期显示月日时间
+      return date.toLocaleDateString('zh-CN', { 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-');
+    }
+  };
+
   // Handle task selection
   const handleTaskSelect = (task: ProcessingTask) => {
     setCurrentTask(task.id);
@@ -592,53 +618,67 @@ export const TaskList: React.FC<TaskListProps> = ({
                 {task.filename}
               </p>
             </div>
-            <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 flex-shrink-0">
-              {task.status === 'pending' ? '等待' :
-               task.status === 'processing' ? '处理中' :
-               task.status === 'completed' ? '完成' :
-               task.status === 'failed' ? '失败' : task.status}
-            </Badge>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {task.from_cache && task.status === 'completed' && (
+                <div 
+                  className="text-yellow-500 animate-pulse" 
+                  title="从缓存加载（极速完成）"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+              )}
+              <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5">
+                {task.status === 'pending' ? '等待' :
+                 task.status === 'processing' ? '处理中' :
+                 task.status === 'completed' ? '完成' :
+                 task.status === 'failed' ? '失败' : task.status}
+              </Badge>
+            </div>
           </div>
           {/* 第二行：元信息 */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="font-medium">{task.file_type.toUpperCase()}</span>
-            <span>•</span>
-            <span>{formatTimeAgo(task.created_at)}</span>
-            
-            {/* 处理时间或进度信息 */}
-            {task.status === 'processing' ? (
-              <>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
-                </div>
-                {getProcessingInfo(task) && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {getTaskProcessingTime(task) && (
-                  <>
-                    <span>•</span>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      <span className="font-mono text-blue-600">{formatDuration(getTaskProcessingTime(task)!)}</span>
-                    </div>
-                  </>
-                )}
-                {getProcessingInfo(task) && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                  </>
-                )}
-              </>
-            )}
+          <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <span className="font-medium">{task.file_type.toUpperCase()}</span>
+              <span>•</span>
+              <span title={`提交于 ${formatTimeAgo(task.created_at)}`}>{formatSubmissionTime(task.created_at)}</span>
+              
+              {/* 处理时间或进度信息 */}
+              {task.status === 'processing' ? (
+                <>
+                  <span>•</span>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
+                  </div>
+                  {getProcessingInfo(task) && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {getTaskProcessingTime(task) && (
+                    <>
+                      <span>•</span>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span className={`font-mono ${task.from_cache ? 'text-yellow-600' : 'text-blue-600'}`}>
+                          {task.from_cache && task.status === 'completed' ? '< 1s' : formatDuration(getTaskProcessingTime(task)!)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {getProcessingInfo(task) && (
+                    <>
+                      <span>•</span>
+                      <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           {/* 第三行：操作按钮 */}
