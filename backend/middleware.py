@@ -1,6 +1,7 @@
 """
 Security middleware for MonkeyOCR WebApp
 """
+import os
 import time
 from collections import defaultdict, deque
 from fastapi import FastAPI, Request, Response
@@ -22,13 +23,23 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        
+        # Build CSP connect-src directive from environment
+        csp_connect_sources = os.getenv("CSP_CONNECT_SOURCES", "").strip()
+        if csp_connect_sources:
+            # Add extra sources to connect-src
+            connect_src = f"'self' {csp_connect_sources}"
+        else:
+            # Default to self only
+            connect_src = "'self'"
+        
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
             "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob:; "
+            "img-src 'self' data: blob: https:; "
             "font-src 'self' data:; "
-            "connect-src 'self'; "
+            f"connect-src {connect_src}; "
             "media-src 'self'; "
             "object-src 'none'; "
             "frame-ancestors 'none';"

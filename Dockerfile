@@ -6,7 +6,7 @@ RUN npm ci
 COPY frontend/ .
 RUN npm run build
 # Debug: Check if build output exists
-RUN ls -la dist/ || echo "Build failed - no dist directory"
+RUN ls -la dist/
 
 # Use python alpine for smaller size but with package manager
 FROM python:3.11-alpine AS runtime
@@ -34,7 +34,7 @@ COPY backend/ ./
 COPY --from=frontend-build /app/frontend/dist ./static/frontend
 
 # Verify frontend files exist
-RUN ls -la ./static/frontend/ && echo "Frontend files found!" || echo "Frontend copy failed"
+RUN ls -la ./static/frontend/
 
 # Use single process mode (no nginx)
 EXPOSE 8001

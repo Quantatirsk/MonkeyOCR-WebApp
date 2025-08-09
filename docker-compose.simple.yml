@@ -1,10 +1,9 @@
 services:
   monkeyocr-webapp:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: quantatrisk/monkeyocr-webapp:latest
+    platform: linux/amd64
     ports:
-      - "${API_PORT:-8001}:8001"  # Full-stack app: API + Frontend (SPA fallback)
+      - "${API_PORT:-8001}:8001"
     env_file:
       - .env
     environment:
@@ -13,9 +12,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     volumes:
-      # Persistent data storage  
       - ./data:/app/data
-      # Note: ./static removed to avoid overriding built-in frontend files
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -30,15 +27,13 @@ services:
 
   redis:
     image: redis:7-alpine
+    platform: linux/amd64
     restart: unless-stopped
     command: redis-server --appendonly yes --maxmemory ${REDIS_MAX_MEMORY:-256mb} --maxmemory-policy allkeys-lru
     volumes:
       - ./redis_data:/data
     networks:
       - api-network
-    # Remove external port exposure for production security
-    # ports:
-    #   - "${REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
