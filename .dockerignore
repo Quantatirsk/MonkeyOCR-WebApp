@@ -1,0 +1,49 @@
+# Version control
+.git
+.gitignore
+.github
+
+# Documentation
+*.md
+wiki/
+docs/
+
+# Development files
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# Node.js
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/.DS_Store
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/dist/
+frontend/coverage/
+
+# Python
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.Python
+backend/pip-log.txt
+backend/pip-delete-this-directory.txt
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/.coverage
+backend/.mypy_cache/
+
+# Runtime data
+data/
+static/
+*.sqlite
+*.db
+
+# Demo files
+demo_files/

@@ -61,11 +61,11 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     // This ensures consistent mapping between PDF and Markdown content even in complex layouts
     const sorted = blocksForPage.sort((a, b) => a.index - b.index);
     
-    console.log(`📋 PDF Page ${pageNumber} blocks order (by index):`, sorted.map(b => ({
-      index: b.index,
-      y: b.bbox[1],
-      content: b.content.substring(0, 30) + '...'
-    })));
+    // console.log(`📋 PDF Page ${pageNumber} blocks order (by index):`, sorted.map(b => ({
+    //   index: b.index,
+    //   y: b.bbox[1],
+    //   content: b.content.substring(0, 30) + '...'
+    // })));
     
     return sorted;
   }, [blocks, pageNumber]);
@@ -127,16 +127,16 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       if (isSelected) {
         lineWidth = 2; // 调整为正常粗度
         alpha = 0.8;
-        borderColor = '#EF4444'; // red-500 for selection
-        backgroundColor = 'rgba(239, 68, 68, 0.1)';
+        borderColor = '#EF4444'; // red-500 for selection (原始红色)
+        backgroundColor = 'rgba(239, 68, 68, 0.15)'; // 原始红色背景，稍微加深一点
       } else if (isHighlighted) {
         lineWidth = 2;
         alpha = 0.7;
       } else if (isHovered) {
         lineWidth = 2;
         alpha = 0.8;
-        borderColor = '#8B5CF6'; // violet-500 for hover
-        backgroundColor = 'rgba(139, 92, 246, 0.1)';
+        borderColor = '#3B82F6'; // blue-500 for hover
+        backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 浅蓝色背景
       }
 
       // Draw block background

@@ -12,13 +12,14 @@ import {
   RotateCcw, 
   Trash2,
   Download,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
 import { Button } from './ui/button';
 import { AnimatedProgress } from './ui/animated-progress';
 import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
+import { Card } from './ui/card';
 import { Separator } from './ui/separator';
 import {
   AlertDialog,
@@ -124,7 +125,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     };
     
     initializeComponent();
-  }, [tasks.length, initializeSync, syncWithServer, isInitialized, toast]);
+  }, [tasks.length, isInitialized]); // Removed function deps causing re-renders
 
   // 恢复PDF页数信息
   const restorePdfPageCounts = async () => {
@@ -222,34 +223,43 @@ export const TaskList: React.FC<TaskListProps> = ({
   useEffect(() => {
     if (!isInitialized) return;
     
-    const now = Date.now();
-    const newTimers: { [taskId: string]: number } = {};
-    const newFinalTimes: { [taskId: string]: number } = {};
-    
-    tasks.forEach(task => {
-      if (task.status === 'processing' && !timers[task.id]) {
-        // 新的处理中任务，计算已经过的时间
-        const startTime = new Date(task.created_at).getTime();
-        const elapsed = Math.floor((now - startTime) / 1000);
-        newTimers[task.id] = Math.max(0, elapsed);
-      } else if ((task.status === 'completed' || task.status === 'failed') && 
-                 !finalProcessingTimes[task.id] && task.completed_at) {
-        // 新完成的任务，计算总处理时间
-        const startTime = new Date(task.created_at).getTime();
-        const endTime = new Date(task.completed_at).getTime();
-        const totalTime = Math.floor((endTime - startTime) / 1000);
-        newFinalTimes[task.id] = Math.max(0, totalTime);
-      }
+    setTimers(prevTimers => {
+      const now = Date.now();
+      const newTimers = { ...prevTimers };
+      let hasChanges = false;
+      
+      tasks.forEach(task => {
+        if (task.status === 'processing' && !newTimers[task.id]) {
+          // 新的处理中任务，计算已经过的时间
+          const startTime = new Date(task.created_at).getTime();
+          const elapsed = Math.floor((now - startTime) / 1000);
+          newTimers[task.id] = Math.max(0, elapsed);
+          hasChanges = true;
+        }
+      });
+      
+      return hasChanges ? newTimers : prevTimers;
     });
     
-    if (Object.keys(newTimers).length > 0) {
-      setTimers(prev => ({ ...prev, ...newTimers }));
-    }
-    
-    if (Object.keys(newFinalTimes).length > 0) {
-      setFinalProcessingTimes(prev => ({ ...prev, ...newFinalTimes }));
-    }
-  }, [tasks, isInitialized, timers, finalProcessingTimes]);
+    setFinalProcessingTimes(prevFinalTimes => {
+      const newFinalTimes = { ...prevFinalTimes };
+      let hasChanges = false;
+      
+      tasks.forEach(task => {
+        if ((task.status === 'completed' || task.status === 'failed') && 
+            !newFinalTimes[task.id] && task.completed_at) {
+          // 新完成的任务，计算总处理时间
+          const startTime = new Date(task.created_at).getTime();
+          const endTime = new Date(task.completed_at).getTime();
+          const totalTime = Math.floor((endTime - startTime) / 1000);
+          newFinalTimes[task.id] = Math.max(0, totalTime);
+          hasChanges = true;
+        }
+      });
+      
+      return hasChanges ? newFinalTimes : prevFinalTimes;
+    });
+  }, [tasks, isInitialized]); // Only depend on tasks and isInitialized
 
 
   // 跟踪正在加载的任务，避免并发请求
@@ -434,6 +444,31 @@ export const TaskList: React.FC<TaskListProps> = ({
     return date.toLocaleDateString('zh-CN');
   };
 
+  // Format submission time for display
+  const formatSubmissionTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const isToday = date.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      // 今天的任务显示具体时间
+      return date.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: false 
+      });
+    } else {
+      // 其他日期显示月日时间
+      return date.toLocaleDateString('zh-CN', { 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-');
+    }
+  };
+
   // Handle task selection
   const handleTaskSelect = (task: ProcessingTask) => {
     setCurrentTask(task.id);
@@ -588,61 +623,75 @@ export const TaskList: React.FC<TaskListProps> = ({
               {getFileTypeIcon(task.file_type)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-tight break-words line-clamp-2" title={task.filename}>
+              <p className="text-sm font-medium leading-tight truncate" title={task.filename}>
                 {task.filename}
               </p>
             </div>
-            <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 flex-shrink-0">
-              {task.status === 'pending' ? '等待' :
-               task.status === 'processing' ? '处理中' :
-               task.status === 'completed' ? '完成' :
-               task.status === 'failed' ? '失败' : task.status}
-            </Badge>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {task.from_cache && task.status === 'completed' && (
+                <div 
+                  className="text-yellow-500 animate-pulse" 
+                  title="从缓存加载（极速完成）"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                </div>
+              )}
+              <Badge variant={getStatusColor(task.status)} className="text-xs px-2 py-0.5 whitespace-nowrap">
+                {task.status === 'pending' ? '等待' :
+                 task.status === 'processing' ? '处理中' :
+                 task.status === 'completed' ? '完成' :
+                 task.status === 'failed' ? '失败' : task.status}
+              </Badge>
+            </div>
           </div>
           {/* 第二行：元信息 */}
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span className="font-medium">{task.file_type.toUpperCase()}</span>
-            <span>•</span>
-            <span>{formatTimeAgo(task.created_at)}</span>
-            
-            {/* 处理时间或进度信息 */}
-            {task.status === 'processing' ? (
-              <>
-                <span>•</span>
-                <div className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  <span className="font-mono text-blue-600">{formatDuration(timers[task.id] || 0)}</span>
-                </div>
-                {getProcessingInfo(task) && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                {getTaskProcessingTime(task) && (
-                  <>
-                    <span>•</span>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      <span className="font-mono text-blue-600">{formatDuration(getTaskProcessingTime(task)!)}</span>
-                    </div>
-                  </>
-                )}
-                {getProcessingInfo(task) && (
-                  <>
-                    <span>•</span>
-                    <span className="font-mono text-green-600">{getProcessingInfo(task)}</span>
-                  </>
-                )}
-              </>
-            )}
+          <div className="flex items-center justify-between gap-1 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1 flex-1 min-w-0 flex-nowrap overflow-hidden">
+              <span className="font-medium flex-shrink-0">{task.file_type.toUpperCase()}</span>
+              <span className="flex-shrink-0">•</span>
+              <span className="truncate" title={`提交于 ${formatTimeAgo(task.created_at)}`}>{formatSubmissionTime(task.created_at)}</span>
+              
+              {/* 处理时间或进度信息 */}
+              {task.status === 'processing' ? (
+                <>
+                  <span className="flex-shrink-0">•</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <Clock className="w-3 h-3" />
+                    <span className="font-mono text-blue-600 whitespace-nowrap">{formatDuration(timers[task.id] || 0)}</span>
+                  </div>
+                  {getProcessingInfo(task) && (
+                    <>
+                      <span className="flex-shrink-0">•</span>
+                      <span className="font-mono text-green-600 whitespace-nowrap">{getProcessingInfo(task)}</span>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {getTaskProcessingTime(task) && (
+                    <>
+                      <span className="flex-shrink-0">•</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Clock className="w-3 h-3" />
+                        <span className={`font-mono whitespace-nowrap ${task.from_cache ? 'text-yellow-600' : 'text-blue-600'}`}>
+                          {task.from_cache && task.status === 'completed' ? '< 1s' : formatDuration(getTaskProcessingTime(task)!)}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                  {getProcessingInfo(task) && (
+                    <>
+                      <span className="flex-shrink-0">•</span>
+                      <span className="font-mono text-green-600 whitespace-nowrap">{getProcessingInfo(task)}</span>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
 
           {/* 第三行：操作按钮 */}
-          <div className="flex items-center justify-end gap-1">
+          <div className="flex items-center justify-end gap-0.5 flex-shrink-0">
             {task.status === 'completed' && hasResult && (
               <Button
                 variant="ghost"
@@ -651,11 +700,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                   e.stopPropagation();
                   handleDownload(task);
                 }}
-                className="h-7 px-2 text-xs hover:bg-blue-50 hover:text-blue-600"
+                className="h-6 px-1.5 text-xs hover:bg-blue-50 hover:text-blue-600"
                 title="下载结果"
               >
-                <Download className="w-3 h-3 mr-1" />
-                下载
+                <Download className="w-3 h-3 mr-0.5" />
+                <span className="hidden sm:inline">下载</span>
               </Button>
             )}
             
@@ -667,11 +716,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                   e.stopPropagation();
                   handleRetry(task);
                 }}
-                className="h-7 px-2 text-xs hover:bg-orange-50 hover:text-orange-600"
+                className="h-6 px-1.5 text-xs hover:bg-orange-50 hover:text-orange-600"
                 title="重试"
               >
-                <RotateCcw className="w-3 h-3 mr-1" />
-                重试
+                <RotateCcw className="w-3 h-3 mr-0.5" />
+                <span className="hidden sm:inline">重试</span>
               </Button>
             )}
             
@@ -682,11 +731,11 @@ export const TaskList: React.FC<TaskListProps> = ({
                 e.stopPropagation();
                 handleDeleteClick(task.id);
               }}
-              className="h-7 px-2 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
+              className="h-6 px-1.5 text-xs hover:bg-red-50 hover:text-red-600 text-muted-foreground"
               title="删除"
             >
-              <Trash2 className="w-3 h-3 mr-1" />
-              删除
+              <Trash2 className="w-3 h-3 mr-0.5" />
+              <span className="hidden sm:inline">删除</span>
             </Button>
           </div>
         </div>
@@ -717,20 +766,20 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   if (filteredTasks.length === 0) {
     return (
-      <div className={`flex flex-col h-full ${className}`}>
+      <Card className={`flex flex-col h-full shadow-sm ${className}`}>
         <div className="flex-1 flex flex-col items-center justify-center space-y-2 p-4">
           <Clock className="w-6 h-6 text-muted-foreground" />
           <p className="text-xs text-muted-foreground text-center">暂无任务</p>
           <p className="text-xs text-muted-foreground/60 text-center">上传文件开始处理</p>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className={`flex flex-col h-full ${className}`}>
+    <Card className={`flex flex-col h-full shadow-sm ${className}`}>
       {/* Header */}
-      <div className="border-b bg-muted/5 p-2">
+      <div className="flex-shrink-0 border-b bg-muted/5 p-2">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-semibold">
             任务列表 ({filteredTasks.length})
@@ -775,9 +824,15 @@ export const TaskList: React.FC<TaskListProps> = ({
       </div>
       
       {/* Content */}
-      <div className="flex-1 overflow-hidden">
-        <ScrollArea className="h-full px-2 py-2">
-          <div className="space-y-2">
+      <div className="flex-1 min-h-0">
+        <div 
+          className="h-full w-full overflow-y-auto overflow-x-hidden custom-scrollbar"
+          style={{ 
+            height: '100%',
+            scrollbarGutter: 'stable'
+          }}
+        >
+          <div className="space-y-2 px-2 py-2">
             {/* Processing tasks first */}
             {groupedTasks.processing.map(renderTaskItem)}
             
@@ -803,7 +858,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               </>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Delete confirmation dialogs */}
@@ -846,7 +901,7 @@ export const TaskList: React.FC<TaskListProps> = ({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </Card>
   );
 };
 

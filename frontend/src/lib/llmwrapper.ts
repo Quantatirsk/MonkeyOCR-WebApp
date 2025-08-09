@@ -69,7 +69,7 @@ export class LLMWrapper {
 
   constructor() {
     // Use the same base URL as the main API
-    this.baseUrl = 'http://localhost:8001'
+    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
   }
 
   /**

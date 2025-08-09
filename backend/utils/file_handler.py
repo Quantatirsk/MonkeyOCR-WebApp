@@ -14,14 +14,14 @@ from typing import List, Optional, Dict, Any
 import aiofiles
 from models import ImageResource, DocumentResult, DocumentMetadata
 
+logger = logging.getLogger(__name__)
+
 try:
     import PyPDF2
     PDF_SUPPORT = True
 except ImportError:
     PDF_SUPPORT = False
     logger.warning("PyPDF2 not available, PDF page counting disabled")
-
-logger = logging.getLogger(__name__)
 
 class FileHandler:
     """Handles file operations for the MonkeyOCR WebApp"""
@@ -364,3 +364,83 @@ class FileHandler:
         except Exception as e:
             logger.error(f"Failed to count PDF pages: {e}")
             return None
+    
+    async def copy_cached_files(self, task_id: str, cached_files: Dict[str, str]) -> bool:
+        """
+        Copy cached result files to new task directory
+        
+        Args:
+            task_id: New task ID
+            cached_files: Dictionary mapping file types to cached file paths
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Create target directories
+            task_result_dir = self.results_dir 
+            task_static_dir = self.static_dir / task_id
+            task_static_dir.mkdir(exist_ok=True)
+            
+            files_copied = 0
+            
+            # Copy main result file if it exists
+            if cached_files.get("local_result_path"):
+                source_file = Path(cached_files["local_result_path"])
+                if source_file.exists():
+                    target_file = task_result_dir / f"{task_id}_result.zip"
+                    shutil.copy2(source_file, target_file)
+                    logger.info(f"Copied cached result file: {source_file} -> {target_file}")
+                    files_copied += 1
+                    
+                    # Extract original task ID from source file path 
+                    # Format: results/{original_task_id}_result.zip
+                    source_filename = source_file.name
+                    if source_filename.endswith("_result.zip"):
+                        original_task_id = source_filename[:-11]  # Remove "_result.zip"
+                        
+                        # Copy static files from original task directory
+                        original_static_dir = self.static_dir / original_task_id
+                        if original_static_dir.exists():
+                            logger.info(f"Copying static files from {original_static_dir} to {task_static_dir}")
+                            
+                            # Copy all files and subdirectories
+                            for item in original_static_dir.rglob("*"):
+                                if item.is_file():
+                                    # Calculate relative path from original static dir
+                                    rel_path = item.relative_to(original_static_dir)
+                                    target_path = task_static_dir / rel_path
+                                    
+                                    # Create parent directories if needed
+                                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                                    
+                                    # Copy file
+                                    shutil.copy2(item, target_path)
+                                    logger.debug(f"Copied static file: {item} -> {target_path}")
+                                    files_copied += 1
+                        else:
+                            logger.warning(f"Original static directory not found: {original_static_dir}")
+                else:
+                    logger.warning(f"Cached result file not found: {source_file}")
+            
+            # Copy static files if explicitly provided
+            if cached_files.get("static_files"):
+                for static_file_info in cached_files["static_files"]:
+                    source_path = Path(static_file_info["path"])
+                    if source_path.exists():
+                        target_path = task_static_dir / static_file_info["filename"]
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source_path, target_path)
+                        logger.debug(f"Copied explicit static file: {source_path} -> {target_path}")
+                        files_copied += 1
+            
+            if files_copied > 0:
+                logger.info(f"Successfully copied {files_copied} cached files for task {task_id}")
+                return True
+            else:
+                logger.warning(f"No files were copied for cached task {task_id}")
+                return False
+            
+        except Exception as e:
+            logger.error(f"Failed to copy cached files for task {task_id}: {e}")
+            return False

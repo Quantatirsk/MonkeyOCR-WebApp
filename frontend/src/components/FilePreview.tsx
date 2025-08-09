@@ -116,7 +116,6 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
           setFileUrl(null);
         }
       } catch (err) {
-        console.error('Failed to load file preview:', err);
         setError('无法加载文件预览');
         setFileUrl(null);
       } finally {
@@ -138,7 +137,6 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
           // Detect dragging state for performance optimization
           if (!isDragging) {
             setIsDragging(true);
-            console.log('🎯 Dragging started - entering high-performance mode');
           }
           
           // Clear existing timeout and set new one
@@ -148,10 +146,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
           
           dragTimeoutRef.current = setTimeout(() => {
             setIsDragging(false);
-            console.log('🎯 Dragging ended - returning to high-precision mode');
           }, 300); // 300ms delay to detect end of dragging
-          
-          console.log('📐 Container resized, CSS will handle scaling automatically');
         }
       }
     };
@@ -287,9 +282,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 1.0 });
         pageSizes[pageNum] = [viewport.width, viewport.height];
-        console.log(`📏 Page ${pageNum} dimensions:`, viewport.width, 'x', viewport.height);
-      } catch (error) {
-        console.warn(`Failed to get dimensions for page ${pageNum}:`, error);
+      } catch {
         // 使用默认A4尺寸作为后备
         pageSizes[pageNum] = [595, 842];
       }
@@ -298,14 +291,8 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setPdfPageSizes(pageSizes);
   }, []);
 
-  const onDocumentLoadError = React.useCallback((error: Error) => {
-    console.error('PDF load error:', error);
+  const onDocumentLoadError = React.useCallback(() => {
     setError('无法加载PDF文件');
-  }, []);
-
-  // 页面加载完成通知 - 不再需要scale计算
-  const onPageLoadSuccess = React.useCallback((_page: any, pageNumber: number) => {
-    console.log(`✅ Page ${pageNumber} loaded, CSS will handle responsive scaling`);
   }, []);
 
   // Loading state
@@ -535,7 +522,6 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                         className="shadow-lg transition-all duration-300"
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
-                        onLoadSuccess={(page) => onPageLoadSuccess(page, pageNum)}
                       />
                       
                       {/* Block Overlay */}

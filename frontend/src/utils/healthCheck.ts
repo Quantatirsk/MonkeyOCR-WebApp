@@ -3,7 +3,9 @@
  * 用于诊断前端与后端的连接问题
  */
 
-const API_BASE = 'http://localhost:8001';
+import { API_BASE_URL } from '../config';
+
+const API_BASE = API_BASE_URL;
 
 export class HealthChecker {
   private static instance: HealthChecker;

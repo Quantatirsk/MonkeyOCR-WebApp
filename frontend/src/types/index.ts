@@ -16,6 +16,7 @@ export interface ProcessingTask {
   result_url: string | null;
   original_file?: File; // Store original file for preview
   original_file_url?: string; // Store original file URL for preview
+  from_cache?: boolean; // Whether the result was loaded from cache
 }
 
 // Image resource interface

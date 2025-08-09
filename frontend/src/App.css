@@ -1,10 +1,4 @@
-#root {
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
+/* Root styles moved to index.css to avoid conflicts */
 
 .card {
   padding: 2em;

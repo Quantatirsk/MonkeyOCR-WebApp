@@ -149,9 +149,8 @@
   overflow-x: visible !important;
   overflow-y: visible !important;
   table-layout: fixed !important;
-  /* Clean single border around entire table */
-  border: 1px solid #6b7280 !important;
-  border-radius: 0.375rem !important;
+  /* No border on table itself - borders will be on cells */
+  border: none !important;
 }
 
 /* 禁用表格容器的滚动 - 全面覆盖 */
@@ -208,33 +207,9 @@
   padding: 3px 5px !important;
 }
 
-/* First header cell - round top-left corner */
-.markdown-viewer .wmde-markdown th:first-child,
-.markdown-viewer .w-md-editor-preview th:first-child {
-  border-top-left-radius: 0.25rem !important;
-}
-
-/* Last header cell - round top-right corner */
-.markdown-viewer .wmde-markdown th:last-child,
-.markdown-viewer .w-md-editor-preview th:last-child {
-  border-top-right-radius: 0.25rem !important;
-}
-
 .markdown-viewer .wmde-markdown td,
 .markdown-viewer .w-md-editor-preview td {
   padding: 3px 5px !important;
-}
-
-/* Last row first cell - round bottom-left corner */
-.markdown-viewer .wmde-markdown tr:last-child td:first-child,
-.markdown-viewer .w-md-editor-preview tr:last-child td:first-child {
-  border-bottom-left-radius: 0.25rem !important;
-}
-
-/* Last row last cell - round bottom-right corner */
-.markdown-viewer .wmde-markdown tr:last-child td:last-child,
-.markdown-viewer .w-md-editor-preview tr:last-child td:last-child {
-  border-bottom-right-radius: 0.25rem !important;
 }
 
 /* ============================================================================

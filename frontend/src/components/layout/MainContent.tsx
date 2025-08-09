@@ -4,44 +4,33 @@ import UploadZone from '@/components/UploadZone';
 import TaskList from '@/components/TaskList';
 import DocumentViewer from '@/components/DocumentViewer';
 import { useAppStore } from '@/store/appStore';
-import { useState, useEffect } from 'react';
 
 export function MainContent() {
   const { taskListVisible } = useAppStore();
-  const [minSizePercent, setMinSizePercent] = useState(22);
 
-  // 动态计算最小宽度百分比，确保不小于280px
-  useEffect(() => {
-    const updateMinSize = () => {
-      const windowWidth = window.innerWidth;
-      // 计算280px对应的百分比，并设置合理的边界
-      const minPercent = Math.max(20, Math.min(35, (280 / windowWidth) * 100));
-      setMinSizePercent(minPercent);
-    };
-
-    updateMinSize();
-    window.addEventListener('resize', updateMinSize);
-    return () => window.removeEventListener('resize', updateMinSize);
-  }, []);
-
-  // 🔧 修复：使用CSS Grid避免组件实例重新创建，保持DocumentViewer稳定
+  // 🔧 修复：使用固定宽度的Grid列，避免百分比导致的溢出问题
   return (
     <div 
-      className="flex-1 overflow-hidden transition-all duration-300 ease-in-out"
+      className="h-full transition-all duration-300 ease-in-out"
       style={{
         display: 'grid',
-        gridTemplateColumns: taskListVisible ? `${25}% 2px 1fr` : '0px 0px 1fr',
-        height: '100%'
+        // 使用固定宽度320px而不是百分比，避免溢出
+        gridTemplateColumns: taskListVisible ? `320px 2px 1fr` : '0px 0px 1fr',
+        gridTemplateRows: '1fr',
+        height: '100%',
+        overflow: 'hidden' // 主容器不滚动
       }}
     >
-      {/* 任务列表区域 - 始终存在，通过Grid控制显示 */}
+      {/* 任务列表区域 - 固定宽度320px */}
       <div 
         className={`bg-muted/10 flex flex-col transition-all duration-300 ease-in-out ${
           taskListVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         style={{
-          overflow: taskListVisible ? 'visible' : 'hidden',
-          minWidth: taskListVisible ? `${minSizePercent}%` : '0px'
+          width: '100%', // 使用grid列的宽度
+          height: '100%',
+          overflowY: 'auto', // 只允许垂直滚动
+          overflowX: 'hidden' // 不允许水平滚动
         }}
       >
         {/* 上传区域 */}
@@ -57,8 +46,8 @@ export function MainContent() {
         </div>
 
         {/* 任务列表 */}
-        <div className="flex-1 px-4 pb-4 min-h-0">
-          <TaskList />
+        <div className="flex-1 px-4 pb-4 min-h-0 overflow-hidden">
+          <TaskList className="h-full" />
         </div>
       </div>
       

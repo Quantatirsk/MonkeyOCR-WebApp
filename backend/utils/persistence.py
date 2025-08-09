@@ -1,6 +1,6 @@
 """
 数据持久化模块
-管理任务状态的文件系统持久化存储，替代内存存储
+管理任务状态的持久化存储，支持 Redis 和文件系统
 """
 
 import json
@@ -8,6 +8,7 @@ import os
 import threading
 import time
 import hashlib
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -201,7 +202,8 @@ class PersistenceManager:
         with self._lock:
             if task_id in self._tasks_cache:
                 del self._tasks_cache[task_id]
-                self._save_tasks()
+                # 删除操作必须强制保存，避免并发删除时的数据丢失
+                self._save_tasks(force=True)
                 logger.info(f"Deleted task {task_id}")
                 return True
             return False
