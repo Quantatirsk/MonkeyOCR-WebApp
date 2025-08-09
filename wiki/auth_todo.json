@@ -1,0 +1,590 @@
+{
+  "project": "MonkeyOCR WebApp - User Authentication System",
+  "description": "Implementation of user registration, login, and task isolation features",
+  "version": "1.0.0",
+  "created_date": "2025-08-09",
+  "estimated_total_hours": 120,
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Core Authentication Infrastructure",
+      "duration": "Week 1",
+      "estimated_hours": 32,
+      "priority": "High",
+      "dependencies": [],
+      "tasks": [
+        {
+          "id": "auth-001",
+          "title": "Extend User Models in Backend",
+          "description": "Add User, UserSession, UserRegistration, UserLogin, UserProfile models to backend/models/schemas.py",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/models/schemas.py"],
+          "requirements": [
+            "Add User model with password_hash, salt, preferences",
+            "Add UserSession model for session management",
+            "Add request/response models for registration/login",
+            "Include email validation with EmailStr",
+            "Add user preferences (theme, language)"
+          ]
+        },
+        {
+          "id": "auth-002", 
+          "title": "Create Password Security Module",
+          "description": "Create backend/utils/auth_security.py for password hashing and JWT token management",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/utils/auth_security.py"],
+          "requirements": [
+            "Implement PasswordManager with bcrypt + salt",
+            "Create JWTManager for access/refresh tokens",
+            "Use secrets module for secure token generation",
+            "Add password verification methods",
+            "Configure secure JWT settings (HS256, proper expiration)"
+          ]
+        },
+        {
+          "id": "auth-003",
+          "title": "Create User Persistence Layer",
+          "description": "Create backend/utils/user_persistence.py for user data storage",
+          "priority": "High", 
+          "estimated_hours": 8,
+          "status": "pending",
+          "files": ["backend/utils/user_persistence.py"],
+          "requirements": [
+            "Implement dual storage (Redis + JSON fallback)",
+            "Add user CRUD operations",
+            "Handle username/email uniqueness",
+            "Support user profile updates",
+            "Include user search functionality"
+          ]
+        },
+        {
+          "id": "auth-004",
+          "title": "Extend Redis Client for Authentication",
+          "description": "Add authentication caching to backend/utils/redis_client.py",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/utils/redis_client.py"],
+          "requirements": [
+            "Add AuthCache class with user/session caching",
+            "Implement login rate limiting",
+            "Add session management methods",
+            "Create cache invalidation strategies", 
+            "Add user permission caching"
+          ]
+        },
+        {
+          "id": "auth-005",
+          "title": "Update ProcessingTask Model for User Isolation",
+          "description": "Extend ProcessingTask to support user_id and access levels",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending", 
+          "files": ["backend/models/schemas.py", "backend/utils/persistence.py", "backend/utils/redis_persistence.py"],
+          "requirements": [
+            "Add user_id field (nullable for backward compatibility)",
+            "Add access_level: private/shared/public",
+            "Add is_public boolean flag",
+            "Update persistence methods to handle user filtering",
+            "Maintain backward compatibility for anonymous tasks"
+          ]
+        },
+        {
+          "id": "auth-006",
+          "title": "Database Migration for Existing Tasks",
+          "description": "Migrate existing tasks to support user_id=null pattern",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/utils/persistence.py", "backend/utils/redis_persistence.py"],
+          "requirements": [
+            "Add migration script for existing tasks",
+            "Set user_id=null for all existing tasks",
+            "Set access_level=public for backward compatibility",
+            "Test migration with sample data",
+            "Create rollback mechanism"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "API Layer Implementation", 
+      "duration": "Week 1-2",
+      "estimated_hours": 28,
+      "priority": "High",
+      "dependencies": ["Phase 1"],
+      "tasks": [
+        {
+          "id": "auth-007",
+          "title": "Create Authentication API Router",
+          "description": "Create backend/api/auth.py with all authentication endpoints",
+          "priority": "High",
+          "estimated_hours": 12,
+          "status": "pending",
+          "files": ["backend/api/auth.py"],
+          "requirements": [
+            "POST /api/auth/register - User registration",
+            "POST /api/auth/login - User login with JWT",
+            "POST /api/auth/logout - Session invalidation", 
+            "GET /api/auth/me - Current user profile",
+            "PUT /api/auth/me - Update user profile",
+            "POST /api/auth/refresh - Refresh access token",
+            "Add rate limiting for login attempts",
+            "Include secure cookie handling"
+          ]
+        },
+        {
+          "id": "auth-008",
+          "title": "Create Authentication Middleware",
+          "description": "Add authentication dependency and middleware functions", 
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/api/auth.py", "backend/middleware.py"],
+          "requirements": [
+            "Create get_current_user dependency",
+            "Add optional authentication support",
+            "Implement JWT token extraction from headers",
+            "Add session validation with cache-first strategy",
+            "Handle token refresh logic"
+          ]
+        },
+        {
+          "id": "auth-009", 
+          "title": "Add Task Authorization Layer",
+          "description": "Update existing API routes to support task authorization",
+          "priority": "Medium",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/api/upload.py", "backend/api/results.py", "backend/api/sync.py"],
+          "requirements": [
+            "Add get_task_with_auth dependency",
+            "Check user ownership for private tasks",
+            "Allow anonymous access for public tasks", 
+            "Support task sharing via access levels",
+            "Maintain backward compatibility"
+          ]
+        },
+        {
+          "id": "auth-010",
+          "title": "Update Main App Router",
+          "description": "Register authentication router in main FastAPI app",
+          "priority": "Low",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["backend/main.py"],
+          "requirements": [
+            "Import and include auth router",
+            "Update CORS settings if needed",
+            "Add authentication middleware to app", 
+            "Test API documentation generation"
+          ]
+        },
+        {
+          "id": "auth-011",
+          "title": "Add Environment Configuration",
+          "description": "Add authentication-related environment variables",
+          "priority": "Medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["backend/config.py", ".env.example"],
+          "requirements": [
+            "Add JWT_SECRET_KEY configuration",
+            "Add TOKEN_EXPIRE_MINUTES setting",
+            "Add ENABLE_REGISTRATION flag",
+            "Update .env.example with auth variables",
+            "Add validation for required auth settings"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Frontend Integration",
+      "duration": "Week 2-3", 
+      "estimated_hours": 36,
+      "priority": "High",
+      "dependencies": ["Phase 2"],
+      "tasks": [
+        {
+          "id": "auth-012",
+          "title": "Extend Zustand Store for Authentication",
+          "description": "Add authentication state and actions to frontend/src/store/appStore.ts",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending", 
+          "files": ["frontend/src/store/appStore.ts"],
+          "requirements": [
+            "Add AuthState interface with user, isAuthenticated, loading states",
+            "Add AuthActions interface with login/logout/register methods",
+            "Extend AppStore with authentication functionality",
+            "Add token refresh logic with automatic retry",
+            "Include modal state management for login/register"
+          ]
+        },
+        {
+          "id": "auth-013",
+          "title": "Create Authentication API Client",
+          "description": "Add authentication methods to frontend/src/api/client.ts",
+          "priority": "High", 
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["frontend/src/api/client.ts"],
+          "requirements": [
+            "Add authAPI with login/register/logout methods",
+            "Add token management (store in localStorage/cookies)",
+            "Add automatic token refresh interceptor",
+            "Add request interceptor for Authorization header",
+            "Handle authentication errors gracefully"
+          ]
+        },
+        {
+          "id": "auth-014",
+          "title": "Create Login Modal Component", 
+          "description": "Create frontend/src/components/auth/LoginModal.tsx",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/LoginModal.tsx"],
+          "requirements": [
+            "Use shadcn/ui Dialog component",
+            "Add form validation with react-hook-form", 
+            "Support username/email login",
+            "Show loading states and error messages",
+            "Add switch to registration modal",
+            "Include forgot password link (future)"
+          ]
+        },
+        {
+          "id": "auth-015",
+          "title": "Create Registration Modal Component",
+          "description": "Create frontend/src/components/auth/RegisterModal.tsx", 
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/RegisterModal.tsx"],
+          "requirements": [
+            "Use shadcn/ui Dialog component",
+            "Add comprehensive form validation",
+            "Include password strength indicator",
+            "Add email format validation",
+            "Show registration success/error states",
+            "Add switch to login modal"
+          ]
+        },
+        {
+          "id": "auth-016",
+          "title": "Create User Menu Component",
+          "description": "Create frontend/src/components/auth/UserMenu.tsx",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/UserMenu.tsx"],
+          "requirements": [
+            "Use shadcn/ui DropdownMenu component",
+            "Display user avatar/initials",
+            "Add profile settings option",
+            "Add theme toggle",
+            "Add logout functionality",
+            "Show user stats (tasks count, etc.)"
+          ]
+        },
+        {
+          "id": "auth-017",
+          "title": "Create Auth Guard Component", 
+          "description": "Create frontend/src/components/auth/AuthGuard.tsx",
+          "priority": "Low",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/AuthGuard.tsx"],
+          "requirements": [
+            "Conditional rendering based on auth state",
+            "Support for fallback components",
+            "Optional auth vs required auth modes",
+            "Loading state handling",
+            "Redirect to login when needed"
+          ]
+        },
+        {
+          "id": "auth-018",
+          "title": "Update Header Component",
+          "description": "Integrate authentication UI into frontend/src/components/layout/Header.tsx",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["frontend/src/components/layout/Header.tsx"],
+          "requirements": [
+            "Add conditional rendering for auth state",
+            "Show UserMenu when authenticated",
+            "Show Login button when not authenticated", 
+            "Maintain existing header functionality",
+            "Add responsive design for mobile"
+          ]
+        },
+        {
+          "id": "auth-019",
+          "title": "Add Authentication Type Definitions",
+          "description": "Add authentication types to frontend/src/types/index.ts",
+          "priority": "Medium",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["frontend/src/types/index.ts"],
+          "requirements": [
+            "Add User interface matching backend model",
+            "Add LoginData and RegistrationData interfaces",
+            "Add AuthState and AuthActions interfaces",
+            "Add API response types for auth endpoints",
+            "Include session and token types"
+          ]
+        },
+        {
+          "id": "auth-020",
+          "title": "Implement Authentication Persistence",
+          "description": "Add token persistence and auto-login functionality",
+          "priority": "Medium", 
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["frontend/src/store/appStore.ts", "frontend/src/main.tsx"],
+          "requirements": [
+            "Store tokens in localStorage/httpOnly cookies",
+            "Add token expiration handling",
+            "Implement automatic login on app start",
+            "Add logout on token expiration",
+            "Clear sensitive data on logout"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4, 
+      "name": "User Experience Enhancement",
+      "duration": "Week 3-4",
+      "estimated_hours": 24,
+      "priority": "Medium",
+      "dependencies": ["Phase 3"],
+      "tasks": [
+        {
+          "id": "auth-021",
+          "title": "Add User Task Filtering",
+          "description": "Filter tasks by current user in task list",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["frontend/src/components/TaskList.tsx", "frontend/src/store/appStore.ts"],
+          "requirements": [
+            "Add user filter toggle in TaskList",
+            "Show 'My Tasks' vs 'All Tasks' options", 
+            "Update task fetching to support user filtering",
+            "Add task count indicators",
+            "Maintain performance with large task lists"
+          ]
+        },
+        {
+          "id": "auth-022",
+          "title": "Implement Task Sharing",
+          "description": "Add task privacy settings and sharing functionality",
+          "priority": "Low",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["frontend/src/components/TaskList.tsx", "backend/api/results.py"],
+          "requirements": [
+            "Add privacy toggle for tasks (private/shared/public)",
+            "Generate shareable links for shared tasks",
+            "Add task sharing modal",
+            "Update task metadata display",
+            "Add copy-to-clipboard functionality"
+          ]
+        },
+        {
+          "id": "auth-023",
+          "title": "Create User Profile Settings", 
+          "description": "Add user profile management interface",
+          "priority": "Low",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/ProfileSettings.tsx"],
+          "requirements": [
+            "Create profile settings modal/page",
+            "Add theme preference selection",
+            "Add language preference selection",
+            "Add password change functionality", 
+            "Add account deletion option",
+            "Include usage statistics display"
+          ]
+        },
+        {
+          "id": "auth-024",
+          "title": "Add User Dashboard",
+          "description": "Create personalized dashboard for authenticated users",
+          "priority": "Low",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["frontend/src/components/Dashboard.tsx"],
+          "requirements": [
+            "Show user's recent tasks",
+            "Display usage statistics",
+            "Add quick actions for common tasks",
+            "Show storage usage (if applicable)",
+            "Add task management shortcuts"
+          ]
+        },
+        {
+          "id": "auth-025",
+          "title": "Implement User Preferences Sync",
+          "description": "Sync user preferences between frontend and backend",
+          "priority": "Low",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["frontend/src/store/appStore.ts", "backend/api/auth.py"],
+          "requirements": [
+            "Save theme preference to user profile",
+            "Save language preference to user profile",
+            "Auto-apply preferences on login",
+            "Update preferences on change",
+            "Handle offline preference changes"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Testing and Documentation",
+      "duration": "Week 4",
+      "estimated_hours": 16,
+      "priority": "Medium", 
+      "dependencies": ["Phase 1", "Phase 2", "Phase 3"],
+      "tasks": [
+        {
+          "id": "auth-026",
+          "title": "Create Backend Authentication Tests",
+          "description": "Add comprehensive test suite for authentication backend",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["tests/test_auth.py", "tests/test_user_persistence.py"],
+          "requirements": [
+            "Test user registration and login flows",
+            "Test password hashing and verification",
+            "Test JWT token generation and validation",
+            "Test user task authorization",
+            "Test cache behavior for authentication",
+            "Add test fixtures for users and sessions"
+          ]
+        },
+        {
+          "id": "auth-027",
+          "title": "Add Frontend Authentication Tests",
+          "description": "Add test suite for frontend authentication components",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["frontend/src/components/auth/__tests__/"],
+          "requirements": [
+            "Test LoginModal component behavior",
+            "Test RegisterModal component behavior", 
+            "Test UserMenu functionality",
+            "Test authentication store actions",
+            "Test API client authentication methods",
+            "Add integration tests for auth flow"
+          ]
+        },
+        {
+          "id": "auth-028",
+          "title": "Update API Documentation",
+          "description": "Document authentication endpoints in FastAPI docs",
+          "priority": "Low",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["backend/api/auth.py"],
+          "requirements": [
+            "Add comprehensive docstrings to all endpoints",
+            "Document request/response schemas",
+            "Add example usage in docstrings",
+            "Include error response documentation",
+            "Add security information to docs"
+          ]
+        },
+        {
+          "id": "auth-029",
+          "title": "Create Authentication User Guide",
+          "description": "Create user-facing documentation for authentication features",
+          "priority": "Low",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["wiki/AUTH_USER_GUIDE.md"],
+          "requirements": [
+            "Document registration and login process",
+            "Explain task privacy settings",
+            "Document user preferences",
+            "Add troubleshooting section",
+            "Include security best practices"
+          ]
+        },
+        {
+          "id": "auth-030",
+          "title": "Update Docker Configuration",
+          "description": "Update Docker setup to support authentication features",
+          "priority": "Low",
+          "estimated_hours": 1,
+          "status": "pending", 
+          "files": ["docker-compose.yml", "Dockerfile"],
+          "requirements": [
+            "Add JWT_SECRET_KEY to environment variables",
+            "Update health checks if needed",
+            "Ensure Redis connectivity for sessions",
+            "Update example environment file",
+            "Test Docker deployment with auth"
+          ]
+        }
+      ]
+    }
+  ],
+  "implementation_notes": {
+    "backward_compatibility": "All changes maintain full backward compatibility. Existing anonymous tasks continue to work without any user authentication required.",
+    "security_principles": [
+      "Passwords are hashed with bcrypt + salt",
+      "JWT tokens use HS256 with secure secret",
+      "Session management with Redis caching",
+      "Rate limiting on login attempts",
+      "Secure cookie handling for tokens"
+    ],
+    "cache_strategy": [
+      "User profiles cached in Redis (1 hour TTL)",
+      "Session data cached (24 hour TTL)",
+      "Login rate limiting (15 minute TTL)", 
+      "User task permissions cached for authorization"
+    ],
+    "minimal_coupling": [
+      "Authentication is completely modular",
+      "OCR functionality unchanged", 
+      "Clean separation between auth and core systems",
+      "Optional integration - works without auth"
+    ]
+  },
+  "testing_checklist": [
+    "User registration with validation",
+    "User login with JWT tokens", 
+    "Password security (hashing/verification)",
+    "Session management and expiration",
+    "Task authorization and isolation",
+    "Cache behavior for authentication",
+    "API error handling",
+    "Frontend component interactions", 
+    "Backward compatibility with anonymous usage",
+    "Docker deployment with authentication"
+  ],
+  "success_criteria": [
+    "Users can register and login securely",
+    "Tasks are properly isolated by user",
+    "Anonymous usage continues to work",
+    "Performance impact is minimal (<100ms auth overhead)",
+    "Cache hit rate >90% for authenticated requests",
+    "Zero breaking changes to existing functionality",
+    "Complete test coverage for authentication features"
+  ]
+}
