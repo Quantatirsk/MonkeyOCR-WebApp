@@ -27,44 +27,47 @@ async def lifespan(app: FastAPI):
     # 启动时初始化
     logger.info("Starting MonkeyOCR WebApp backend...")
     
-    # 初始化 Redis 连接（如果启用）
+    # 初始化 SQLite 数据库
+    from database import init_database
+    await init_database()
+    logger.info("SQLite database initialized successfully")
+    
+    # 初始化 Redis 连接（如果启用）- 用于缓存
     if os.getenv("REDIS_ENABLED", "False").lower() == "true":
         from utils.redis_client import RedisClient
         redis_connected = await RedisClient.initialize()
         if redis_connected:
-            logger.info("Redis connection initialized successfully")
+            logger.info("Redis cache connection initialized successfully")
         else:
-            logger.warning("Redis connection failed, using fallback storage")
+            logger.warning("Redis connection failed, cache disabled")
     
-    # 初始化持久化管理器并恢复任务状态
-    from utils.persistence import init_persistence
-    persistence_manager = init_persistence()
+    # 初始化 SQLite 持久化管理器
+    from utils.sqlite_persistence import init_persistence
+    persistence_manager = await init_persistence()
     
     # 获取任务统计信息
-    stats = persistence_manager.get_task_stats()
-    logger.info(f"Loaded tasks: {stats}")
+    stats = await persistence_manager.get_task_stats()
+    logger.info(f"Database statistics: {stats}")
     
     # 恢复处理中的任务监控
-    processing_tasks = persistence_manager.get_processing_tasks()
+    processing_tasks = await persistence_manager.get_processing_tasks()
     if processing_tasks:
         logger.info(
-            f"Found {len(processing_tasks)} processing tasks, checking status..."
+            f"Found {len(processing_tasks)} processing tasks in database"
         )
         
-        # 对于处理中的任务，我们需要重新检查它们的状态
-        # 在实际应用中，这里可能需要重新启动监控或检查外部API状态
+        # 对于处理中的任务，可以重新检查它们的状态
         for task in processing_tasks:
             logger.info(f"Processing task found: {task.id} - {task.filename}")
-            # 这里可以添加重新启动任务监控的逻辑
     
     # 验证数据完整性
-    validation_result = persistence_manager.validate_data()
+    validation_result = await persistence_manager.validate_data()
     if not validation_result['valid']:
         logger.warning(
-            f"Data validation issues found: {validation_result['errors']}"
+            f"Database validation issues: {validation_result['errors']}"
         )
     else:
-        logger.info("Data validation passed")
+        logger.info("Database validation passed")
     
     logger.info("Backend startup completed")
     
@@ -73,25 +76,19 @@ async def lifespan(app: FastAPI):
     # 关闭时清理
     logger.info("Shutting down MonkeyOCR WebApp backend...")
     
-    # 强制保存任何未保存的数据 - 使用全局实例
-    from utils.persistence import get_persistence_manager
-    global_persistence_manager = get_persistence_manager()
+    # SQLite 数据库自动保存，无需手动操作
+    from utils.sqlite_persistence import get_persistence_manager
+    persistence_manager = get_persistence_manager()
     
-    # 只在有数据时才保存，避免保存空缓存
-    stats = global_persistence_manager.get_task_stats()
-    if stats['total'] > 0:
-        global_persistence_manager.force_save()
-        logger.info(
-            f"Final data save completed - saved {stats['total']} tasks"
-        )
-    else:
-        logger.info("No tasks to save on shutdown")
+    # 获取最终统计
+    stats = await persistence_manager.get_task_stats()
+    logger.info(f"Final database statistics: {stats}")
     
-    # 关闭 Redis 连接（如果启用）
+    # 关闭 Redis 缓存连接（如果启用）
     if os.getenv("REDIS_ENABLED", "False").lower() == "true":
         from utils.redis_client import RedisClient
         await RedisClient.close()
-        logger.info("Redis connection closed")
+        logger.info("Redis cache connection closed")
     
     logger.info("Backend shutdown completed")
 
@@ -103,21 +100,23 @@ app = FastAPI(
 )
 
 # Configure CORS middleware with environment-based origins
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
+cors_origins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
 logger.info(f"CORS origins configured: {cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Specific methods only
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Include OPTIONS for preflight
     allow_headers=[
         "Accept",
         "Accept-Language", 
         "Content-Language",
         "Content-Type",
-        "Authorization"
+        "Authorization",
+        "X-Requested-With"
     ],
+    expose_headers=["Content-Disposition", "Content-Type", "ETag", "Content-Length"]
 )
 
 # Add security middleware
@@ -237,10 +236,17 @@ from api.results import router as results_router
 from api.sync import router as sync_router
 from api.upload import router as upload_router
 from api.llm import router as llm_router
+from api.auth import router as auth_router
 
+# Authentication routes (register first for priority)
+app.include_router(auth_router)
+
+# Task management routes
 app.include_router(upload_router)
 app.include_router(results_router)
 app.include_router(sync_router)
+
+# LLM routes
 app.include_router(llm_router)
 
 if __name__ == "__main__":

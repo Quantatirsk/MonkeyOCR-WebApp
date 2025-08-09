@@ -43,6 +43,7 @@ tmp/
 temp/
 uploads/
 results/
+backend/static
 
 # Package files
 *.tgz

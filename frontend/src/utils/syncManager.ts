@@ -5,6 +5,7 @@
 
 import { ProcessingTask, APIResponse } from '../types';
 import { getApiUrl } from '../config';
+import { useAuthStore } from '../store/authStore';
 
 export interface SyncResponse {
   tasks: ProcessingTask[];
@@ -77,6 +78,12 @@ class SyncManager {
    */
   private notifySyncStatusChange() {
     const status = this.getSyncStatus();
+    console.log('[SyncManager] Notifying status change:', {
+      last_sync: status.last_sync,
+      is_syncing: status.is_syncing,
+      sync_error: status.sync_error,
+      callbacks_count: this.syncCallbacks.length
+    });
     this.syncCallbacks.forEach(callback => {
       try {
         callback(status);
@@ -101,7 +108,15 @@ class SyncManager {
         }
 
         // 检查服务器状态
+        const authState = useAuthStore.getState();
+        const headers: HeadersInit = {};
+        
+        if (authState.tokens?.accessToken) {
+          headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+        }
+        
         const statusResponse = await fetch(`${this.baseURL}/api/sync/status`, {
+          headers,
           signal: AbortSignal.timeout(5000) // 5秒超时
         });
         
@@ -194,6 +209,7 @@ class SyncManager {
     } finally {
       this.pendingSyncPromise = null;
       this.isSyncing = false;
+      this.notifySyncStatusChange();  // 通知同步状态变化
     }
   }
 
@@ -213,11 +229,19 @@ class SyncManager {
 
       const fullUrl = params.toString() ? `${url}?${params}` : url;
       
+      // Get auth token if available
+      const authState = useAuthStore.getState();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (authState.tokens?.accessToken) {
+        headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+      }
+      
       const response = await fetch(fullUrl, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -309,14 +333,34 @@ class SyncManager {
   /**
    * 获取任务预览信息
    */
-  async getTaskPreview(taskId: string): Promise<APIResponse<any>> {
-    const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`);
-    
-    if (!response.ok) {
-      throw new Error(`Preview request failed: ${response.statusText}`);
+  async getTaskPreview(taskId: string): Promise<any> {
+    try {
+      const authState = useAuthStore.getState();
+      const headers: HeadersInit = {};
+      
+      if (authState.tokens?.accessToken) {
+        headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+      }
+      
+      const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get preview: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get preview');
+      }
+      
+      return data;  // 返回整个响应，包含 success, data, message, error
+    } catch (error) {
+      console.error('Failed to get task preview:', error);
+      throw error;
     }
-    
-    return response.json();
   }
 
   /**

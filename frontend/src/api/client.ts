@@ -15,6 +15,7 @@ import {
 } from '../types';
 
 import { APP_CONFIG, getStaticFileUrl } from '../config';
+import { useAuthStore } from '../store/authStore';
 
 // API Configuration
 const API_BASE_URL = APP_CONFIG.api.baseURL;
@@ -29,9 +30,14 @@ const axiosInstance: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor for auth (if needed in future)
+// Request interceptor for auth
 axiosInstance.interceptors.request.use(
   (config) => {
+    // Add auth token if available
+    const tokens = useAuthStore.getState().tokens;
+    if (tokens?.accessToken) {
+      config.headers.Authorization = `Bearer ${tokens.accessToken}`;
+    }
     return config;
   },
   (error) => {
@@ -39,13 +45,46 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+// Response interceptor for error handling and token refresh
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
-  (error) => {
-    // Handle common HTTP errors
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // Handle 401 Unauthorized - try to refresh token
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        const tokens = useAuthStore.getState().tokens;
+        if (tokens?.refreshToken) {
+          // Import authClient dynamically to avoid circular dependency
+          const { authClient } = await import('./authClient');
+          const refreshed = await authClient.refreshTokens(tokens.refreshToken);
+          
+          // Update tokens in store
+          useAuthStore.getState().setTokens({
+            accessToken: refreshed.access_token,
+            refreshToken: refreshed.refresh_token,
+            tokenType: refreshed.token_type,
+          });
+          
+          // Retry original request with new token
+          originalRequest.headers.Authorization = `Bearer ${refreshed.access_token}`;
+          return axiosInstance(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed, logout user
+        useAuthStore.getState().logout();
+        // Don't redirect here to avoid circular dependency
+        // The app should handle this via auth state
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    // Handle other common HTTP errors
     if (error.response?.status === 404) {
       throw new Error('Resource not found');
     } else if (error.response?.status === 500) {
@@ -74,6 +113,8 @@ class ApiClient {
     if (options.split_pages !== undefined) {
       formData.append('split_pages', options.split_pages ? 'true' : 'false');
     }
+    // 默认设置为私有文件（登录用户的文件默认私有）
+    formData.append('is_public', options.is_public ? 'true' : 'false');
 
     try {
       const response = await axiosInstance.post<UploadResponse>('/api/upload', formData, {

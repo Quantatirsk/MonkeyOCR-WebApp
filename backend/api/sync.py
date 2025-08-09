@@ -8,67 +8,27 @@ import hashlib
 import time
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Query, Header, Response
+from fastapi import APIRouter, HTTPException, Query, Header, Response, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from models import APIResponse, ProcessingTask
 from utils.file_handler import FileHandler
+from dependencies.auth import get_current_user_optional
 
 router = APIRouter(prefix="/api", tags=["sync"])
 
 # Initialize utilities
 file_handler = FileHandler()
 
-# Use persistence manager for task storage
-from utils.persistence import get_persistence_manager
+# Use SQLite persistence manager for task storage
+from utils.sqlite_persistence import get_persistence_manager
 
 # Note: persistence manager instance will be obtained when needed
 
 
-class SyncCache:
-    """Simple in-memory cache for sync operations"""
-    
-    def __init__(self, ttl_seconds: int = 60):
-        self.cache: Dict[str, Dict[str, Any]] = {}
-        self.ttl_seconds = ttl_seconds
-    
-    def get(self, key: str) -> Optional[Any]:
-        """Get cached value if not expired"""
-        if key in self.cache:
-            entry = self.cache[key]
-            if time.time() - entry['timestamp'] < self.ttl_seconds:
-                return entry['data']
-            else:
-                # Remove expired entry
-                del self.cache[key]
-        return None
-    
-    def set(self, key: str, data: Any) -> None:
-        """Set cached value with timestamp"""
-        self.cache[key] = {
-            'data': data,
-            'timestamp': time.time()
-        }
-    
-    def clear(self) -> None:
-        """Clear all cached entries"""
-        self.cache.clear()
-    
-    def get_stats(self) -> Dict[str, int]:
-        """Get cache statistics"""
-        now = time.time()
-        valid_entries = sum(1 for entry in self.cache.values() 
-                          if now - entry['timestamp'] < self.ttl_seconds)
-        return {
-            'total_entries': len(self.cache),
-            'valid_entries': valid_entries,
-            'expired_entries': len(self.cache) - valid_entries
-        }
-
-
-# Global cache instance
-sync_cache = SyncCache(ttl_seconds=30)  # 30 second cache for sync operations
+# Note: Removed SyncCache class and related caching logic as per requirement
+# Redis should only cache OCR and LLM tasks, not auth-related data
 
 
 class SyncRequest(BaseModel):
@@ -90,7 +50,8 @@ async def sync_tasks(
     response: Response,
     last_sync: Optional[str] = Query(None, description="Last sync timestamp in ISO format"),
     task_ids: Optional[str] = Query(None, description="Comma-separated list of client task IDs"),
-    if_none_match: Optional[str] = Header(None, alias="if-none-match", description="ETag for cache validation")
+    if_none_match: Optional[str] = Header(None, alias="if-none-match", description="ETag for cache validation"),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
     Synchronize task states between frontend and backend with caching support
@@ -102,23 +63,15 @@ async def sync_tasks(
     Returns all tasks or incremental changes based on parameters
     """
     try:
-        # Create cache key based on parameters
-        cache_key = f"sync_{last_sync or 'all'}_{task_ids or 'none'}"
+        # Note: Removed caching for sync operations as per requirement
+        # Redis should only cache OCR and LLM tasks, not auth-related data
         
         # Calculate current data hash for ETag
-        current_hash = _calculate_data_hash()
+        current_hash = await _calculate_data_hash()
         
         # Check ETag - if client has current version, return 304 Not Modified
         if if_none_match and if_none_match.strip('"') == current_hash:
             raise HTTPException(status_code=304, detail="Not Modified")
-        
-        # Check cache first
-        cached_response = sync_cache.get(cache_key)
-        if cached_response and cached_response.get('etag') == current_hash:
-            # Return cached response with updated server timestamp
-            cached_response['data']['server_timestamp'] = datetime.now()
-            cached_response['message'] = f"{cached_response['message']} (cached)"
-            return APIResponse(**cached_response)
         
         # Parse parameters
         last_sync_timestamp = None
@@ -134,7 +87,9 @@ async def sync_tasks(
         
         # Get all tasks from persistence (optimized call)
         persistence_manager = get_persistence_manager()
-        all_tasks = persistence_manager.get_tasks_with_metadata()
+        user_id = current_user.get("user_id") if current_user else None
+        all_tasks_list = await persistence_manager.get_all_tasks(user_id=user_id)
+        all_tasks = {task.id: task for task in all_tasks_list}
         
         # Determine sync type and filter tasks
         sync_type = "full"
@@ -168,19 +123,12 @@ async def sync_tasks(
             error=None
         )
         
-        # Set response headers for caching
+        # Set response headers for caching (client-side only)
         response.headers["ETag"] = f'"{current_hash}"'
-        response.headers["Cache-Control"] = "private, max-age=30"  # Cache for 30 seconds
+        response.headers["Cache-Control"] = "private, no-cache"  # No caching, always revalidate
         
-        # Cache the response
-        cache_data = {
-            'success': api_response.success,
-            'data': sync_response.dict(),
-            'message': api_response.message,
-            'error': api_response.error,
-            'etag': current_hash
-        }
-        sync_cache.set(cache_key, cache_data)
+        # Note: Removed server-side caching as per requirement
+        # Redis should only cache OCR and LLM tasks, not auth-related data
         
         return api_response
         
@@ -197,14 +145,14 @@ async def get_sync_status():
     """
     try:
         persistence_manager = get_persistence_manager()
-        stats = persistence_manager.get_task_stats()
+        stats = await persistence_manager.get_task_stats()
         
         return APIResponse(
             success=True,
             data={
                 "server_timestamp": datetime.now().isoformat(),
                 "task_stats": stats,
-                "data_hash": _calculate_data_hash()  # Simple data version indicator
+                "data_hash": await _calculate_data_hash()  # Simple data version indicator
             },
             message="Server status retrieved",
             error=None
@@ -215,17 +163,51 @@ async def get_sync_status():
 
 
 @router.get("/files/{task_id}/original")
-async def get_original_file(task_id: str, response: Response):
+async def get_original_file(
+    task_id: str, 
+    response: Response,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
     """
     Get the original uploaded file for a task with caching support
     Used for file preview functionality after page refresh
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Debug logging
+        logger.info(f"File access attempt for task {task_id}")
+        logger.info(f"Task user_id: {task.user_id}, is_public: {task.is_public}")
+        logger.info(f"Current user: {current_user.get('user_id') if current_user else 'Anonymous'}")
+        
+        # Check access permissions - simplified logic
+        # Allow access if any of these conditions are true:
+        # 1. Task is public
+        # 2. Task has no user_id (anonymous/legacy task)
+        # 3. Current user owns the task
+        if task.is_public:
+            # Public tasks are accessible to everyone
+            logger.info("Access granted: Public task")
+            pass
+        elif task.user_id is None:
+            # Anonymous/legacy tasks are accessible to everyone
+            logger.info("Access granted: Anonymous/legacy task")
+            pass
+        elif current_user and task.user_id == current_user.get("user_id"):
+            # User owns the task
+            logger.info("Access granted: User owns task")
+            pass
+        else:
+            # Access denied
+            logger.warning(f"Access denied for task {task_id}: user_id={task.user_id}, current_user={current_user}")
+            raise HTTPException(status_code=403, detail="Access denied")
         
         # Get original file path using file handler
         original_file_path = file_handler.get_original_file(task_id)
@@ -278,7 +260,10 @@ async def get_original_file(task_id: str, response: Response):
 
 
 @router.get("/tasks/{task_id}/preview")
-async def get_task_preview(task_id: str):
+async def get_task_preview(
+    task_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
     """
     Get preview information for a task
     Returns file metadata and preview URL
@@ -286,9 +271,17 @@ async def get_task_preview(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Check access permission
+        user_id = current_user.get("user_id") if current_user else None
+        task_user_id = task.user_id if hasattr(task, 'user_id') else task.get('user_id')
+        
+        # Only allow access to own tasks (unless task is public in the future)
+        if task_user_id and task_user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
         
         # Get original file info
         original_file_path = file_handler.get_original_file(task_id)
@@ -330,14 +323,15 @@ async def get_task_preview(task_id: str):
         raise HTTPException(status_code=500, detail=f"Failed to get preview: {str(e)}")
 
 
-def _calculate_data_hash() -> str:
+async def _calculate_data_hash() -> str:
     """
     Calculate a simple hash of current task data for change detection
     This can be used by clients to detect if server data has changed
     """
     try:
         persistence_manager = get_persistence_manager()
-        all_tasks = persistence_manager.get_tasks_with_metadata()
+        all_tasks_list = await persistence_manager.get_all_tasks()
+        all_tasks = {task.id: task for task in all_tasks_list}
         
         # Create a simple hash based on task IDs and statuses
         data_string = ""

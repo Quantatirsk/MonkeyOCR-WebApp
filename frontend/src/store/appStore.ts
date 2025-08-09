@@ -14,6 +14,7 @@ import {
 } from '../types';
 import { apiClient } from '../api/client';
 import { syncManager, SyncStatus } from '../utils/syncManager';
+import { useAuthStore } from './authStore';
 
 // Store version for migration
 const STORE_VERSION = 2;
@@ -72,7 +73,26 @@ export const useAppStore = create<AppStore>()(
 
       get completedTasks() {
         const { tasks } = get();
-        return tasks.filter(task => task.status === 'completed');
+        const authState = useAuthStore.getState();
+        const userId = authState.user?.id;
+        
+        // Filter by user if authenticated
+        return tasks.filter(task => 
+          task.status === 'completed' && 
+          (!authState.isAuthenticated || task.userId === userId)
+        );
+      },
+      
+      get userTasks() {
+        const { tasks } = get();
+        const authState = useAuthStore.getState();
+        const userId = authState.user?.id;
+        
+        // Return only current user's tasks if authenticated
+        if (!authState.isAuthenticated) {
+          return tasks; // Return all tasks if not authenticated (backward compatibility)
+        }
+        return tasks.filter(task => task.userId === userId);
       },
 
       get isProcessing() {
@@ -82,9 +102,14 @@ export const useAppStore = create<AppStore>()(
 
       // Task management actions
       addTask: (taskData) => {
+        // Get current user from auth store
+        const authState = useAuthStore.getState();
+        const userId = authState.user?.id;
+        
         const task: ProcessingTask = {
           id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           ...taskData,
+          userId, // Associate task with current user
         };
         
         set((state) => ({
@@ -153,6 +178,21 @@ export const useAppStore = create<AppStore>()(
           results: new Map()
         });
       },
+      
+      // Clear current user's data (called on logout)
+      clearUserData: () => {
+        // When user logs out, clear ALL tasks and results
+        // This ensures no data leakage between sessions
+        set({ 
+          tasks: [],
+          currentTaskId: null,
+          results: new Map()
+        });
+        
+        // Clear localStorage to ensure clean state
+        // Remove the persisted store data
+        localStorage.removeItem('monkeyocr-app-store');
+      },
 
       // UI state actions
       setSearchQuery: (query) => {
@@ -181,7 +221,7 @@ export const useAppStore = create<AppStore>()(
 
       // File operations
       uploadFiles: async (files, options = {}) => {
-        const { setUploading, pollTaskStatus } = get();
+        const { setUploading, pollTaskStatus, loadResult } = get();
         
         setUploading(true);
         
@@ -202,8 +242,15 @@ export const useAppStore = create<AppStore>()(
                   currentTaskId: serverTask.id
                 }));
                 
-                // Start polling for status updates using server task ID
-                pollTaskStatus(serverTask.id);
+                // If task is already completed (cache hit), load result immediately
+                if (serverTask.status === 'completed') {
+                  console.log(`Task ${serverTask.id} completed from cache, loading result...`);
+                  await loadResult(serverTask.id);
+                } else {
+                  // Start polling for status updates using server task ID
+                  console.log(`Task ${serverTask.id} status: ${serverTask.status}, starting polling...`);
+                  pollTaskStatus(serverTask.id);
+                }
               } else {
                 console.error('Upload failed:', response.error);
               }
@@ -220,7 +267,20 @@ export const useAppStore = create<AppStore>()(
         const { updateTask, loadResult } = get();
         const task = get().tasks.find(t => t.id === taskId);
         
-        if (!task || task.status === 'completed' || task.status === 'failed') {
+        if (!task) {
+          return;
+        }
+        
+        // If task is already completed or failed, just load the result if needed
+        if (task.status === 'completed') {
+          // Ensure result is loaded for completed tasks
+          if (!get().results.has(taskId)) {
+            await loadResult(taskId);
+          }
+          return;
+        }
+        
+        if (task.status === 'failed') {
           return;
         }
         
@@ -235,8 +295,8 @@ export const useAppStore = create<AppStore>()(
               await loadResult(taskId);
             }
             
-            // Continue polling if still processing
-            if (response.data.status === 'processing') {
+            // Continue polling if still processing or pending
+            if (response.data.status === 'processing' || response.data.status === 'pending') {
               setTimeout(() => get().pollTaskStatus(taskId), 2000);
             }
           }
@@ -256,40 +316,57 @@ export const useAppStore = create<AppStore>()(
 
         // 设置同步状态监听器
         syncManager.onSyncStatusChange((status) => {
+          console.log('[AppStore] Received sync status update:', status);
           set({ syncStatus: status });
         });
 
         // 标记为已初始化
         set({ isInitialized: true });
 
-        // 页面加载时自动同步（延迟执行避免冲突）
-        setTimeout(() => {
-          get().syncWithServer().catch(error => {
-            console.error('Initial sync failed:', error);
-          });
-        }, 50);
+        // 只有已登录用户才自动同步
+        // 未登录用户不应该看到任何任务
+        const authState = useAuthStore.getState();
+        if (authState.isAuthenticated && authState.tokens) {
+          // 页面加载时自动同步（延迟执行避免冲突）
+          setTimeout(() => {
+            get().syncWithServer().catch(error => {
+              console.error('Initial sync failed:', error);
+            });
+          }, 50);
+        }
       },
 
       syncWithServer: async () => {
+        // Check if user is authenticated before syncing
+        const authState = useAuthStore.getState();
+        if (!authState.isAuthenticated) {
+          console.log('Sync skipped - user not authenticated');
+          // Clear tasks for unauthenticated users
+          set({ 
+            tasks: [],
+            currentTaskId: null,
+            results: new Map()
+          });
+          return;
+        }
+        
         try {
-          // 如果本地没有任务，强制执行全量同步
-          const { tasks: localTasks } = get();
-          const forceFullSync = localTasks.length === 0;
+          console.log(`Syncing for user ${authState.user?.id} (${authState.user?.email})`);
+          console.log(`Current local tasks before sync: ${get().tasks.length}`);
           
-          const syncResult = await syncManager.smartSync(forceFullSync);
-          const { tasks: serverTasks, syncType } = syncResult;
+          // Always do full sync - fetch all tasks from server and replace local data
+          const serverTasks = await syncManager.syncAll();
           
-          // 对于全量同步或有数据更新的增量同步，更新任务列表
-          const { results } = get();
-          const mergedTasks = syncManager.mergeTasks(localTasks, serverTasks, syncType === 'full');
+          console.log(`Received ${serverTasks.length} tasks from server`);
           
-          // 更新任务列表
-          set({ tasks: mergedTasks });
+          // Directly replace local tasks with server tasks (no merging)
+          set({ tasks: serverTasks });
           
           // 处理任务状态变化
-          mergedTasks.forEach(async (task) => {
-            if (task.status === 'processing') {
-              // 重新启动处理中任务的轮询
+          const { results } = get();
+          serverTasks.forEach(async (task) => {
+            if (task.status === 'processing' || task.status === 'pending') {
+              // 重新启动处理中或等待中任务的轮询
               get().pollTaskStatus(task.id);
             } else if (task.status === 'completed') {
               // 为已完成的任务加载OCR结果（如果还没有加载）

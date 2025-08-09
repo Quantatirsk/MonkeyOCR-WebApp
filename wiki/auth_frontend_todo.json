@@ -1,0 +1,608 @@
+{
+  "project": "MonkeyOCR WebApp - Frontend Authentication Implementation",
+  "description": "Complete implementation of authentication system in React frontend to integrate with existing backend auth API",
+  "analysis_summary": {
+    "frontend_status": "No authentication implementation found",
+    "backend_status": "Fully implemented with JWT authentication",
+    "missing_components": [
+      "Login/Register UI components",
+      "User state management in Zustand",
+      "API authentication interceptor",
+      "Protected routes",
+      "User profile display",
+      "Task isolation by user"
+    ]
+  },
+  "version": "1.0.0",
+  "created_date": "2025-08-09",
+  "estimated_total_hours": 48,
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Authentication UI Components",
+      "duration": "Day 1",
+      "estimated_hours": 12,
+      "priority": "Critical",
+      "tasks": [
+        {
+          "id": "ui-001",
+          "title": "Create Login Component",
+          "description": "Create login form with email/username and password fields",
+          "priority": "Critical",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/components/auth/LoginForm.tsx",
+            "frontend/src/components/auth/login.css"
+          ],
+          "requirements": [
+            "Email/username input field",
+            "Password input field with show/hide toggle",
+            "Remember me checkbox",
+            "Submit button with loading state",
+            "Error message display",
+            "Link to register page",
+            "Link to forgot password",
+            "Form validation using react-hook-form",
+            "Responsive design with shadcn/ui components"
+          ]
+        },
+        {
+          "id": "ui-002",
+          "title": "Create Register Component",
+          "description": "Create registration form with validation",
+          "priority": "Critical",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/components/auth/RegisterForm.tsx",
+            "frontend/src/components/auth/register.css"
+          ],
+          "requirements": [
+            "Username input (3-50 chars)",
+            "Email input with validation",
+            "Password input (min 8 chars)",
+            "Confirm password field",
+            "Password strength indicator",
+            "Terms acceptance checkbox",
+            "Submit button with loading state",
+            "Error message display",
+            "Link to login page",
+            "Client-side validation",
+            "Server-side error handling"
+          ]
+        },
+        {
+          "id": "ui-003",
+          "title": "Create Auth Modal/Page Container",
+          "description": "Create container for auth forms with routing",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/auth/AuthContainer.tsx",
+            "frontend/src/components/auth/AuthModal.tsx"
+          ],
+          "requirements": [
+            "Modal or full-page layout option",
+            "Tab navigation between login/register",
+            "Smooth transitions between forms",
+            "Close button for modal mode",
+            "Backdrop click to close",
+            "ESC key to close",
+            "Mobile responsive layout"
+          ]
+        },
+        {
+          "id": "ui-004",
+          "title": "Create User Menu Component",
+          "description": "Create dropdown menu for authenticated users",
+          "priority": "High",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/layout/UserMenu.tsx"
+          ],
+          "requirements": [
+            "User avatar or initial",
+            "Username display",
+            "Dropdown menu using shadcn/ui",
+            "Profile option",
+            "Settings option",
+            "My Tasks option",
+            "Logout option",
+            "Task statistics display",
+            "Click outside to close"
+          ]
+        },
+        {
+          "id": "ui-005",
+          "title": "Update Header with Auth UI",
+          "description": "Integrate auth components into header",
+          "priority": "High",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/layout/Header.tsx"
+          ],
+          "requirements": [
+            "Show login/register buttons when not authenticated",
+            "Show user menu when authenticated",
+            "Smooth transition between states",
+            "Mobile responsive design",
+            "Loading state during auth check"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "State Management & API Integration",
+      "duration": "Day 2",
+      "estimated_hours": 12,
+      "priority": "Critical",
+      "tasks": [
+        {
+          "id": "state-001",
+          "title": "Create Auth Store Slice",
+          "description": "Add authentication state to Zustand store",
+          "priority": "Critical",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/store/authStore.ts",
+            "frontend/src/store/appStore.ts"
+          ],
+          "requirements": [
+            "User state (id, username, email, isVerified)",
+            "Authentication state (isAuthenticated, isLoading)",
+            "Tokens state (accessToken, refreshToken)",
+            "Login action",
+            "Logout action",
+            "Register action",
+            "Refresh token action",
+            "Update user profile action",
+            "Persist auth state in localStorage",
+            "Auto-refresh token logic"
+          ]
+        },
+        {
+          "id": "state-002",
+          "title": "Update Task Store for User Context",
+          "description": "Add user context to task management",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/store/appStore.ts"
+          ],
+          "requirements": [
+            "Filter tasks by current user",
+            "Add userId to task creation",
+            "Handle public/private task visibility",
+            "Update task fetching with auth context",
+            "Clear user tasks on logout"
+          ]
+        },
+        {
+          "id": "api-001",
+          "title": "Create Auth API Service",
+          "description": "Create authentication API client",
+          "priority": "Critical",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/api/authClient.ts"
+          ],
+          "requirements": [
+            "Login endpoint integration",
+            "Register endpoint integration",
+            "Logout endpoint integration",
+            "Refresh token endpoint",
+            "Get current user endpoint",
+            "Update profile endpoint",
+            "Change password endpoint",
+            "Email verification endpoint",
+            "Password reset endpoints",
+            "Error handling and retry logic"
+          ]
+        },
+        {
+          "id": "api-002",
+          "title": "Add Auth Interceptor to API Client",
+          "description": "Add JWT token to API requests",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/api/client.ts"
+          ],
+          "requirements": [
+            "Add Authorization header with JWT token",
+            "Handle 401 unauthorized responses",
+            "Automatic token refresh on 401",
+            "Retry failed requests after refresh",
+            "Queue requests during token refresh",
+            "Clear auth on refresh failure",
+            "Update CORS configuration"
+          ]
+        },
+        {
+          "id": "api-003",
+          "title": "Create Auth Hooks",
+          "description": "Create React hooks for authentication",
+          "priority": "High",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/hooks/useAuth.ts",
+            "frontend/src/hooks/useRequireAuth.ts"
+          ],
+          "requirements": [
+            "useAuth hook for auth state and actions",
+            "useRequireAuth hook for protected routes",
+            "useUser hook for current user data",
+            "useLogout hook with cleanup",
+            "useTokenRefresh hook",
+            "Error handling in hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Route Protection & Navigation",
+      "duration": "Day 2-3",
+      "estimated_hours": 8,
+      "priority": "High",
+      "tasks": [
+        {
+          "id": "route-001",
+          "title": "Install React Router",
+          "description": "Add routing library for navigation",
+          "priority": "Critical",
+          "estimated_hours": 1,
+          "files": [
+            "frontend/package.json",
+            "frontend/src/main.tsx"
+          ],
+          "requirements": [
+            "Install react-router-dom",
+            "Setup BrowserRouter in main.tsx",
+            "Configure route structure"
+          ]
+        },
+        {
+          "id": "route-002",
+          "title": "Create Protected Route Component",
+          "description": "Create wrapper for authenticated routes",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/auth/ProtectedRoute.tsx"
+          ],
+          "requirements": [
+            "Check authentication status",
+            "Redirect to login if not authenticated",
+            "Show loading during auth check",
+            "Remember intended destination",
+            "Redirect to intended page after login"
+          ]
+        },
+        {
+          "id": "route-003",
+          "title": "Setup Application Routes",
+          "description": "Configure route structure with auth",
+          "priority": "High",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/App.tsx",
+            "frontend/src/routes/index.tsx"
+          ],
+          "requirements": [
+            "Public routes (login, register, landing)",
+            "Protected routes (dashboard, tasks)",
+            "Lazy loading for route components",
+            "404 page handling",
+            "Route-based code splitting"
+          ]
+        },
+        {
+          "id": "route-004",
+          "title": "Create Landing Page",
+          "description": "Create public landing page for non-authenticated users",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/pages/Landing.tsx",
+            "frontend/src/pages/landing.css"
+          ],
+          "requirements": [
+            "Welcome message and app description",
+            "Feature showcase",
+            "Call-to-action buttons (Login/Register)",
+            "Sample OCR results preview",
+            "Responsive design",
+            "Animation and transitions"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "User Space Isolation",
+      "duration": "Day 3",
+      "estimated_hours": 8,
+      "priority": "High",
+      "tasks": [
+        {
+          "id": "isolation-001",
+          "title": "Update Task List for User Filtering",
+          "description": "Filter tasks by authenticated user",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/TaskList.tsx"
+          ],
+          "requirements": [
+            "Show only user's tasks",
+            "Option to view shared tasks",
+            "Public tasks section",
+            "Task ownership indicator",
+            "Sharing status badge"
+          ]
+        },
+        {
+          "id": "isolation-002",
+          "title": "Add Task Sharing UI",
+          "description": "Create interface for sharing tasks",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/components/task/ShareTaskDialog.tsx"
+          ],
+          "requirements": [
+            "Share by email input",
+            "Share by username search",
+            "Permission level selector",
+            "Share link generation",
+            "Revoke access option",
+            "List of shared users"
+          ]
+        },
+        {
+          "id": "isolation-003",
+          "title": "Create User Dashboard",
+          "description": "Create personalized dashboard for users",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/pages/Dashboard.tsx",
+            "frontend/src/components/dashboard/StatsCard.tsx"
+          ],
+          "requirements": [
+            "Task statistics (total, completed, processing)",
+            "Recent tasks list",
+            "Quick upload section",
+            "Usage quota display",
+            "Recent activity timeline",
+            "Shared tasks section"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Additional Features",
+      "duration": "Day 3-4",
+      "estimated_hours": 8,
+      "priority": "Medium",
+      "tasks": [
+        {
+          "id": "feature-001",
+          "title": "Create User Profile Page",
+          "description": "Create user profile management page",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/pages/Profile.tsx",
+            "frontend/src/components/profile/ProfileForm.tsx"
+          ],
+          "requirements": [
+            "Display user information",
+            "Edit username",
+            "Change email (with verification)",
+            "Change password form",
+            "Delete account option",
+            "Export user data",
+            "Activity history"
+          ]
+        },
+        {
+          "id": "feature-002",
+          "title": "Add Password Reset Flow",
+          "description": "Implement forgot password functionality",
+          "priority": "Medium",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/auth/ForgotPassword.tsx",
+            "frontend/src/components/auth/ResetPassword.tsx"
+          ],
+          "requirements": [
+            "Email input for reset request",
+            "Success message display",
+            "Reset token validation",
+            "New password form",
+            "Email notification (backend)",
+            "Expiry handling"
+          ]
+        },
+        {
+          "id": "feature-003",
+          "title": "Add Session Management",
+          "description": "Show and manage active sessions",
+          "priority": "Low",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/profile/SessionList.tsx"
+          ],
+          "requirements": [
+            "List active sessions",
+            "Show device/browser info",
+            "Show location (IP-based)",
+            "Revoke session option",
+            "Current session indicator"
+          ]
+        },
+        {
+          "id": "feature-004",
+          "title": "Add Remember Me & Auto-Login",
+          "description": "Implement persistent login",
+          "priority": "Medium",
+          "estimated_hours": 1,
+          "files": [
+            "frontend/src/store/authStore.ts",
+            "frontend/src/App.tsx"
+          ],
+          "requirements": [
+            "Remember me checkbox on login",
+            "Persistent token storage",
+            "Auto-login on app start",
+            "Secure token handling",
+            "Expiry check"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Testing & Polish",
+      "duration": "Day 4",
+      "estimated_hours": 8,
+      "priority": "High",
+      "tasks": [
+        {
+          "id": "test-001",
+          "title": "Create Auth Component Tests",
+          "description": "Unit tests for auth components",
+          "priority": "High",
+          "estimated_hours": 3,
+          "files": [
+            "frontend/src/components/auth/__tests__/"
+          ],
+          "requirements": [
+            "Login form tests",
+            "Register form tests",
+            "Validation tests",
+            "Error handling tests",
+            "User menu tests"
+          ]
+        },
+        {
+          "id": "test-002",
+          "title": "Create Auth Flow E2E Tests",
+          "description": "End-to-end tests for auth flows",
+          "priority": "High",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/e2e/auth.spec.ts"
+          ],
+          "requirements": [
+            "Registration flow test",
+            "Login flow test",
+            "Logout flow test",
+            "Protected route test",
+            "Token refresh test"
+          ]
+        },
+        {
+          "id": "polish-001",
+          "title": "Add Loading States & Transitions",
+          "description": "Polish UI with better feedback",
+          "priority": "Medium",
+          "estimated_hours": 2,
+          "files": [
+            "frontend/src/components/auth/",
+            "frontend/src/components/ui/"
+          ],
+          "requirements": [
+            "Loading skeletons",
+            "Button loading states",
+            "Form submission feedback",
+            "Success animations",
+            "Error animations",
+            "Page transitions"
+          ]
+        },
+        {
+          "id": "polish-002",
+          "title": "Add Error Boundary & Fallbacks",
+          "description": "Improve error handling UX",
+          "priority": "Medium",
+          "estimated_hours": 1,
+          "files": [
+            "frontend/src/components/ErrorBoundary.tsx"
+          ],
+          "requirements": [
+            "Global error boundary",
+            "Auth error fallback",
+            "Network error handling",
+            "Retry mechanisms",
+            "User-friendly error messages"
+          ]
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "npm_packages": [
+      "react-router-dom@^6.26.0",
+      "react-hook-form@^7.52.0",
+      "@hookform/resolvers@^3.9.0",
+      "zod@^3.23.0",
+      "js-cookie@^3.0.5",
+      "jwt-decode@^4.0.0"
+    ],
+    "existing_components": [
+      "shadcn/ui components",
+      "Zustand store",
+      "Axios client",
+      "TailwindCSS"
+    ]
+  },
+  "technical_decisions": {
+    "routing": "React Router v6 for declarative routing",
+    "form_validation": "React Hook Form with Zod schema validation",
+    "token_storage": "localStorage for refresh token, memory for access token",
+    "state_management": "Extend existing Zustand store with auth slice",
+    "ui_components": "Reuse shadcn/ui components for consistency",
+    "error_handling": "Centralized error handling with toast notifications"
+  },
+  "security_considerations": [
+    "Store tokens securely (httpOnly cookies preferred but using localStorage for simplicity)",
+    "Implement CSRF protection if using cookies",
+    "Validate all inputs on client and server",
+    "Use HTTPS in production",
+    "Implement rate limiting on auth endpoints",
+    "Clear sensitive data on logout",
+    "Implement session timeout",
+    "Use secure password requirements"
+  ],
+  "ui_ux_guidelines": [
+    "Consistent with existing MonkeyOCR design",
+    "Mobile-first responsive design",
+    "Clear error messages",
+    "Loading states for all async operations",
+    "Smooth transitions between auth states",
+    "Accessibility compliance (WCAG 2.1)",
+    "Keyboard navigation support",
+    "Dark mode support"
+  ],
+  "migration_strategy": {
+    "backward_compatibility": "Support anonymous usage for existing users",
+    "gradual_rollout": "Feature flag for auth system",
+    "data_migration": "Associate existing tasks with users post-login",
+    "fallback_plan": "Keep non-auth mode available initially"
+  },
+  "success_metrics": [
+    "All auth endpoints integrated",
+    "User can register and login",
+    "Tasks are isolated by user",
+    "Token refresh works seamlessly",
+    "Protected routes enforce authentication",
+    "Logout clears all user data",
+    "Error handling provides clear feedback",
+    "Mobile responsive design works",
+    "All tests pass"
+  ]
+}

@@ -1,0 +1,664 @@
+{
+  "project": "MonkeyOCR WebApp - SQLite-Based Authentication System",
+  "description": "Direct implementation of user authentication with SQLite for persistence and Redis for caching",
+  "version": "2.1.0",
+  "created_date": "2025-08-09",
+  "revised_date": "2025-08-09",
+  "estimated_total_hours": 80,
+  "architecture_changes": {
+    "storage": "SQLite for all persistent data (no JSON files)",
+    "orm": "Direct aiosqlite usage (lightweight, no SQLAlchemy needed)",
+    "caching": "Redis for performance caching (sessions, user profiles, OCR results)",
+    "implementation": "Direct switch - no migration needed (empty project)"
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Database Infrastructure Setup",
+      "duration": "Days 1-3",
+      "estimated_hours": 24,
+      "priority": "Critical",
+      "dependencies": [],
+      "tasks": [
+        {
+          "id": "db-001",
+          "title": "Install Database Dependencies",
+          "description": "Add SQLAlchemy, aiosqlite, and Alembic to requirements.txt",
+          "priority": "Critical",
+          "estimated_hours": 1,
+          "status": "pending",
+          "files": ["backend/requirements.txt"],
+          "requirements": [
+            "Add aiosqlite>=0.19.0 for async SQLite support",
+            "Add python-jose[cryptography] for JWT",
+            "Add passlib[bcrypt] for password hashing",
+            "Add email-validator for email validation",
+            "Remove JSON persistence dependencies"
+          ]
+        },
+        {
+          "id": "db-002",
+          "title": "Create Database Configuration Module",
+          "description": "Create backend/database/config.py for database settings",
+          "priority": "Critical",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/database/config.py", "backend/config.py"],
+          "requirements": [
+            "Configure SQLite connection string",
+            "Set up connection pool settings",
+            "Add database path configuration",
+            "Configure WAL mode for better concurrency",
+            "Add backup path settings"
+          ]
+        },
+        {
+          "id": "db-003",
+          "title": "Create Database Connection Manager",
+          "description": "Create backend/database/database.py for connection management",
+          "priority": "Critical",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/database/database.py"],
+          "requirements": [
+            "Implement DatabaseManager class with aiosqlite",
+            "Create connection pool management",
+            "Add context managers for transactions",
+            "Implement database initialization",
+            "Add connection health checks",
+            "Configure SQLite pragmas for optimization"
+          ]
+        },
+        {
+          "id": "db-004",
+          "title": "Create Database Schema",
+          "description": "Create backend/database/schema.sql with all table definitions",
+          "priority": "Critical",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/database/schema.sql", "backend/database/database.py"],
+          "requirements": [
+            "Create users table with auth fields",
+            "Create user_sessions table",
+            "Create processing_tasks table",
+            "Create task_status_history table",
+            "Create task_shares table",
+            "Add all necessary indexes",
+            "Configure foreign key constraints"
+          ]
+        },
+        {
+          "id": "db-005",
+          "title": "Remove JSON Persistence",
+          "description": "Remove all JSON file storage code",
+          "priority": "Critical",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["backend/utils/persistence.py", "backend/data/tasks.json"],
+          "requirements": [
+            "Delete backend/utils/persistence.py",
+            "Delete backend/data/tasks.json",
+            "Update imports in main.py",
+            "Remove JSON persistence references",
+            "Clean up unused code"
+          ]
+        },
+        {
+          "id": "db-006",
+          "title": "Update Redis Client for Caching",
+          "description": "Configure Redis as cache layer for SQLite",
+          "priority": "High",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/utils/redis_client.py"],
+          "requirements": [
+            "Add user session caching (24hr TTL)",
+            "Add user profile caching (1hr TTL)",
+            "Add task metadata caching (30min TTL)",
+            "Implement cache invalidation",
+            "Keep existing OCR cache logic",
+            "Keep existing LLM cache logic"
+          ]
+        },
+        {
+          "id": "db-007",
+          "title": "Create Database Backup System",
+          "description": "Implement automated backup for SQLite database",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/utils/backup_manager.py"],
+          "requirements": [
+            "Implement scheduled backups",
+            "Use SQLite backup API",
+            "Compress backup files",
+            "Rotate old backups",
+            "Add restore functionality"
+          ]
+        },
+        {
+          "id": "db-008",
+          "title": "Create Database Testing Utilities",
+          "description": "Set up testing infrastructure for database operations",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/tests/database/", "backend/tests/conftest.py"],
+          "requirements": [
+            "Create test database fixtures",
+            "Implement database reset between tests",
+            "Add factory functions for test data",
+            "Configure in-memory SQLite for tests",
+            "Add database assertion helpers"
+          ]
+        },
+        {
+          "id": "db-009",
+          "title": "Optimize SQLite Configuration",
+          "description": "Configure SQLite for optimal performance",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/database/optimization.py"],
+          "requirements": [
+            "Enable WAL mode for concurrency",
+            "Configure page size and cache size",
+            "Set up proper journal mode",
+            "Enable foreign key constraints",
+            "Configure synchronous mode for durability",
+            "Add VACUUM scheduling"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Repository Pattern Implementation",
+      "duration": "Days 4-5",
+      "estimated_hours": 20,
+      "priority": "High",
+      "dependencies": ["Phase 1"],
+      "tasks": [
+        {
+          "id": "repo-001",
+          "title": "Create Base Repository Class",
+          "description": "Create backend/repositories/base.py with common repository functionality",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/repositories/base.py"],
+          "requirements": [
+            "Implement generic CRUD operations",
+            "Add pagination support",
+            "Include filtering and sorting",
+            "Add transaction management",
+            "Implement soft delete support"
+          ]
+        },
+        {
+          "id": "repo-002",
+          "title": "Implement User Repository",
+          "description": "Create backend/repositories/user_repository.py",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/repositories/user_repository.py"],
+          "requirements": [
+            "Create user with unique constraints",
+            "Find user by email/username",
+            "Update user profile",
+            "Handle password updates",
+            "Manage user preferences",
+            "Implement user search",
+            "Add user statistics queries"
+          ]
+        },
+        {
+          "id": "repo-003",
+          "title": "Implement Session Repository",
+          "description": "Create backend/repositories/session_repository.py",
+          "priority": "High",
+          "estimated_hours": 5,
+          "status": "pending",
+          "files": ["backend/repositories/session_repository.py"],
+          "requirements": [
+            "Create and validate sessions",
+            "Find active sessions by token",
+            "Invalidate expired sessions",
+            "Track session activity",
+            "Implement refresh token rotation",
+            "Add device tracking"
+          ]
+        },
+        {
+          "id": "repo-004",
+          "title": "Implement Task Repository",
+          "description": "Create backend/repositories/task_repository.py",
+          "priority": "High",
+          "estimated_hours": 8,
+          "status": "pending",
+          "files": ["backend/repositories/task_repository.py"],
+          "requirements": [
+            "Create tasks with user association",
+            "Query tasks by user with pagination",
+            "Filter by status, date, access level",
+            "Update task status with history",
+            "Handle task sharing",
+            "Implement full-text search",
+            "Add aggregation queries for statistics"
+          ]
+        },
+        {
+          "id": "repo-005",
+          "title": "Create Repository Tests",
+          "description": "Add comprehensive repository tests",
+          "priority": "Medium",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/tests/repositories/"],
+          "requirements": [
+            "Test all CRUD operations",
+            "Test concurrent access scenarios",
+            "Verify constraint enforcement",
+            "Test transaction rollback",
+            "Validate query performance"
+          ]
+        },
+        {
+          "id": "repo-006",
+          "title": "Add Repository Caching Layer",
+          "description": "Implement caching for frequently accessed data",
+          "priority": "Low",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/repositories/cache_decorator.py"],
+          "requirements": [
+            "Create caching decorator",
+            "Implement cache invalidation",
+            "Add Redis integration for hot data",
+            "Configure TTL strategies",
+            "Add cache metrics"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Authentication Service Layer",
+      "duration": "Days 6-7",
+      "estimated_hours": 16,
+      "priority": "High",
+      "dependencies": ["Phase 2"],
+      "tasks": [
+        {
+          "id": "auth-001",
+          "title": "Create Authentication Service",
+          "description": "Create backend/services/auth_service.py",
+          "priority": "High",
+          "estimated_hours": 8,
+          "status": "pending",
+          "files": ["backend/services/auth_service.py"],
+          "requirements": [
+            "Implement user registration with validation",
+            "Create login with JWT generation",
+            "Handle password reset flow",
+            "Implement email verification",
+            "Add OAuth preparation hooks",
+            "Create session management",
+            "Add rate limiting logic"
+          ]
+        },
+        {
+          "id": "auth-002",
+          "title": "Implement JWT Token Manager",
+          "description": "Create backend/services/token_manager.py",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/services/token_manager.py"],
+          "requirements": [
+            "Generate access and refresh tokens",
+            "Validate and decode tokens",
+            "Implement token rotation",
+            "Add token blacklisting",
+            "Configure expiration times",
+            "Add claims management"
+          ]
+        },
+        {
+          "id": "auth-003",
+          "title": "Create Password Service",
+          "description": "Create backend/services/password_service.py",
+          "priority": "High",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/services/password_service.py"],
+          "requirements": [
+            "Implement bcrypt hashing",
+            "Add password strength validation",
+            "Create password history tracking",
+            "Add breach detection integration",
+            "Implement secure password reset"
+          ]
+        },
+        {
+          "id": "auth-004",
+          "title": "Implement Authorization Service",
+          "description": "Create backend/services/authorization_service.py",
+          "priority": "Medium",
+          "estimated_hours": 5,
+          "status": "pending",
+          "files": ["backend/services/authorization_service.py"],
+          "requirements": [
+            "Check task ownership",
+            "Validate access levels",
+            "Implement sharing permissions",
+            "Add role-based access (future)",
+            "Create permission caching"
+          ]
+        },
+        {
+          "id": "auth-005",
+          "title": "Create Email Service",
+          "description": "Create backend/services/email_service.py for notifications",
+          "priority": "Low",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/services/email_service.py"],
+          "requirements": [
+            "Add email templates",
+            "Implement verification emails",
+            "Create password reset emails",
+            "Add welcome emails",
+            "Configure SMTP settings"
+          ]
+        },
+        {
+          "id": "auth-006",
+          "title": "Add Service Layer Tests",
+          "description": "Create comprehensive service tests",
+          "priority": "Medium",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/tests/services/"],
+          "requirements": [
+            "Test authentication flows",
+            "Verify token generation",
+            "Test authorization logic",
+            "Validate email sending",
+            "Check rate limiting"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "API Layer Integration",
+      "duration": "Days 8-9",
+      "estimated_hours": 16,
+      "priority": "High",
+      "dependencies": ["Phase 3"],
+      "tasks": [
+        {
+          "id": "api-001",
+          "title": "Create Authentication Router",
+          "description": "Create backend/api/auth.py with auth endpoints",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/api/auth.py"],
+          "requirements": [
+            "POST /api/auth/register",
+            "POST /api/auth/login",
+            "POST /api/auth/logout",
+            "POST /api/auth/refresh",
+            "GET /api/auth/me",
+            "PUT /api/auth/me",
+            "POST /api/auth/verify-email",
+            "POST /api/auth/reset-password"
+          ]
+        },
+        {
+          "id": "api-002",
+          "title": "Create Authentication Dependencies",
+          "description": "Create backend/dependencies/auth.py",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/dependencies/auth.py"],
+          "requirements": [
+            "get_current_user dependency",
+            "get_current_user_optional",
+            "require_authentication",
+            "get_db_session",
+            "rate_limit_check"
+          ]
+        },
+        {
+          "id": "api-003",
+          "title": "Update Task API for User Context",
+          "description": "Modify existing task endpoints for user isolation",
+          "priority": "High",
+          "estimated_hours": 6,
+          "status": "pending",
+          "files": ["backend/api/upload.py", "backend/api/results.py", "backend/api/sync.py"],
+          "requirements": [
+            "Add user context to task creation",
+            "Filter tasks by user",
+            "Implement access control",
+            "Add sharing endpoints",
+            "Update task queries"
+          ]
+        },
+        {
+          "id": "api-004",
+          "title": "Add Authentication Middleware",
+          "description": "Create backend/middleware/auth_middleware.py",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/middleware/auth_middleware.py"],
+          "requirements": [
+            "JWT validation middleware",
+            "Session tracking",
+            "Request logging with user context",
+            "CORS updates for auth headers",
+            "Security headers"
+          ]
+        },
+        {
+          "id": "api-005",
+          "title": "Update Main Application",
+          "description": "Integrate authentication into FastAPI app",
+          "priority": "High",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["backend/main.py"],
+          "requirements": [
+            "Register auth router",
+            "Add auth middleware",
+            "Initialize database on startup",
+            "Run migrations on startup",
+            "Update OpenAPI documentation"
+          ]
+        },
+        {
+          "id": "api-006",
+          "title": "Create API Integration Tests",
+          "description": "Add end-to-end API tests",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["backend/tests/api/"],
+          "requirements": [
+            "Test authentication flows",
+            "Test task isolation",
+            "Verify authorization",
+            "Test rate limiting",
+            "Check error handling"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Testing and Deployment",
+      "duration": "Days 10-12",
+      "estimated_hours": 16,
+      "priority": "High",
+      "dependencies": ["Phase 4"],
+      "tasks": [
+        {
+          "id": "test-001",
+          "title": "Create Integration Tests",
+          "description": "Add comprehensive test suite",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/tests/"],
+          "requirements": [
+            "Test user registration and login",
+            "Test task creation with user context",
+            "Test Redis caching",
+            "Test SQLite performance",
+            "Test concurrent access"
+          ]
+        },
+        {
+          "id": "deploy-002",
+          "title": "Update Docker Configuration",
+          "description": "Update Docker setup for SQLite",
+          "priority": "High",
+          "estimated_hours": 2,
+          "status": "pending",
+          "files": ["Dockerfile", "docker-compose.yml"],
+          "requirements": [
+            "Add volume for SQLite database",
+            "Configure database backups",
+            "Update health checks",
+            "Add migration on startup",
+            "Configure file permissions"
+          ]
+        },
+        {
+          "id": "deploy-003",
+          "title": "Create Deployment Guide",
+          "description": "Document deployment process",
+          "priority": "Medium",
+          "estimated_hours": 3,
+          "status": "pending",
+          "files": ["wiki/DEPLOYMENT_GUIDE.md"],
+          "requirements": [
+            "Migration steps",
+            "Backup procedures",
+            "Rollback plan",
+            "Performance tuning",
+            "Monitoring setup"
+          ]
+        },
+        {
+          "id": "deploy-004",
+          "title": "Performance Testing",
+          "description": "Test SQLite performance under load",
+          "priority": "High",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/tests/performance/"],
+          "requirements": [
+            "Load test with concurrent users",
+            "Query performance benchmarks",
+            "Write performance tests",
+            "Connection pool testing",
+            "Compare with JSON performance"
+          ]
+        },
+        {
+          "id": "deploy-005",
+          "title": "Create Monitoring Dashboard",
+          "description": "Add database monitoring",
+          "priority": "Low",
+          "estimated_hours": 4,
+          "status": "pending",
+          "files": ["backend/monitoring/"],
+          "requirements": [
+            "Database size monitoring",
+            "Query performance metrics",
+            "Connection pool stats",
+            "Error rate tracking",
+            "Backup status monitoring"
+          ]
+        }
+      ]
+    }
+  ],
+  "technical_decisions": {
+    "why_sqlite": {
+      "reasons": [
+        "Zero configuration database perfect for single-instance deployments",
+        "Excellent performance for read-heavy workloads",
+        "Full ACID compliance with proper configuration",
+        "Built-in full-text search capabilities",
+        "Easy backup and restore with file-based storage",
+        "No separate database server required"
+      ],
+      "optimizations": [
+        "WAL mode for better concurrency",
+        "Proper indexing strategy",
+        "Connection pooling with aiosqlite",
+        "Query optimization with EXPLAIN QUERY PLAN",
+        "Regular VACUUM scheduling"
+      ]
+    },
+    "architecture_patterns": {
+      "repository_pattern": "Direct SQL queries with aiosqlite for simplicity",
+      "service_layer": "Business logic separated from API layer",
+      "dependency_injection": "FastAPI's dependency system for clean architecture",
+      "storage_strategy": "SQLite for persistence, Redis for caching, filesystem for binaries"
+    },
+    "security_measures": {
+      "password_storage": "bcrypt with salt (via passlib)",
+      "token_management": "JWT with refresh token rotation",
+      "session_handling": "Database-backed sessions with expiration",
+      "rate_limiting": "Per-user rate limits in database",
+      "sql_injection": "Parameterized queries via SQLAlchemy"
+    }
+  },
+  "implementation_strategy": {
+    "approach": "Direct implementation - no migration needed",
+    "day1-3": "Set up SQLite database and remove JSON code",
+    "day4-7": "Implement repositories and services",
+    "day8-9": "API integration and authentication",
+    "day10-12": "Testing and deployment",
+    "timeline": "Total 10-12 days vs 4 weeks for migration approach"
+  },
+  "redis_role": {
+    "session_cache": "Active user sessions (24hr TTL)",
+    "user_cache": "User profiles (1hr TTL)",
+    "task_cache": "Task metadata (30min TTL)",
+    "ocr_cache": "OCR results (existing functionality)",
+    "llm_cache": "LLM responses (existing functionality)",
+    "rate_limiting": "Login attempts and API rate limits"
+  },
+  "testing_strategy": {
+    "unit_tests": "Repository and service layer isolation",
+    "integration_tests": "API endpoint testing with test database",
+    "performance_tests": "Load testing with concurrent users",
+    "no_migration": "No migration testing needed - direct implementation"
+  },
+  "monitoring_metrics": {
+    "database_health": ["size", "connection_count", "query_time"],
+    "authentication": ["login_rate", "failed_attempts", "session_count"],
+    "performance": ["response_time", "concurrent_users", "cache_hit_rate"]
+  },
+  "success_criteria": [
+    "SQLite database fully operational",
+    "User registration and login working",
+    "Task isolation by user implemented",
+    "Redis caching properly configured",
+    "Performance better than JSON file storage",
+    "All API endpoints updated",
+    "Database backups automated",
+    "All tests passing",
+    "10-12 day implementation completed"
+  ]
+}

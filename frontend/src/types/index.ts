@@ -17,6 +17,9 @@ export interface ProcessingTask {
   original_file?: File; // Store original file for preview
   original_file_url?: string; // Store original file URL for preview
   from_cache?: boolean; // Whether the result was loaded from cache
+  userId?: number; // User ID for task ownership
+  isPublic?: boolean; // Whether task is publicly visible
+  sharedWith?: number[]; // User IDs task is shared with
 }
 
 // Image resource interface
@@ -56,6 +59,7 @@ export interface APIResponse<T = any> {
 export interface UploadOptions {
   extract_type?: 'standard' | 'split' | 'text' | 'formula' | 'table';
   split_pages?: boolean;
+  is_public?: boolean;  // 是否公开文件（默认为私有）
 }
 
 // Sync status interface
@@ -90,6 +94,7 @@ export interface AppActions {
   setCurrentTask: (taskId: string | null) => void;
   removeTask: (id: string) => void;
   clearTasks: () => void;
+  clearUserData: () => void; // Clear current user's data on logout
   
   // Result management
   addResult: (result: DocumentResult) => void;
@@ -118,6 +123,7 @@ export interface AppStore extends AppState, AppActions {
   currentTask: ProcessingTask | null;
   currentResult: DocumentResult | null;
   completedTasks: ProcessingTask[];
+  userTasks: ProcessingTask[]; // Current user's tasks
   isProcessing: boolean;
 }
 
