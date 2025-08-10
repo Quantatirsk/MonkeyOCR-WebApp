@@ -39,13 +39,6 @@ export function Header() {
     setAuthModalOpen(true);
   };
   
-  const handleLoginSuccess = (data: any) => {
-    // Auth state is already updated in AuthContainer
-  };
-  
-  const handleRegisterSuccess = (data: any) => {
-    // Auth state is already updated in AuthContainer
-  };
   
   const handleLogout = async () => {
     try {
@@ -153,8 +146,6 @@ export function Header() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         initialMode={authMode}
-        onLoginSuccess={handleLoginSuccess}
-        onRegisterSuccess={handleRegisterSuccess}
       />
     </>
   );
