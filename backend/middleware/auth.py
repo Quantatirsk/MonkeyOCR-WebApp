@@ -17,9 +17,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
     
     # Paths that don't require authentication
     PUBLIC_PATHS = [
-        "/health", "/docs", "/openapi.json", "/redoc",
+        "/", "/health", "/docs", "/openapi.json", "/redoc",
         "/api/auth/login", "/api/auth/register",
-        "/static", "/api/sync"
+        "/static", "/api/sync", "/favicon.ico", "/assets"
     ]
     
     def __init__(self, app):

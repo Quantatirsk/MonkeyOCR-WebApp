@@ -29,6 +29,7 @@
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "framer-motion": "^12.23.12",
     "franc-min": "^6.2.0",
     "immer": "^10.1.1",
     "js-cookie": "^3.0.5",
