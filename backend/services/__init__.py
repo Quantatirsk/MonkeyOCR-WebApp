@@ -2,14 +2,12 @@
 Service layer for MonkeyOCR WebApp
 """
 
-from .auth_service import AuthenticationService
+from .auth import AuthService
 from .token_manager import TokenManager
 from .password_service import PasswordService
-from .authorization_service import AuthorizationService
 
 __all__ = [
-    'AuthenticationService',
+    'AuthService',
     'TokenManager',
-    'PasswordService',
-    'AuthorizationService'
+    'PasswordService'
 ]

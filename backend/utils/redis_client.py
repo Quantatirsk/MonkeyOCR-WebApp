@@ -170,35 +170,6 @@ class CacheManager:
         cls._memory_cache.clear()
 
 
-# Task result storage using Redis
-class TaskStorage:
-    """Task storage with Redis backend"""
-    
-    @staticmethod
-    async def save_task(task_id: str, task_data: dict, ttl: int = 86400) -> bool:
-        """Save task data"""
-        key = CacheManager.generate_key("task", task_id)
-        return await CacheManager.set_json(key, task_data, ttl)
-    
-    @staticmethod
-    async def get_task(task_id: str) -> Optional[dict]:
-        """Get task data"""
-        key = CacheManager.generate_key("task", task_id)
-        return await CacheManager.get_json(key)
-    
-    @staticmethod
-    async def update_task_status(task_id: str, status: str, progress: Optional[int] = None) -> bool:
-        """Update task status"""
-        task = await TaskStorage.get_task(task_id)
-        if task:
-            task["status"] = status
-            if progress is not None:
-                task["progress"] = progress
-            return await TaskStorage.save_task(task_id, task)
-        return False
-    
-    @staticmethod
-    async def delete_task(task_id: str) -> bool:
-        """Delete task data"""
-        key = CacheManager.generate_key("task", task_id)
-        return await CacheManager.delete(key)
+# TaskStorage class has been removed as part of cache optimization
+# Tasks are now stored only in SQLite database via SQLitePersistenceManager
+# This reduces complexity and avoids data duplication between Redis and SQLite

@@ -24,7 +24,7 @@ class UserRepository(BaseRepository):
         username: str,
         email: str,
         password_hash: str,
-        salt: str,
+        salt: Optional[str] = None,  # Optional for backward compatibility
         is_active: bool = True,
         is_verified: bool = False
     ) -> int:
@@ -35,12 +35,15 @@ class UserRepository(BaseRepository):
             "username": username,
             "email": email.lower(),
             "password_hash": password_hash,
-            "salt": salt,
             "is_active": 1 if is_active else 0,
             "is_verified": 1 if is_verified else 0,
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat()
         }
+        
+        # Only include salt if provided (for backward compatibility)
+        if salt is not None:
+            data["salt"] = salt
         
         return await self.create(data)
     
@@ -83,15 +86,20 @@ class UserRepository(BaseRepository):
         self, 
         user_id: int, 
         password_hash: str,
-        salt: str
+        salt: Optional[str] = None
     ) -> bool:
         """
         Update user password
         """
-        return await self.update_user(user_id, {
-            "password_hash": password_hash,
-            "salt": salt
-        })
+        update_data = {"password_hash": password_hash}
+        
+        # Set salt to NULL for new bcrypt-only passwords
+        if salt is None:
+            update_data["salt"] = None
+        else:
+            update_data["salt"] = salt
+            
+        return await self.update_user(user_id, update_data)
     
     async def update_last_login(self, user_id: int) -> bool:
         """

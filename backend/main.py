@@ -9,7 +9,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from middleware import add_security_middleware
+from middleware.auth import AuthMiddleware
+from middleware.security import SecurityMiddleware
+from middleware.rate_limit import RateLimitMiddleware
 
 # Set up logging
 logging.basicConfig(
@@ -44,6 +46,20 @@ async def lifespan(app: FastAPI):
     # 初始化 SQLite 持久化管理器
     from utils.sqlite_persistence import init_persistence
     persistence_manager = await init_persistence()
+    
+    # 启动内存速率限制器的定期清理任务
+    from utils.memory_rate_limiter import get_rate_limiter
+    import asyncio
+    
+    async def cleanup_rate_limiter():
+        """定期清理过期的速率限制记录"""
+        rate_limiter = get_rate_limiter()
+        while True:
+            await asyncio.sleep(300)  # 每5分钟清理一次
+            await rate_limiter.cleanup_expired()
+    
+    # 在后台启动清理任务
+    asyncio.create_task(cleanup_rate_limiter())
     
     # 获取任务统计信息
     stats = await persistence_manager.get_task_stats()
@@ -99,7 +115,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS middleware with environment-based origins
+# Add middleware in order (last added = first executed)
+# Order: CORS → Rate Limit → Auth → Security → Routes
+app.add_middleware(SecurityMiddleware)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(RateLimitMiddleware)
+
+# Configure CORS middleware last so it executes first
+# This ensures all responses (including error responses) get CORS headers
 cors_origins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
 logger.info(f"CORS origins configured: {cors_origins}")
 
@@ -118,9 +141,6 @@ app.add_middleware(
     ],
     expose_headers=["Content-Disposition", "Content-Type", "ETag", "Content-Length"]
 )
-
-# Add security middleware
-add_security_middleware(app)
 
 # Static file serving for extracted images with CORS support
 from fastapi.staticfiles import StaticFiles

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, LogOut, Settings, FileText, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, ChevronDown } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,18 +24,14 @@ interface UserMenuProps {
     completed: number;
     processing: number;
   };
-  onProfileClick?: () => void;
   onSettingsClick?: () => void;
-  onTasksClick?: () => void;
   onLogout?: () => void;
 }
 
 export function UserMenu({
   user,
   taskStats,
-  onProfileClick,
   onSettingsClick,
-  onTasksClick,
   onLogout
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -118,22 +114,6 @@ export function UserMenu({
         )}
         
         <DropdownMenuSeparator />
-        
-        <DropdownMenuItem
-          onClick={onProfileClick}
-          className="cursor-pointer"
-        >
-          <User className="mr-2 h-4 w-4" />
-          <span>个人资料</span>
-        </DropdownMenuItem>
-        
-        <DropdownMenuItem
-          onClick={onTasksClick}
-          className="cursor-pointer"
-        >
-          <FileText className="mr-2 h-4 w-4" />
-          <span>我的任务</span>
-        </DropdownMenuItem>
         
         <DropdownMenuItem
           onClick={onSettingsClick}

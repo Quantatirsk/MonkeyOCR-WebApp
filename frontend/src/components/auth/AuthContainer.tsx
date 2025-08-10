@@ -37,44 +37,30 @@ export function AuthContainer({
       // Call real login API
       const response = await authClient.login({
         emailOrUsername: data.emailOrUsername,
-        password: data.password,
-        rememberMe: data.rememberMe
+        password: data.password
       });
       
       // Store auth data in state
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type
-        }
+        response.token
       );
       
       // Clear any existing tasks before syncing
       // This ensures we don't mix tasks from different users
       const appStore = useAppStore.getState();
-      console.log(`Before clearUserData: ${appStore.tasks.length} tasks`);
       appStore.clearUserData();
-      console.log(`After clearUserData: ${useAppStore.getState().tasks.length} tasks`);
       
       // Sync with server to get user's tasks
       // Use a longer delay to ensure auth state is fully propagated
       setTimeout(() => {
-        const currentAuthState = useAuthStore.getState();
-        console.log(`Post-login sync for user: ${currentAuthState.user?.email} (ID: ${currentAuthState.user?.id})`);
-        console.log('Tasks before sync:', useAppStore.getState().tasks.length);
-        syncWithServer().then(() => {
-          console.log('Tasks after sync:', useAppStore.getState().tasks.length);
-          const tasks = useAppStore.getState().tasks;
-          console.log('Task user IDs:', tasks.map(t => t.userId));
-        }).catch(err => {
+        syncWithServer().catch(err => {
           console.error('Failed to sync after login:', err);
         });
       }, 500);
@@ -103,17 +89,13 @@ export function AuthContainer({
       // Store auth data in state
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type
-        }
+        response.token
       );
       
       // Clear any existing tasks before syncing
@@ -124,7 +106,6 @@ export function AuthContainer({
       // Sync with server to get user's tasks (if any)
       // Use a longer delay to ensure auth state is fully propagated
       setTimeout(() => {
-        console.log('Post-registration sync: Fetching user tasks from server...');
         syncWithServer().catch(err => {
           console.error('Failed to sync after registration:', err);
         });
@@ -140,10 +121,6 @@ export function AuthContainer({
     }
   };
 
-  const handleForgotPassword = () => {
-    // TODO: Implement forgot password
-    console.log('Forgot password clicked');
-  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -176,7 +153,6 @@ export function AuthContainer({
                 <LoginForm
                   onSubmit={handleLogin}
                   onRegisterClick={() => setMode('register')}
-                  onForgotPasswordClick={handleForgotPassword}
                   error={error}
                 />
               </TabsContent>
@@ -219,24 +195,19 @@ export function AuthPage({
       // Call real login API
       const response = await authClient.login({
         emailOrUsername: data.emailOrUsername,
-        password: data.password,
-        rememberMe: data.rememberMe
+        password: data.password
       });
       
       // Store auth data in state
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type
-        }
+        response.token
       );
       
       // Success
@@ -262,17 +233,13 @@ export function AuthPage({
       // Store auth data in state
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type
-        }
+        response.token
       );
       
       // Success  
@@ -285,10 +252,6 @@ export function AuthPage({
     }
   };
 
-  const handleForgotPassword = () => {
-    // TODO: Implement forgot password
-    console.log('Forgot password clicked');
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -308,7 +271,6 @@ export function AuthPage({
             <LoginForm
               onSubmit={handleLogin}
               onRegisterClick={() => setMode('register')}
-              onForgotPasswordClick={handleForgotPassword}
               error={error}
             />
           </TabsContent>

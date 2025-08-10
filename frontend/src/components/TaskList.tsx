@@ -59,7 +59,7 @@ export const TaskList: React.FC<TaskListProps> = ({
   } = useAppStore();
   
   // Get auth state to detect when user logs in
-  const { isAuthenticated, tokens } = useAuthStore();
+  const { isAuthenticated, token } = useAuthStore();
 
   // 计时器状态管理
   const [timers, setTimers] = useState<{ [taskId: string]: number }>({});
@@ -85,8 +85,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         initializeSync();
         
         // 只有已登录用户才同步任务
-        if (isAuthenticated && tokens) {
-          console.log('User authenticated, syncing with server to get user tasks...');
+        if (isAuthenticated && token) {
           await syncWithServer();
         }
         // 未登录用户不同步，保持空的任务列表
@@ -119,12 +118,6 @@ export const TaskList: React.FC<TaskListProps> = ({
         // 恢复PDF页数信息
         await restorePdfPageCounts();
         
-        console.log('TaskList initialized with recovered state:', {
-          timers: Object.keys(initialTimers).length,
-          finalTimes: Object.keys(initialFinalTimes).length,
-          tasks: tasks.length
-        });
-        
       } catch (error) {
         console.error('TaskList initialization failed:', error);
         toast.error("任务状态恢复失败，可能需要手动刷新");
@@ -134,7 +127,7 @@ export const TaskList: React.FC<TaskListProps> = ({
     };
     
     initializeComponent();
-  }, [tasks.length, isInitialized, isAuthenticated, tokens, syncWithServer]); // Track auth state changes
+  }, [isInitialized]); // Only run once on initialization
   
   // Sync when auth state changes (user logs in)
   useEffect(() => {
@@ -143,13 +136,12 @@ export const TaskList: React.FC<TaskListProps> = ({
     
     // Only sync when user is authenticated
     // When user logs out, tasks should be cleared by logout handler, not synced
-    if (isAuthenticated && tokens) {
-      console.log('Auth state changed - user logged in, syncing to get user tasks...');
+    if (isAuthenticated && token) {
       syncWithServer().catch(err => {
         console.error('Failed to sync after login:', err);
       });
     }
-  }, [isAuthenticated, tokens, syncWithServer, isInitialized]);
+  }, [isAuthenticated, token, syncWithServer, isInitialized]);
 
   // 恢复PDF页数信息
   const restorePdfPageCounts = async () => {
@@ -167,7 +159,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     // 立即更新已有的页数信息
     if (Object.keys(pageCounts).length > 0) {
       setPdfPageCounts(prev => ({ ...prev, ...pageCounts }));
-      console.log('Restored PDF page counts from results:', pageCounts);
     }
     
     // 对于没有页数信息的任务，限制并发请求数量
@@ -177,8 +168,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     );
     
     if (tasksNeedingPageCount.length > 0) {
-      console.log(`Need to fetch page counts for ${tasksNeedingPageCount.length} tasks`);
-      
       // 限制并发数量，每次最多处理3个任务
       const batchSize = 3;
       for (let i = 0; i < tasksNeedingPageCount.length; i += batchSize) {

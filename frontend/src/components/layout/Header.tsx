@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { LogIn, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus, Moon, Sun } from 'lucide-react';
 import { useAppStore, useUIActions } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { SyncStatusIndicator } from '../SyncStatusIndicator';
@@ -11,20 +11,22 @@ import { AuthContainer } from '../auth/AuthContainer';
 import { authClient } from '@/api/authClient';
 
 export function Header() {
-  const { tasks, isProcessing, userTasks, clearUserData } = useAppStore();
-  const { toggleTaskListVisible } = useUIActions();
+  const tasks = useAppStore(state => state.tasks);
+  const isProcessing = useAppStore(state => state.isProcessing);
+  const clearUserData = useAppStore(state => state.clearUserData);
+  const theme = useAppStore(state => state.theme);
+  const { toggleTaskListVisible, toggleTheme } = useUIActions();
   
   // Use real auth state from store
   const { user, isAuthenticated, logout: clearAuthData } = useAuthStore();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
-  // Real task stats based on user's tasks
-  const currentTasks = isAuthenticated ? userTasks : tasks;
+  // Task stats - use tasks directly since server already filters by user when authenticated
   const taskStats = {
-    total: currentTasks.length,
-    completed: currentTasks.filter(t => t.status === 'completed').length,
-    processing: currentTasks.filter(t => t.status === 'processing').length
+    total: tasks.length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    processing: tasks.filter(t => t.status === 'processing').length
   };
   
   const handleLogin = () => {
@@ -38,12 +40,10 @@ export function Header() {
   };
   
   const handleLoginSuccess = (data: any) => {
-    console.log('Login success:', data);
     // Auth state is already updated in AuthContainer
   };
   
   const handleRegisterSuccess = (data: any) => {
-    console.log('Register success:', data);
     // Auth state is already updated in AuthContainer
   };
   
@@ -69,19 +69,8 @@ export function Header() {
     }
   };
   
-  const handleProfileClick = () => {
-    console.log('Navigate to profile');
-    // TODO: Navigate to profile page
-  };
-  
   const handleSettingsClick = () => {
-    console.log('Navigate to settings');
     // TODO: Navigate to settings page
-  };
-  
-  const handleTasksClick = () => {
-    console.log('Navigate to tasks');
-    // TODO: Navigate to tasks page
   };
 
   return (
@@ -104,6 +93,21 @@ export function Header() {
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* Theme Toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="h-8 w-8 p-0"
+              title={theme === 'dark' ? '切换到亮色模式' : '切换到深色模式'}
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
+            
             <SyncStatusIndicator compact={true} />
             {isProcessing && (
               <Badge variant="secondary" className="animate-pulse text-xs">
@@ -116,9 +120,7 @@ export function Header() {
               <UserMenu
                 user={user}
                 taskStats={taskStats}
-                onProfileClick={handleProfileClick}
                 onSettingsClick={handleSettingsClick}
-                onTasksClick={handleTasksClick}
                 onLogout={handleLogout}
               />
             ) : (

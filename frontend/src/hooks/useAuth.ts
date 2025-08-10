@@ -39,17 +39,13 @@ export function useAuth() {
       // Store auth data
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active,
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true,
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type,
-        }
+        response.token
       );
       
       // Navigate to dashboard
@@ -76,17 +72,13 @@ export function useAuth() {
       // Store auth data
       setAuthData(
         {
-          id: response.user.id,
+          id: response.user.id || 0,
           username: response.user.username,
           email: response.user.email,
-          isVerified: response.user.is_verified,
-          isActive: response.user.is_active,
+          isVerified: response.user.is_verified || true,
+          isActive: response.user.is_active || true,
         },
-        {
-          accessToken: response.tokens.access_token,
-          refreshToken: response.tokens.refresh_token,
-          tokenType: response.tokens.token_type,
-        }
+        response.token
       );
       
       return response;
@@ -129,27 +121,32 @@ export function useAuth() {
   // Check auth on mount
   const checkAuth = useCallback(async () => {
     try {
-      const tokens = useAuthStore.getState().tokens;
-      if (!tokens?.accessToken) {
+      const token = useAuthStore.getState().token;
+      if (!token) {
         return false;
       }
       
       // Verify token is still valid
-      const profile = await authClient.getCurrentUser();
+      const result = await authClient.validateToken();
       
-      // Update user data
-      setAuthData(
-        {
-          id: profile.id,
-          username: profile.username,
-          email: profile.email,
-          isVerified: profile.is_verified,
-          isActive: profile.is_active,
-        },
-        tokens
-      );
+      if (result.valid && result.user) {
+        // Update user data
+        setAuthData(
+          {
+            id: result.user.id,
+            username: result.user.username,
+            email: result.user.email,
+            isVerified: true,
+            isActive: true,
+          },
+          token
+        );
+        return true;
+      }
       
-      return true;
+      // Token invalid
+      clearAuthData();
+      return false;
     } catch (err) {
       // Token invalid, clear auth
       clearAuthData();
@@ -209,32 +206,26 @@ export function useLogout() {
 }
 
 /**
- * Hook to refresh tokens
+ * Hook to renew token
  */
-export function useTokenRefresh() {
-  const { tokens, setTokens } = useAuthStore();
+export function useTokenRenewal() {
+  const { token, setToken } = useAuthStore();
   
-  const refreshTokens = useCallback(async () => {
-    if (!tokens?.refreshToken) {
-      throw new Error('No refresh token available');
+  const renewToken = useCallback(async () => {
+    if (!token) {
+      throw new Error('No token available');
     }
     
     try {
-      const refreshed = await authClient.refreshTokens(tokens.refreshToken);
-      
-      setTokens({
-        accessToken: refreshed.access_token,
-        refreshToken: refreshed.refresh_token,
-        tokenType: refreshed.token_type,
-      });
-      
-      return refreshed;
+      const response = await authClient.renewToken();
+      setToken(response.token);
+      return response;
     } catch (err) {
-      // Clear auth on refresh failure
+      // Clear auth on renewal failure
       useAuthStore.getState().logout();
       throw err;
     }
-  }, [tokens, setTokens]);
+  }, [token, setToken]);
   
-  return refreshTokens;
+  return renewToken;
 }

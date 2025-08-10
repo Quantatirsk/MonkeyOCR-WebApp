@@ -9,26 +9,21 @@ interface User {
   isActive?: boolean;
 }
 
-interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-}
 
 interface AuthState {
   // State
   user: User | null;
-  tokens: AuthTokens | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
   
   // Actions
   setUser: (user: User | null) => void;
-  setTokens: (tokens: AuthTokens | null) => void;
+  setToken: (token: string | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  login: (user: User, tokens: AuthTokens) => void;
+  login: (user: User, token: string) => void;
   logout: () => void;
   updateUser: (updates: Partial<User>) => void;
   checkAuth: () => boolean;
@@ -40,7 +35,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       // Initial state
       user: null,
-      tokens: null,
+      token: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -52,9 +47,10 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
         })),
 
-      setTokens: (tokens) =>
+      setToken: (token) =>
         set(() => ({
-          tokens,
+          token,
+          isAuthenticated: !!token,
         })),
 
       setLoading: (loading) =>
@@ -67,10 +63,10 @@ export const useAuthStore = create<AuthState>()(
           error,
         })),
 
-      login: (user, tokens) =>
+      login: (user, token) =>
         set(() => ({
           user,
-          tokens,
+          token,
           isAuthenticated: true,
           error: null,
         })),
@@ -78,7 +74,7 @@ export const useAuthStore = create<AuthState>()(
       logout: () =>
         set(() => ({
           user: null,
-          tokens: null,
+          token: null,
           isAuthenticated: false,
           error: null,
         })),
@@ -90,7 +86,7 @@ export const useAuthStore = create<AuthState>()(
 
       checkAuth: () => {
         const state = get();
-        return state.isAuthenticated && !!state.tokens?.accessToken;
+        return state.isAuthenticated && !!state.token;
       },
 
       clearError: () =>
@@ -102,9 +98,9 @@ export const useAuthStore = create<AuthState>()(
       name: 'auth-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        // Only persist tokens and user info, not loading/error states
+        // Only persist token and user info, not loading/error states
         user: state.user,
-        tokens: state.tokens,
+        token: state.token,
         isAuthenticated: state.isAuthenticated,
       }),
     }
@@ -141,4 +137,4 @@ export const useAuth = () => {
 export const useCurrentUser = () => useAuthStore((state) => state.user);
 export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated);
 export const useAuthLoading = () => useAuthStore((state) => state.isLoading);
-export const useAuthTokens = () => useAuthStore((state) => state.tokens);
+export const useAuthToken = () => useAuthStore((state) => state.token);

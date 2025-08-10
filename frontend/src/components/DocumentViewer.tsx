@@ -19,6 +19,7 @@ import { TabNavigation } from './document/TabNavigation';
 import { DocumentToolbar } from './document/DocumentToolbar';
 import { ImageGallery } from './document/ImageGallery';
 import { DocumentMetadata } from './document/DocumentMetadata';
+import { FloatingActionBar } from './document/FloatingActionBar';
 
 // Hooks
 import { usePdfState } from './document/hooks/usePdfState';
@@ -533,9 +534,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
             </div>
 
             {/* Compare tab - Split view */}
-            <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.COMPARE ? 'block' : 'hidden'}`}>
+            <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.COMPARE ? 'block' : 'hidden'} document-viewer-container`}>
               {currentResult && currentTask ? (
-                <div className="flex-1 flex flex-col overflow-hidden h-full">
+                <div className="flex-1 flex flex-col overflow-hidden h-full relative">
                   <div className="flex-1 overflow-hidden">
                     <ResizablePanelGroup direction="horizontal" className="h-full">
                       {/* Left panel - Document Preview */}
@@ -640,6 +641,27 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                       </ResizablePanel>
                     </ResizablePanelGroup>
                   </div>
+                  
+                  {/* Floating Action Bar - only visible in compare view */}
+                  <FloatingActionBar 
+                    visible={activeDocumentTab === TAB_TYPES.COMPARE && !!currentResult}
+                    onTranslate={() => {
+                      // Trigger translate for selected block or all blocks
+                      if (blockSync.selectedBlock.blockIndex !== null) {
+                        handleTranslateBlock(blockSync.selectedBlock.blockIndex);
+                      } else {
+                        handleTranslateAll();
+                      }
+                    }}
+                    onExplain={() => {
+                      // Trigger explain for selected block
+                      if (blockSync.selectedBlock.blockIndex !== null) {
+                        handleExplainBlock(blockSync.selectedBlock.blockIndex);
+                      } else {
+                        toast.info('请先选择一个区块');
+                      }
+                    }}
+                  />
                 </div>
               ) : (
                 <div className="flex-1 flex items-center justify-center">

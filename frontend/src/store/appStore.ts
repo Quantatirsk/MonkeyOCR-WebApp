@@ -71,29 +71,6 @@ export const useAppStore = create<AppStore>()(
         return currentTaskId ? results.get(currentTaskId) || null : null;
       },
 
-      get completedTasks() {
-        const { tasks } = get();
-        const authState = useAuthStore.getState();
-        const userId = authState.user?.id;
-        
-        // Filter by user if authenticated
-        return tasks.filter(task => 
-          task.status === 'completed' && 
-          (!authState.isAuthenticated || task.userId === userId)
-        );
-      },
-      
-      get userTasks() {
-        const { tasks } = get();
-        const authState = useAuthStore.getState();
-        const userId = authState.user?.id;
-        
-        // Return only current user's tasks if authenticated
-        if (!authState.isAuthenticated) {
-          return tasks; // Return all tasks if not authenticated (backward compatibility)
-        }
-        return tasks.filter(task => task.userId === userId);
-      },
 
       get isProcessing() {
         const { tasks } = get();
@@ -109,7 +86,7 @@ export const useAppStore = create<AppStore>()(
         const task: ProcessingTask = {
           id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           ...taskData,
-          userId, // Associate task with current user
+          user_id: userId, // Associate task with current user
         };
         
         set((state) => ({
@@ -130,7 +107,11 @@ export const useAppStore = create<AppStore>()(
       },
 
       setCurrentTask: (taskId) => {
-        set({ currentTaskId: taskId });
+        set({ 
+          currentTaskId: taskId,
+          // Automatically switch to compare tab when selecting a task
+          activeDocumentTab: taskId ? 'compare' : get().activeDocumentTab
+        });
       },
 
       removeTask: (id) => {
@@ -316,7 +297,6 @@ export const useAppStore = create<AppStore>()(
 
         // 设置同步状态监听器
         syncManager.onSyncStatusChange((status) => {
-          console.log('[AppStore] Received sync status update:', status);
           set({ syncStatus: status });
         });
 
@@ -326,7 +306,7 @@ export const useAppStore = create<AppStore>()(
         // 只有已登录用户才自动同步
         // 未登录用户不应该看到任何任务
         const authState = useAuthStore.getState();
-        if (authState.isAuthenticated && authState.tokens) {
+        if (authState.isAuthenticated && authState.token) {
           // 页面加载时自动同步（延迟执行避免冲突）
           setTimeout(() => {
             get().syncWithServer().catch(error => {
@@ -340,7 +320,6 @@ export const useAppStore = create<AppStore>()(
         // Check if user is authenticated before syncing
         const authState = useAuthStore.getState();
         if (!authState.isAuthenticated) {
-          console.log('Sync skipped - user not authenticated');
           // Clear tasks for unauthenticated users
           set({ 
             tasks: [],
@@ -351,15 +330,11 @@ export const useAppStore = create<AppStore>()(
         }
         
         try {
-          console.log(`Syncing for user ${authState.user?.id} (${authState.user?.email})`);
-          console.log(`Current local tasks before sync: ${get().tasks.length}`);
-          
           // Always do full sync - fetch all tasks from server and replace local data
           const serverTasks = await syncManager.syncAll();
           
-          console.log(`Received ${serverTasks.length} tasks from server`);
-          
           // Directly replace local tasks with server tasks (no merging)
+          // Server tasks already have user_id field from backend
           set({ tasks: serverTasks });
           
           // 处理任务状态变化
@@ -418,13 +393,15 @@ export const useAppStore = create<AppStore>()(
       // Trigger rehydration callback
       onRehydrateStorage: () => (state) => {
         if (state) {
-          // Don't clear tasks here - they should be managed by sync
-          // Only ensure results map is initialized
+          // Ensure tasks array is initialized (since it's not persisted)
+          if (!state.tasks) {
+            state.tasks = [];
+          }
+          // Ensure results map is initialized
           if (!state.results) {
             state.results = new Map();
           }
           // Tasks will be synced from server automatically
-          console.log('Store rehydrated - ready for sync');
         }
       },
     }
@@ -434,7 +411,6 @@ export const useAppStore = create<AppStore>()(
 // Utility hooks for specific parts of the store
 export const useCurrentTask = () => useAppStore(state => state.currentTask);
 export const useCurrentResult = () => useAppStore(state => state.currentResult);
-export const useCompletedTasks = () => useAppStore(state => state.completedTasks);
 export const useIsProcessing = () => useAppStore(state => state.isProcessing);
 
 // Action hooks

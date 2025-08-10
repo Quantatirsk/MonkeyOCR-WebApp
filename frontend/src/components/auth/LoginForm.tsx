@@ -6,7 +6,6 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -22,8 +21,7 @@ const loginSchema = z.object({
     }, '请输入有效的邮箱或用户名'),
   password: z.string()
     .min(8, '密码至少需要8个字符')
-    .max(128, '密码不能超过128个字符'),
-  rememberMe: z.boolean().optional()
+    .max(128, '密码不能超过128个字符')
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -31,14 +29,12 @@ type LoginFormData = z.infer<typeof loginSchema>;
 interface LoginFormProps {
   onSubmit: (data: LoginFormData) => Promise<void>;
   onRegisterClick?: () => void;
-  onForgotPasswordClick?: () => void;
   error?: string | null;
 }
 
 export function LoginForm({ 
   onSubmit, 
-  onRegisterClick, 
-  onForgotPasswordClick,
+  onRegisterClick,
   error 
 }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
@@ -50,10 +46,7 @@ export function LoginForm({
     formState: { errors },
     setError: setFormError
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      rememberMe: true
-    }
+    resolver: zodResolver(loginSchema)
   });
 
   const handleFormSubmit = async (data: LoginFormData) => {
@@ -108,17 +101,7 @@ export function LoginForm({
 
           {/* Password Field */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">密码</Label>
-              <button
-                type="button"
-                className="text-sm text-primary hover:underline"
-                onClick={onForgotPasswordClick}
-                disabled={isLoading}
-              >
-                忘记密码？
-              </button>
-            </div>
+            <Label htmlFor="password">密码</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -147,20 +130,6 @@ export function LoginForm({
             )}
           </div>
 
-          {/* Remember Me */}
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="rememberMe"
-              disabled={isLoading}
-              {...register('rememberMe')}
-            />
-            <Label
-              htmlFor="rememberMe"
-              className="text-sm font-normal cursor-pointer"
-            >
-              记住我
-            </Label>
-          </div>
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-4">

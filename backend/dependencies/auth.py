@@ -8,8 +8,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from database import get_db_manager, DatabaseManager
-from services import TokenManager, AuthenticationService
-from repositories import SessionRepository
+from services.auth import AuthService
+from services.token_manager import TokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -63,60 +63,23 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Decode token
-    token_manager = TokenManager()
-    payload = token_manager.decode_access_token(token)
+    # Validate token and get user info
+    auth_service = AuthService(db)
+    user_info = await auth_service.validate_token(token)
     
-    if not payload:
+    if not user_info:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Extract user info from token
-    user_id = payload.get("sub")
-    if not user_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    try:
-        user_id = int(user_id)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid user ID in token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Check if user still exists and is active
-    # (In production, consider caching this)
-    auth_service = AuthenticationService(db)
-    user_profile = await auth_service.get_user_profile(user_id)
-    
-    if not user_profile:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    if not user_profile.get("is_active"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated"
-        )
-    
+    # Token is valid, return user info
     return {
-        "user_id": user_id,
-        "username": payload.get("username"),
-        "email": payload.get("email"),
-        "is_verified": user_profile.get("is_verified", False),
-        "token": token,
-        "session_token": None  # Will be set if using session-based auth
+        "user_id": user_info["user_id"],
+        "username": user_info["username"],
+        "email": user_info["email"],
+        "token": token
     }
 
 
@@ -147,25 +110,6 @@ async def get_current_user_optional(
         return None
 
 
-async def require_verified_user(
-    current_user: Dict[str, Any] = Depends(get_current_user)
-) -> Dict[str, Any]:
-    """
-    Require a verified user
-    
-    Returns:
-        User information dict
-        
-    Raises:
-        HTTPException: If user is not verified
-    """
-    if not current_user.get("is_verified"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Email verification required"
-        )
-    
-    return current_user
 
 
 async def get_current_active_user(
@@ -178,7 +122,7 @@ async def get_current_active_user(
     Returns:
         User information dict with latest data
     """
-    auth_service = AuthenticationService(db)
+    auth_service = AuthService(db)
     user_profile = await auth_service.get_user_profile(current_user["user_id"])
     
     if not user_profile:

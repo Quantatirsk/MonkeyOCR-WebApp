@@ -123,26 +123,20 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       
       try {
         // 获取预览信息
-        console.log('[FilePreview] Getting preview for task:', task.id);
         const previewData = await syncManager.getTaskPreview(task.id);
-        console.log('[FilePreview] Preview data received:', previewData);
         setPreviewInfo(previewData.data);
         
         // 如果文件存在，获取文件内容
         if (previewData.data?.file_exists) {
-          console.log('[FilePreview] File exists, loading original file...');
           // 使用新的认证工具函数获取令牌
           const accessToken = getAccessToken();
           const needsAuth = accessToken !== null;
-          console.log('[FilePreview] Access token:', accessToken ? 'present' : 'absent');
-          console.log('[FilePreview] Needs auth:', needsAuth);
           
           if (needsAuth && accessToken) {
             // 有认证令牌，使用 fetch 获取文件并创建 Blob URL
             setIsAuthenticating(true);  // 开始认证加载
             try {
               const fileUrl = syncManager.getOriginalFileUrl(task.id);
-              console.log('[FilePreview] Fetching original file from:', fileUrl);
               
               const response = await fetch(fileUrl, {
                 headers: {
@@ -179,8 +173,6 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
             loadedTaskIdRef.current = task.id;  // 成功设置URL后标记
           }
         } else {
-          console.log('[FilePreview] File does not exist or preview data missing');
-          console.log('[FilePreview] Preview data:', previewData.data);
           setFileUrl(null);
         }
       } catch (err) {

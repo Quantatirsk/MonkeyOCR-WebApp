@@ -6,6 +6,7 @@ Handles frontend-backend state synchronization
 import os
 import hashlib
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Query, Header, Response, Depends
@@ -15,6 +16,8 @@ from pydantic import BaseModel
 from models import APIResponse, ProcessingTask
 from utils.file_handler import FileHandler
 from dependencies.auth import get_current_user_optional
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["sync"])
 
@@ -182,11 +185,6 @@ async def get_original_file(
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        # Debug logging
-        logger.info(f"File access attempt for task {task_id}")
-        logger.info(f"Task user_id: {task.user_id}, is_public: {task.is_public}")
-        logger.info(f"Current user: {current_user.get('user_id') if current_user else 'Anonymous'}")
-        
         # Check access permissions - simplified logic
         # Allow access if any of these conditions are true:
         # 1. Task is public
@@ -194,19 +192,15 @@ async def get_original_file(
         # 3. Current user owns the task
         if task.is_public:
             # Public tasks are accessible to everyone
-            logger.info("Access granted: Public task")
             pass
         elif task.user_id is None:
             # Anonymous/legacy tasks are accessible to everyone
-            logger.info("Access granted: Anonymous/legacy task")
             pass
         elif current_user and task.user_id == current_user.get("user_id"):
             # User owns the task
-            logger.info("Access granted: User owns task")
             pass
         else:
             # Access denied
-            logger.warning(f"Access denied for task {task_id}: user_id={task.user_id}, current_user={current_user}")
             raise HTTPException(status_code=403, detail="Access denied")
         
         # Get original file path using file handler

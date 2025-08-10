@@ -78,12 +78,6 @@ class SyncManager {
    */
   private notifySyncStatusChange() {
     const status = this.getSyncStatus();
-    console.log('[SyncManager] Notifying status change:', {
-      last_sync: status.last_sync,
-      is_syncing: status.is_syncing,
-      sync_error: status.sync_error,
-      callbacks_count: this.syncCallbacks.length
-    });
     this.syncCallbacks.forEach(callback => {
       try {
         callback(status);
@@ -102,7 +96,6 @@ class SyncManager {
       try {
         // 如果强制全量同步，直接执行
         if (forceFullSync) {
-          console.log('Forced full sync requested');
           const tasks = await this.syncAll();
           return { tasks, syncType: 'full' };
         }
@@ -111,8 +104,8 @@ class SyncManager {
         const authState = useAuthStore.getState();
         const headers: HeadersInit = {};
         
-        if (authState.tokens?.accessToken) {
-          headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+        if (authState.token) {
+          headers['Authorization'] = `Bearer ${authState.token}`;
         }
         
         const statusResponse = await fetch(`${this.baseURL}/api/sync/status`, {
@@ -129,7 +122,6 @@ class SyncManager {
 
         // 如果服务器数据哈希与本地不同，执行全量同步
         if (serverHash && serverHash !== this.serverDataHash) {
-          console.log('Server data changed, performing full sync');
           const tasks = await this.syncAll();
           return { tasks, syncType: 'full' };
         }
@@ -171,7 +163,6 @@ class SyncManager {
         // 如果还有重试机会，等待一段时间后重试
         if (attempt < this.maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // 指数退避，最大10秒
-          console.log(`Retrying sync in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
@@ -189,7 +180,6 @@ class SyncManager {
   private async performSync(type: 'full' | 'incremental'): Promise<ProcessingTask[]> {
     // 如果已经有同步在进行，返回现有的Promise
     if (this.isSyncing && this.pendingSyncPromise) {
-      console.log('Sync already in progress, waiting for existing sync...');
       return this.pendingSyncPromise;
     }
 
@@ -218,8 +208,6 @@ class SyncManager {
    */
   private async _executeSync(type: 'full' | 'incremental'): Promise<ProcessingTask[]> {
     try {
-      console.log(`Executing ${type} sync...`);
-      
       const url = `${this.baseURL}/api/sync`;
       const params = new URLSearchParams();
       
@@ -235,8 +223,8 @@ class SyncManager {
         'Content-Type': 'application/json',
       };
       
-      if (authState.tokens?.accessToken) {
-        headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+      if (authState.token) {
+        headers['Authorization'] = `Bearer ${authState.token}`;
       }
       
       const response = await fetch(fullUrl, {
@@ -260,7 +248,6 @@ class SyncManager {
       this.saveSyncState();
       this.notifySyncStatusChange();
 
-      console.log(`${type} sync completed: ${data.data!.tasks.length} tasks`);
       return data.data!.tasks;
 
     } catch (error) {
@@ -338,8 +325,8 @@ class SyncManager {
       const authState = useAuthStore.getState();
       const headers: HeadersInit = {};
       
-      if (authState.tokens?.accessToken) {
-        headers['Authorization'] = `Bearer ${authState.tokens.accessToken}`;
+      if (authState.token) {
+        headers['Authorization'] = `Bearer ${authState.token}`;
       }
       
       const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`, {

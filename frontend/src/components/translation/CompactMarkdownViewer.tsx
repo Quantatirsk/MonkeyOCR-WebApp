@@ -5,8 +5,7 @@
  */
 
 import React, { useRef, useMemo } from 'react';
-import MarkdownPreview from '@uiw/react-markdown-preview';
-import '@uiw/react-markdown-preview/markdown.css';
+import ReactMarkdown from 'react-markdown';
 import 'katex/dist/katex.min.css';
 import { getStaticFileUrl } from '../../config';
 import rehypeKatex from 'rehype-katex';
@@ -21,18 +20,22 @@ interface CompactMarkdownViewerProps {
   overlayType?: 'translate' | 'explain';
 }
 
-// 处理表格内的数学公式
-function processTableCellMath(text: string): React.ReactNode[] {
-  if (!text.includes('$')) {
-    return [text];
+// 处理数学公式和格式标记 - 与 BlockMarkdownViewer 保持一致
+function processWithMathAndFormatting(text: string): React.ReactNode {
+  if (!text || typeof text !== 'string') return text;
+  
+  // 先处理数学公式，再处理格式标记
+  const mathAndFormatRegex = /(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
+  const parts = text.split(mathAndFormatRegex);
+  
+  if (parts.length === 1) {
+    return text; // 没有特殊标记
   }
-
-  // Split by math expressions and process each part
-  // 使用与主查看器相同的正则表达式
-  const parts = text.split(/(\$\$[^$]+\$\$|\$[^$]+\$)/);
   
   return parts.map((part, index) => {
-    // Handle display math $$...$$
+    if (!part) return null;
+    
+    // 块级数学公式 $$...$$
     if (part.match(/^\$\$[^$]+\$\$$/)) {
       const mathContent = part.slice(2, -2);
       try {
@@ -41,16 +44,32 @@ function processTableCellMath(text: string): React.ReactNode[] {
           displayMode: true,
           output: 'html',
           strict: false,
-          trust: true,
+          macros: {
+            "\\RR": "\\mathbb{R}",
+            "\\NN": "\\mathbb{N}",
+            "\\ZZ": "\\mathbb{Z}",
+            "\\QQ": "\\mathbb{Q}",
+            "\\CC": "\\mathbb{C}",
+          }
         });
-        return <div key={index} dangerouslySetInnerHTML={{ __html: html }} style={{ margin: '0.2em 0', textAlign: 'center', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
+        return (
+          <div 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ 
+              background: 'transparent', 
+              textAlign: 'center', 
+              margin: '0.5em 0' 
+            }} 
+          />
+        );
       } catch (error) {
+        console.error('KaTeX render error:', error);
         return <span key={index}>{part}</span>;
       }
     }
-    
-    // Handle inline math $...$  
-    if (part.match(/^\$[^$]+\$$/)) {
+    // 内联数学公式 $...$
+    else if (part.match(/^\$[^$]+\$$/)) {
       const mathContent = part.slice(1, -1);
       try {
         const html = katex.renderToString(mathContent, {
@@ -58,17 +77,77 @@ function processTableCellMath(text: string): React.ReactNode[] {
           displayMode: false,
           output: 'html',
           strict: false,
-          trust: true,
+          macros: {
+            "\\RR": "\\mathbb{R}",
+            "\\NN": "\\mathbb{N}",
+            "\\ZZ": "\\mathbb{Z}",
+            "\\QQ": "\\mathbb{Q}",
+            "\\CC": "\\mathbb{C}",
+          }
         });
-        return <span key={index} dangerouslySetInnerHTML={{ __html: html }} style={{ whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
+        return (
+          <span 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ background: 'transparent' }} 
+          />
+        );
       } catch (error) {
+        console.error('KaTeX render error:', error);
         return <span key={index}>{part}</span>;
       }
-    } else {
-      // 普通文本
+    }
+    // 粗体 **text**
+    else if (part.match(/^\*\*[^*]+\*\*$/)) {
+      const content = part.slice(2, -2);
+      return <strong key={index}>{content}</strong>;
+    }
+    // 斜体 *text*
+    else if (part.match(/^\*[^*]+\*$/) && !part.match(/^\*\*.*\*\*$/)) {
+      const content = part.slice(1, -1);
+      return <em key={index}>{content}</em>;
+    }
+    // 上标 ^text^
+    else if (part.match(/^\^[^^]+\^$/)) {
+      const content = part.slice(1, -1);
+      return <sup key={index}>{content}</sup>;
+    }
+    // 下标 ~text~
+    else if (part.match(/^~[^~]+~$/)) {
+      const content = part.slice(1, -1);
+      return <sub key={index}>{content}</sub>;
+    }
+    // 普通文本
+    else {
       return part ? <span key={index}>{part}</span> : null;
     }
   }).filter(Boolean);
+}
+
+// 通用的子元素处理函数，支持 LaTeX 和格式化
+function processChildrenWithLatex(children: any): any {
+  if (typeof children === 'string') {
+    return processWithMathAndFormatting(children);
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, index) => {
+      if (typeof child === 'string') {
+        return <span key={index}>{processWithMathAndFormatting(child)}</span>;
+      }
+      // 递归处理嵌套元素
+      if (React.isValidElement(child)) {
+        const childProps = child.props as any;
+        if (childProps?.children) {
+          const processedChild = React.cloneElement(child as React.ReactElement<any>, {
+            children: processChildrenWithLatex(childProps.children)
+          });
+          return processedChild;
+        }
+      }
+      return child;
+    });
+  }
+  return children;
 }
 
 export function CompactMarkdownViewer({ content, className = '', overlayType = 'translate' }: CompactMarkdownViewerProps) {
@@ -77,9 +156,6 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
   // 根据覆盖层类型设置主题色
   const isExplain = overlayType === 'explain';
   const themeColorClass = isExplain ? 'compact-markdown-explain' : 'compact-markdown-translate';
-  
-  // 检测内容是否为HTML表格
-  const isHTMLTable = content.trim().startsWith('<table') && content.trim().endsWith('</table>');
 
   // 动态注入紧凑型样式
   React.useEffect(() => {
@@ -367,138 +443,65 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         overflowY: 'visible',
       }}
     >
-      {isHTMLTable ? (
-        // 直接渲染HTML表格，避免Markdown解析器破坏HTML结构
-        <div 
-          dangerouslySetInnerHTML={{ __html: processedContent }}
-          style={{
-            fontSize: '11px',
-            lineHeight: '1.3',
+      {/* 使用 ReactMarkdown 组件，与主视图保持一致 */}
+      <div className="compact-markdown-content" style={{ fontSize: '11px', lineHeight: '1.3' }}>
+        <ReactMarkdown
+          // 自定义组件渲染器
+          components={{
+            // 表格单元格处理 LaTeX - 与 BlockMarkdownViewer 一致
+            td: ({ children, ...props }: any) => (
+              <td {...props} className="markdown-table-cell">
+                {processChildrenWithLatex(children)}
+              </td>
+            ),
+            th: ({ children, ...props }: any) => (
+              <th {...props} className="markdown-table-header-cell">
+                {processChildrenWithLatex(children)}
+              </th>
+            ),
+            // 段落处理 LaTeX
+            p: ({ children, ...props }: any) => (
+              <p {...props} className="markdown-paragraph">
+                {processChildrenWithLatex(children)}
+              </p>
+            ),
+            // 列表项处理 LaTeX
+            li: ({ children, ...props }: any) => (
+              <li {...props} className="markdown-list-item">
+                {processChildrenWithLatex(children)}
+              </li>
+            ),
           }}
-        />
-      ) : (
-        // 使用Markdown渲染器处理其他内容
-        <MarkdownPreview
-          source={processedContent}
-          style={{
-            backgroundColor: 'transparent',
-            color: 'inherit',
-            fontFamily: 'inherit',
-            fontSize: '11px',
-            lineHeight: '1.3',
-          }}
-          wrapperElement={{
-            'data-color-mode': 'light'
-          }}
-        rehypePlugins={[
-          rehypeRaw,
-          [rehypeKatex, {
-            strict: false,
-            throwOnError: false,
-            errorColor: '#cc0000',
-            output: 'html',
-            displayMode: false,
-            trust: true,
-            macros: {
-              "\\RR": "\\mathbb{R}",
-              "\\NN": "\\mathbb{N}",
-              "\\ZZ": "\\mathbb{Z}",
-              "\\QQ": "\\mathbb{Q}",
-              "\\CC": "\\mathbb{C}"
-            }
-          }]
-        ]}
-        remarkPlugins={[
-          remarkGfm,
-          [remarkMath, {
-            singleDollarTextMath: true,
-            inlineMathDouble: false,
-          }]
-        ]}
-        components={{
-          // 自定义表格单元格渲染器，处理数学公式
-          td: ({ children, ...props }: any) => {
-            const processChildren = (children: any): any => {
-              if (typeof children === 'string') {
-                return processTableCellMath(children);
+          // 重要：正确的插件顺序
+          remarkPlugins={[
+            remarkGfm,  // 支持 GFM 表格语法
+            [remarkMath, {  // 识别数学公式
+              singleDollarTextMath: true,
+              inlineMathDouble: false,
+            }]
+          ]}
+          rehypePlugins={[
+            rehypeRaw,  // 先处理 HTML 内容
+            [rehypeKatex, {  // 然后处理数学公式
+              strict: false,
+              throwOnError: false,
+              errorColor: '#cc0000',
+              output: 'html',
+              displayMode: false,
+              trust: true,
+              macros: {
+                "\\RR": "\\mathbb{R}",
+                "\\NN": "\\mathbb{N}",
+                "\\ZZ": "\\mathbb{Z}",
+                "\\QQ": "\\mathbb{Q}",
+                "\\CC": "\\mathbb{C}"
               }
-              if (Array.isArray(children)) {
-                return children.map((child, index) => {
-                  if (typeof child === 'string') {
-                    return <span key={index}>{processTableCellMath(child)}</span>;
-                  }
-                  return child;
-                });
-              }
-              return children;
-            };
-            
-            return <td {...props}>{processChildren(children)}</td>;
-          },
-          
-          th: ({ children, ...props }: any) => {
-            const processChildren = (children: any): any => {
-              if (typeof children === 'string') {
-                return processTableCellMath(children);
-              }
-              if (Array.isArray(children)) {
-                return children.map((child, index) => {
-                  if (typeof child === 'string') {
-                    return <span key={index}>{processTableCellMath(child)}</span>;
-                  }
-                  return child;
-                });
-              }
-              return children;
-            };
-            
-            return <th {...props}>{processChildren(children)}</th>;
-          },
-          
-          // 自定义渲染器来处理内联数学公式
-          code: ({ children = [], className, ...props }: any) => {
-            const text = String(children);
-            
-            // 处理内联数学公式 $...$
-            if (typeof text === 'string' && /^\$([^$]+)\$$/.test(text)) {
-              const mathContent = text.replace(/^\$([^$]+)\$$/, '$1');
-              try {
-                const html = katex.renderToString(mathContent, {
-                  throwOnError: false,
-                  displayMode: false,
-                  output: 'html',
-                  strict: false,
-                  trust: true,
-                });
-                return <span dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
-              } catch (error) {
-                return <code {...props}>{children}</code>;
-              }
-            }
-            
-            // 处理块级数学公式 $$...$$
-            if (typeof text === 'string' && /^\$\$([\s\S]+)\$\$$/.test(text)) {
-              const mathContent = text.replace(/^\$\$([\s\S]+)\$\$$/, '$1');
-              try {
-                const html = katex.renderToString(mathContent, {
-                  throwOnError: false,
-                  displayMode: true,
-                  output: 'html',
-                  strict: false,
-                  trust: true,
-                });
-                return <div dangerouslySetInnerHTML={{ __html: html }} style={{ background: 'transparent', textAlign: 'center', margin: '0.3em 0', whiteSpace: 'nowrap', wordBreak: 'normal', overflowWrap: 'normal' }} />;
-              } catch (error) {
-                return <code {...props}>{children}</code>;
-              }
-            }
-            
-            // 其他代码块正常处理
-            return <code className={className} {...props}>{children}</code>;
-          }
-        }}
-      />
-      )}
+            }]
+          ]}
+        >
+          {processedContent}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }

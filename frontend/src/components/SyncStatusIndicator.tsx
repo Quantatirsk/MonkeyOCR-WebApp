@@ -3,7 +3,6 @@
  * Shows data synchronization progress and status to users
  */
 
-import React from 'react';
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -38,11 +37,6 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
   const syncStatus = useSyncStatus();
   const { syncWithServer } = useSyncActions();
   const { isAuthenticated } = useAuthStore();
-  
-  // Debug logging
-  React.useEffect(() => {
-    console.log('[SyncStatusIndicator] Current sync status:', syncStatus);
-  }, [syncStatus]);
 
   // Manual sync handler
   const handleManualSync = async () => {

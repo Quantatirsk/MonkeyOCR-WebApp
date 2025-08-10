@@ -15,10 +15,10 @@ export function getAccessToken(): string | null {
     }
     
     const auth = JSON.parse(authStorage);
-    const accessToken = auth?.state?.tokens?.accessToken;
+    const token = auth?.state?.token;
     
-    if (accessToken) {
-      return accessToken;
+    if (token) {
+      return token;
     }
   } catch (error) {
     // 静默失败，避免日志噪音

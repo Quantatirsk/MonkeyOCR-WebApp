@@ -4,6 +4,8 @@
  * Provides streaming interface for real-time content translation and explanation
  */
 
+import { useAuthStore } from '../store/authStore';
+
 export interface ImageUrl {
   url: string  // Can be a URL or base64 data URL
 }
@@ -198,13 +200,22 @@ export class LLMWrapper {
         baseUrl: baseUrl || 'backend default'
       })
 
+      // Get auth token
+      const token = useAuthStore.getState().token;
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      // Add auth token if available
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       // For now, use GET request as the backend expects
       // TODO: Update backend to accept POST with credentials if needed
       const response = await fetch(`${this.baseUrl}/api/llm/models`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers
       })
 
       if (!response.ok) {
@@ -342,11 +353,20 @@ export class LLMWrapper {
       baseUrl: options.baseUrl || 'backend default'
     })
     
+    // Get auth token
+    const token = useAuthStore.getState().token;
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json'
+    };
+    
+    // Add auth token if available
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     const response = await fetch(`${this.baseUrl}/api/llm/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(requestBody)
     })
 

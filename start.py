@@ -89,23 +89,27 @@ def find_process_by_port(port):
     return None
 
 def kill_process_by_pid(pid):
-    """根据PID杀死进程"""
+    """根据PID杀死进程 - 使用SIGKILL强制终止"""
     try:
         if sys.platform.startswith('win'):
-            # Windows: taskkill
+            # Windows: taskkill with force flag
             subprocess.run(['taskkill', '/F', '/PID', str(pid)], 
-                         capture_output=True, check=True)
+                         capture_output=True, check=False)
         else:
-            # Unix/Linux/macOS: kill
-            subprocess.run(['kill', '-9', str(pid)], 
-                         capture_output=True, check=True)
+            # Unix/Linux/macOS: 直接使用 SIGKILL (-9)
+            import os
+            os.kill(pid, signal.SIGKILL)
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (OSError, ProcessLookupError):
+        # 进程可能已经不存在了
+        return True  # 返回True因为目标已达成(进程不存在)
+    except Exception:
         return False
 
 def check_and_free_ports():
-    """检查端口占用并自动释放"""
+    """检查端口占用并快速释放"""
     import socket
+    import os
     
     def is_port_in_use(port):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -120,34 +124,54 @@ def check_and_free_ports():
     
     for port, service_name in ports_to_check:
         if is_port_in_use(port):
-            print(f"⚠️  端口 {port} ({service_name}) 已被占用")
+            print(f"⚠️  端口 {port} ({service_name}) 已被占用，立即清理...")
             
-            # 查找占用进程
-            pid = find_process_by_port(port)
-            if pid:
-                print(f"🔍 发现占用进程 PID: {pid}")
-                
-                # 尝试杀死进程
-                if kill_process_by_pid(pid):
-                    print(f"✅ 成功终止进程 {pid}")
-                    
-                    # 等待端口释放
-                    for _ in range(10):
-                        time.sleep(0.5)
-                        if not is_port_in_use(port):
-                            break
-                    
-                    if is_port_in_use(port):
-                        print(f"❌ 端口 {port} 仍被占用")
-                        return False
-                    else:
-                        print(f"✅ 端口 {port} 已释放")
-                else:
-                    print(f"❌ 无法终止进程 {pid}")
-                    return False
+            # 使用更直接的方式杀死所有占用该端口的进程
+            if sys.platform.startswith('win'):
+                # Windows: 使用netstat找到进程并立即杀死
+                try:
+                    cmd = f'for /f "tokens=5" %a in (\'netstat -ano ^| findstr :{port}\') do taskkill /F /PID %a'
+                    subprocess.run(cmd, shell=True, capture_output=True, check=False)
+                except:
+                    pass
             else:
-                print(f"❌ 无法找到占用端口 {port} 的进程")
-                return False
+                # Unix/Linux/macOS: 使用lsof找到所有进程并立即杀死
+                try:
+                    # 获取所有占用该端口的PID
+                    result = subprocess.run(['lsof', '-ti', f'tcp:{port}'], 
+                                          capture_output=True, text=True, check=False)
+                    if result.stdout:
+                        pids = result.stdout.strip().split('\n')
+                        for pid_str in pids:
+                            if pid_str:
+                                try:
+                                    pid = int(pid_str)
+                                    os.kill(pid, signal.SIGKILL)
+                                    print(f"✅ 已终止进程 PID: {pid}")
+                                except (ValueError, OSError):
+                                    pass
+                except FileNotFoundError:
+                    # lsof不可用，尝试使用fuser
+                    try:
+                        subprocess.run(['fuser', '-k', f'{port}/tcp'], 
+                                     capture_output=True, check=False)
+                    except:
+                        pass
+            
+            # 短暂等待端口释放 (0.5秒应该够了)
+            time.sleep(0.5)
+            
+            # 再次检查
+            if is_port_in_use(port):
+                # 如果还占用，再等0.5秒
+                time.sleep(0.5)
+                
+                if is_port_in_use(port):
+                    print(f"❌ 无法释放端口 {port} ({service_name})")
+                    print(f"💡 建议：请手动终止占用进程: lsof -ti tcp:{port} | xargs kill -9")
+                    return False
+            
+            print(f"✅ 端口 {port} 已成功释放")
         else:
             print(f"✅ {service_name}端口 {port} 可用")
     

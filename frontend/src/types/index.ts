@@ -17,7 +17,7 @@ export interface ProcessingTask {
   original_file?: File; // Store original file for preview
   original_file_url?: string; // Store original file URL for preview
   from_cache?: boolean; // Whether the result was loaded from cache
-  userId?: number; // User ID for task ownership
+  user_id?: number; // User ID for task ownership (unified field)
   isPublic?: boolean; // Whether task is publicly visible
   sharedWith?: number[]; // User IDs task is shared with
 }
@@ -122,8 +122,6 @@ export interface AppStore extends AppState, AppActions {
   // Computed properties
   currentTask: ProcessingTask | null;
   currentResult: DocumentResult | null;
-  completedTasks: ProcessingTask[];
-  userTasks: ProcessingTask[]; // Current user's tasks
   isProcessing: boolean;
 }
 

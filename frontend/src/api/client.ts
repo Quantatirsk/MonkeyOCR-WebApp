@@ -34,9 +34,9 @@ const axiosInstance: AxiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     // Add auth token if available
-    const tokens = useAuthStore.getState().tokens;
-    if (tokens?.accessToken) {
-      config.headers.Authorization = `Bearer ${tokens.accessToken}`;
+    const token = useAuthStore.getState().token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -45,42 +45,21 @@ axiosInstance.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling and token refresh
+// Response interceptor for error handling
 axiosInstance.interceptors.response.use(
   (response: AxiosResponse) => {
     return response;
   },
   async (error) => {
-    const originalRequest = error.config;
-    
-    // Handle 401 Unauthorized - try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+    // Handle 401 Unauthorized - logout user (no refresh token in simplified auth)
+    if (error.response?.status === 401) {
+      const state = useAuthStore.getState();
       
-      try {
-        const tokens = useAuthStore.getState().tokens;
-        if (tokens?.refreshToken) {
-          // Import authClient dynamically to avoid circular dependency
-          const { authClient } = await import('./authClient');
-          const refreshed = await authClient.refreshTokens(tokens.refreshToken);
-          
-          // Update tokens in store
-          useAuthStore.getState().setTokens({
-            accessToken: refreshed.access_token,
-            refreshToken: refreshed.refresh_token,
-            tokenType: refreshed.token_type,
-          });
-          
-          // Retry original request with new token
-          originalRequest.headers.Authorization = `Bearer ${refreshed.access_token}`;
-          return axiosInstance(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh failed, logout user
-        useAuthStore.getState().logout();
+      // Only logout if we were authenticated
+      if (state.isAuthenticated) {
+        state.logout();
         // Don't redirect here to avoid circular dependency
         // The app should handle this via auth state
-        return Promise.reject(refreshError);
       }
     }
     

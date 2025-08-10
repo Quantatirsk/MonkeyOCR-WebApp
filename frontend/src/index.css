@@ -146,6 +146,43 @@
     width: 8px;
     height: 8px;
   }
+  
+  /* Theme transition utilities */
+  .theme-transition {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+  }
+  
+  /* Fullscreen container support */
+  .fullscreen-container {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  /* Ensure fullscreen element inherits theme properly */
+  .document-viewer-container:fullscreen {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  .document-viewer-container:-webkit-full-screen {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  .document-viewer-container:-moz-full-screen {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  .document-viewer-container:-ms-fullscreen {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  /* Floating action bar specific styles */
+  .floating-action-bar {
+    @apply bg-background/95 backdrop-blur-sm border border-border;
+  }
 
   .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;

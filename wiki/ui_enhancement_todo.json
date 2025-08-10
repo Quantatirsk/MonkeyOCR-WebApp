@@ -1,0 +1,96 @@
+{
+  "project": "MonkeyOCR WebApp UI Enhancement",
+  "created": "2025-01-10",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "创建wiki文档",
+      "description": "编写UI增强计划文档到wiki目录",
+      "status": "completed",
+      "files": ["wiki/ui_enhancement_plan.md", "wiki/ui_enhancement_todo.json"]
+    },
+    {
+      "id": 2,
+      "title": "实现默认打开对照tab页",
+      "description": "修改setCurrentTask函数，当选择任务时自动切换到compare tab",
+      "status": "pending",
+      "files": ["frontend/src/store/appStore.ts"],
+      "changes": [
+        {
+          "file": "appStore.ts",
+          "line": "132-134",
+          "change": "Add activeDocumentTab: 'compare' when taskId is set"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "创建FloatingActionBar组件",
+      "description": "创建悬浮按钮组组件，包含全屏、翻译、解释三个按钮",
+      "status": "pending",
+      "files": ["frontend/src/components/document/FloatingActionBar.tsx"],
+      "features": [
+        "全屏功能实现",
+        "翻译按钮（复用现有逻辑）",
+        "解释按钮（复用现有逻辑）",
+        "优雅的UI设计",
+        "响应式布局"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "集成FloatingActionBar到DocumentViewer",
+      "description": "将悬浮按钮组集成到DocumentViewer的对照视图中",
+      "status": "pending",
+      "files": ["frontend/src/components/DocumentViewer.tsx"],
+      "changes": [
+        {
+          "location": "Compare tab section",
+          "change": "Add FloatingActionBar component with proper props and positioning"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "CSS主题系统清理",
+      "description": "统一使用index.css中定义的主题类，确保深色/亮色主题一致性",
+      "status": "pending",
+      "files": [
+        "frontend/src/index.css",
+        "various component files"
+      ],
+      "tasks": [
+        "添加utility classes",
+        "审核所有组件的主题类使用",
+        "修复全屏模式主题继承",
+        "测试主题切换"
+      ]
+    }
+  ],
+  "testing": {
+    "functional": [
+      "任务选择默认打开对照tab",
+      "悬浮按钮仅在对照视图显示",
+      "翻译功能正常工作",
+      "解释功能正常工作",
+      "全屏进入/退出正常"
+    ],
+    "theme": [
+      "亮色主题显示正确",
+      "深色主题显示正确",
+      "全屏模式保持主题",
+      "主题切换动画流畅"
+    ],
+    "responsive": [
+      "移动端视图适配",
+      "平板视图适配",
+      "桌面视图适配"
+    ]
+  },
+  "notes": [
+    "全屏API需要用户交互触发",
+    "需要考虑浏览器兼容性",
+    "保持与现有UI风格一致",
+    "注意性能优化，避免不必要的重渲染"
+  ]
+}
