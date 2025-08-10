@@ -116,7 +116,9 @@ export const FloatingActionBar: React.FC<FloatingActionBarProps> = React.memo(({
     <TooltipProvider delayDuration={300}>
       <div 
         className={cn(
-          "absolute bottom-6 left-1/2 -translate-x-1/2 z-50",
+          "fixed left-1/2 -translate-x-1/2 z-50",
+          "bottom-[env(safe-area-inset-bottom,0px)]",
+          "mb-6",
           "flex items-center gap-0.5 p-1",
           "bg-background/95 backdrop-blur-sm",
           "border border-border rounded-2xl",
@@ -211,6 +213,13 @@ export const FloatingActionBar: React.FC<FloatingActionBarProps> = React.memo(({
           to {
             opacity: 0;
             transform: translate(-50%, 20px);
+          }
+        }
+        
+        /* Ensure safe area support for mobile devices */
+        @supports (bottom: env(safe-area-inset-bottom)) {
+          .fixed {
+            padding-bottom: env(safe-area-inset-bottom);
           }
         }
       `}</style>

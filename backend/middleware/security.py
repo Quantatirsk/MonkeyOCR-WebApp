@@ -19,20 +19,21 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         
-        # Content Security Policy
+        # Content Security Policy - 添加 blob: 支持 PDF.js
         csp_sources = os.getenv("CSP_CONNECT_SOURCES", "").strip()
-        connect_src = f"'self' {csp_sources}" if csp_sources else "'self'"
+        connect_src = f"'self' blob: {csp_sources}" if csp_sources else "'self' blob:"
         
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data: blob: https:; "
             "font-src 'self' data:; "
             f"connect-src {connect_src}; "
-            "media-src 'self'; "
+            "media-src 'self' blob:; "
             "object-src 'none'; "
-            "frame-ancestors 'none';"
+            "frame-ancestors 'none'; "
+            "worker-src 'self' blob:;"
         )
         
         # Cache control

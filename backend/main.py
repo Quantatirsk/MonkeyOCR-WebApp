@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from middleware.auth import AuthMiddleware
 from middleware.security import SecurityMiddleware
 from middleware.rate_limit import RateLimitMiddleware
@@ -47,14 +46,12 @@ async def lifespan(app: FastAPI):
     demo_user = await user_repo.get_by_username("demo")
     if not demo_user:
         # 创建 demo 用户
-        import secrets
-        salt = secrets.token_hex(32)  # Generate a salt
         hashed_password = password_service.hash_password("demo123456")
         demo_user_id = await user_repo.create_user(
             username="demo",
             email="demo@monkeyocr.local",
             password_hash=hashed_password,
-            salt=salt,  # Include the salt
+            salt="",  # Empty salt for bcrypt (it handles salt internally)
             is_verified=True,
             is_active=True
         )
@@ -205,56 +202,10 @@ if not os.path.exists(static_dir):
 
 app.mount("/static", StaticFilesWithCORS(directory=static_dir), name="static")
 
-# Mount frontend static files before defining routes
+# Frontend directory path
 frontend_dir = os.path.join(os.path.dirname(__file__), "static", "frontend")
-if os.path.exists(frontend_dir):
-    # Mount frontend assets
-    assets_dir = os.path.join(frontend_dir, "assets")
-    if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
-# Frontend root route
-@app.get("/")
-async def serve_frontend():
-    """Serve the frontend application"""
-    base_dir = os.path.dirname(__file__)
-    frontend_dir = os.path.join(base_dir, "static", "frontend")
-    index_file = os.path.join(frontend_dir, "index.html")
-    
-    # Debug information
-    debug_info = {
-        "base_dir": base_dir,
-        "frontend_dir": frontend_dir,
-        "index_file": index_file,
-        "frontend_dir_exists": os.path.exists(frontend_dir),
-        "index_file_exists": os.path.exists(index_file),
-        "static_dir_contents": [],
-        "frontend_dir_contents": []
-    }
-    
-    static_dir = os.path.join(base_dir, "static")
-    if os.path.exists(static_dir):
-        debug_info["static_dir_contents"] = os.listdir(static_dir)
-        
-    if os.path.exists(frontend_dir):
-        debug_info["frontend_dir_contents"] = os.listdir(frontend_dir)
-    
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    
-    return {"message": "Frontend not found", "debug": debug_info}
-
-# Frontend PDF worker route
-@app.get("/pdf.worker.min.js")
-async def get_pdf_worker():
-    """Serve PDF.js worker file"""
-    if os.path.exists(frontend_dir):
-        worker_file = os.path.join(frontend_dir, "pdf.worker.min.js")
-        if os.path.exists(worker_file):
-            return FileResponse(worker_file, media_type="application/javascript")
-    return {"error": "PDF worker not found"}
-
-# Basic API routes
+# Basic API routes (define before frontend routes)
 @app.get("/health")
 async def health_check():
     """Basic health check"""
@@ -296,6 +247,14 @@ app.include_router(sync_router)
 
 # LLM routes
 app.include_router(llm_router)
+
+# Mount frontend static files AFTER all API routes
+# This serves all frontend assets and handles client-side routing
+if os.path.exists(frontend_dir):
+    logger.info(f"Mounting frontend static files from {frontend_dir}")
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
+else:
+    logger.warning(f"Frontend directory not found at {frontend_dir}")
 
 if __name__ == "__main__":
     import uvicorn
