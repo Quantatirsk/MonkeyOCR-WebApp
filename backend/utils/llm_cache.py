@@ -18,7 +18,7 @@ class LLMCache:
     Caches chat completions based on message content hash
     """
     
-    def __init__(self, ttl: int = 3600):  # 1 hour default TTL
+    def __init__(self, ttl: int = 86400):  # 24 hours default TTL
         self.ttl = ttl
         self.cache_prefix = "llm"
     

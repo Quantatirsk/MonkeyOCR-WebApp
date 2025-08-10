@@ -16,8 +16,8 @@ router = APIRouter(prefix="/api", tags=["results"])
 file_handler = FileHandler()
 zip_processor = ZipProcessor()
 
-# Use persistence manager for task storage
-from utils.persistence import get_persistence_manager
+# Use SQLite persistence manager for task storage
+from utils.sqlite_persistence import get_persistence_manager
 
 # Note: persistence manager instance will be obtained when needed
 
@@ -30,7 +30,7 @@ async def get_task_result(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -69,7 +69,7 @@ async def download_task_result(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -105,7 +105,7 @@ async def get_task_images(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -143,7 +143,7 @@ async def get_task_markdown(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -184,7 +184,7 @@ async def get_task_block_data(task_id: str):
     try:
         # Check if task exists
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         

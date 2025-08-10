@@ -5,6 +5,7 @@
 
 import { ProcessingTask, APIResponse } from '../types';
 import { getApiUrl } from '../config';
+import { useAuthStore } from '../store/authStore';
 
 export interface SyncResponse {
   tasks: ProcessingTask[];
@@ -95,13 +96,20 @@ class SyncManager {
       try {
         // 如果强制全量同步，直接执行
         if (forceFullSync) {
-          console.log('Forced full sync requested');
           const tasks = await this.syncAll();
           return { tasks, syncType: 'full' };
         }
 
         // 检查服务器状态
+        const authState = useAuthStore.getState();
+        const headers: HeadersInit = {};
+        
+        if (authState.token) {
+          headers['Authorization'] = `Bearer ${authState.token}`;
+        }
+        
         const statusResponse = await fetch(`${this.baseURL}/api/sync/status`, {
+          headers,
           signal: AbortSignal.timeout(5000) // 5秒超时
         });
         
@@ -114,7 +122,6 @@ class SyncManager {
 
         // 如果服务器数据哈希与本地不同，执行全量同步
         if (serverHash && serverHash !== this.serverDataHash) {
-          console.log('Server data changed, performing full sync');
           const tasks = await this.syncAll();
           return { tasks, syncType: 'full' };
         }
@@ -156,7 +163,6 @@ class SyncManager {
         // 如果还有重试机会，等待一段时间后重试
         if (attempt < this.maxRetries) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 10000); // 指数退避，最大10秒
-          console.log(`Retrying sync in ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
         
@@ -174,7 +180,6 @@ class SyncManager {
   private async performSync(type: 'full' | 'incremental'): Promise<ProcessingTask[]> {
     // 如果已经有同步在进行，返回现有的Promise
     if (this.isSyncing && this.pendingSyncPromise) {
-      console.log('Sync already in progress, waiting for existing sync...');
       return this.pendingSyncPromise;
     }
 
@@ -194,6 +199,7 @@ class SyncManager {
     } finally {
       this.pendingSyncPromise = null;
       this.isSyncing = false;
+      this.notifySyncStatusChange();  // 通知同步状态变化
     }
   }
 
@@ -202,8 +208,6 @@ class SyncManager {
    */
   private async _executeSync(type: 'full' | 'incremental'): Promise<ProcessingTask[]> {
     try {
-      console.log(`Executing ${type} sync...`);
-      
       const url = `${this.baseURL}/api/sync`;
       const params = new URLSearchParams();
       
@@ -213,11 +217,19 @@ class SyncManager {
 
       const fullUrl = params.toString() ? `${url}?${params}` : url;
       
+      // Get auth token if available
+      const authState = useAuthStore.getState();
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (authState.token) {
+        headers['Authorization'] = `Bearer ${authState.token}`;
+      }
+      
       const response = await fetch(fullUrl, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers
       });
 
       if (!response.ok) {
@@ -236,7 +248,6 @@ class SyncManager {
       this.saveSyncState();
       this.notifySyncStatusChange();
 
-      console.log(`${type} sync completed: ${data.data!.tasks.length} tasks`);
       return data.data!.tasks;
 
     } catch (error) {
@@ -309,14 +320,34 @@ class SyncManager {
   /**
    * 获取任务预览信息
    */
-  async getTaskPreview(taskId: string): Promise<APIResponse<any>> {
-    const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`);
-    
-    if (!response.ok) {
-      throw new Error(`Preview request failed: ${response.statusText}`);
+  async getTaskPreview(taskId: string): Promise<any> {
+    try {
+      const authState = useAuthStore.getState();
+      const headers: HeadersInit = {};
+      
+      if (authState.token) {
+        headers['Authorization'] = `Bearer ${authState.token}`;
+      }
+      
+      const response = await fetch(`${this.baseURL}/api/tasks/${taskId}/preview`, {
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get preview: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to get preview');
+      }
+      
+      return data;  // 返回整个响应，包含 success, data, message, error
+    } catch (error) {
+      console.error('Failed to get task preview:', error);
+      throw error;
     }
-    
-    return response.json();
   }
 
   /**

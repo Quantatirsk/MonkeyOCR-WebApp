@@ -6,8 +6,14 @@ from typing import Optional
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file in project root
+# Try parent directory first (project root), then current directory
+from pathlib import Path
+root_env = Path(__file__).parent.parent / '.env'
+if root_env.exists():
+    load_dotenv(root_env)
+else:
+    load_dotenv()  # Fallback to current directory
 
 
 class Settings(BaseSettings):
@@ -34,8 +40,9 @@ class Settings(BaseSettings):
     redis_url: Optional[str] = os.getenv("REDIS_URL", None)
     
     class Config:
-        env_file = ".env"
+        env_file = "../.env"  # Read from project root
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields from .env
     
     @property
     def get_redis_url(self) -> str:

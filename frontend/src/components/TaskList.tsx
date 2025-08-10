@@ -3,7 +3,7 @@
  * Displays processing tasks with status, progress, and management controls
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Clock, 
   AlertCircle, 
@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { useAppStore } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
 import { toast } from 'sonner';
@@ -56,6 +57,9 @@ export const TaskList: React.FC<TaskListProps> = ({
     initializeSync,
     syncWithServer
   } = useAppStore();
+  
+  // Get auth state to detect when user logs in
+  const { isAuthenticated, token } = useAuthStore();
 
   // 计时器状态管理
   const [timers, setTimers] = useState<{ [taskId: string]: number }>({});
@@ -76,11 +80,15 @@ export const TaskList: React.FC<TaskListProps> = ({
       if (isInitialized) return;
       
       try {
-        // 初始化同步管理器（这会自动触发同步）
+        // 初始化同步管理器
+        // 注意：对于未登录用户，不应该自动同步
         initializeSync();
         
-        // 等待一小段时间让store的自动同步完成
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // 只有已登录用户才同步任务
+        if (isAuthenticated && token) {
+          await syncWithServer();
+        }
+        // 未登录用户不同步，保持空的任务列表
         
         // 恢复处理中任务的计时器状态
         const now = Date.now();
@@ -88,7 +96,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         const initialFinalTimes: { [taskId: string]: number } = {};
         
         tasks.forEach(task => {
-          if (task.status === 'processing') {
+          if (task.status === 'processing' || task.status === 'pending') {
             // 基于服务器时间戳计算已经过的时间
             const startTime = new Date(task.created_at).getTime();
             const elapsed = Math.floor((now - startTime) / 1000);
@@ -110,12 +118,6 @@ export const TaskList: React.FC<TaskListProps> = ({
         // 恢复PDF页数信息
         await restorePdfPageCounts();
         
-        console.log('TaskList initialized with recovered state:', {
-          timers: Object.keys(initialTimers).length,
-          finalTimes: Object.keys(initialFinalTimes).length,
-          tasks: tasks.length
-        });
-        
       } catch (error) {
         console.error('TaskList initialization failed:', error);
         toast.error("任务状态恢复失败，可能需要手动刷新");
@@ -125,7 +127,21 @@ export const TaskList: React.FC<TaskListProps> = ({
     };
     
     initializeComponent();
-  }, [tasks.length, isInitialized]); // Removed function deps causing re-renders
+  }, [isInitialized]); // Only run once on initialization
+  
+  // Sync when auth state changes (user logs in)
+  useEffect(() => {
+    // Skip if not initialized yet
+    if (!isInitialized) return;
+    
+    // Only sync when user is authenticated
+    // When user logs out, tasks should be cleared by logout handler, not synced
+    if (isAuthenticated && token) {
+      syncWithServer().catch(err => {
+        console.error('Failed to sync after login:', err);
+      });
+    }
+  }, [isAuthenticated, token, syncWithServer, isInitialized]);
 
   // 恢复PDF页数信息
   const restorePdfPageCounts = async () => {
@@ -143,7 +159,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     // 立即更新已有的页数信息
     if (Object.keys(pageCounts).length > 0) {
       setPdfPageCounts(prev => ({ ...prev, ...pageCounts }));
-      console.log('Restored PDF page counts from results:', pageCounts);
     }
     
     // 对于没有页数信息的任务，限制并发请求数量
@@ -153,8 +168,6 @@ export const TaskList: React.FC<TaskListProps> = ({
     );
     
     if (tasksNeedingPageCount.length > 0) {
-      console.log(`Need to fetch page counts for ${tasksNeedingPageCount.length} tasks`);
-      
       // 限制并发数量，每次最多处理3个任务
       const batchSize = 3;
       for (let i = 0; i < tasksNeedingPageCount.length; i += batchSize) {
@@ -197,7 +210,7 @@ export const TaskList: React.FC<TaskListProps> = ({
         const newTimers = { ...prevTimers };
         
         tasks.forEach(task => {
-          if (task.status === 'processing') {
+          if (task.status === 'processing' || task.status === 'pending') {
             const startTime = new Date(task.created_at).getTime();
             const now = Date.now();
             const elapsed = Math.floor((now - startTime) / 1000);
@@ -229,8 +242,8 @@ export const TaskList: React.FC<TaskListProps> = ({
       let hasChanges = false;
       
       tasks.forEach(task => {
-        if (task.status === 'processing' && !newTimers[task.id]) {
-          // 新的处理中任务，计算已经过的时间
+        if ((task.status === 'processing' || task.status === 'pending') && !newTimers[task.id]) {
+          // 新的处理中或等待中任务，计算已经过的时间
           const startTime = new Date(task.created_at).getTime();
           const elapsed = Math.floor((now - startTime) / 1000);
           newTimers[task.id] = Math.max(0, elapsed);
@@ -261,12 +274,14 @@ export const TaskList: React.FC<TaskListProps> = ({
     });
   }, [tasks, isInitialized]); // Only depend on tasks and isInitialized
 
-
-  // 跟踪正在加载的任务，避免并发请求
+  // 跟踪正在加载的任务，避免并发请求 - 必须在 useEffect 之前声明
   const [loadingPageCounts, setLoadingPageCounts] = useState<Set<string>>(new Set());
+  
+  // 使用 ref 来跟踪已经尝试加载的任务，避免重复加载
+  const attemptedLoads = useRef<Set<string>>(new Set());
 
-  // 动态加载单个PDF页数
-  const loadPdfPageCount = async (taskId: string) => {
+  // 动态加载单个PDF页数 - 使用 useCallback 避免重新创建
+  const loadPdfPageCount = useCallback(async (taskId: string) => {
     if (pdfPageCounts[taskId]) return; // 已经有缓存
     if (loadingPageCounts.has(taskId)) return; // 正在加载中
     
@@ -326,7 +341,43 @@ export const TaskList: React.FC<TaskListProps> = ({
         return newSet;
       });
     }
-  };
+  }, []); // 不需要依赖，因为是稳定的函数
+
+  // 使用 useEffect 来加载 PDF 页数，避免在渲染函数中调用
+  useEffect(() => {
+    // 只对完成的 PDF 任务加载页数信息
+    const loadPageCountsForCompletedPDFs = async () => {
+      for (const task of tasks) {
+        if (task.file_type === 'pdf' && 
+            task.status === 'completed' &&
+            !attemptedLoads.current.has(task.id) && // 检查是否已经尝试过
+            !pdfPageCounts[task.id] && 
+            pdfPageCounts[task.id] !== -1 && 
+            pdfPageCounts[task.id] !== -2) {
+          // 标记为已尝试
+          attemptedLoads.current.add(task.id);
+          // 异步加载
+          loadPdfPageCount(task.id);
+        }
+      }
+    };
+    
+    loadPageCountsForCompletedPDFs();
+  }, [tasks, loadPdfPageCount, pdfPageCounts]); // 添加必要的依赖
+  
+  // 清理已删除任务的记录
+  useEffect(() => {
+    const taskIds = new Set(tasks.map(t => t.id));
+    const toRemove: string[] = [];
+    
+    attemptedLoads.current.forEach(id => {
+      if (!taskIds.has(id)) {
+        toRemove.push(id);
+      }
+    });
+    
+    toRemove.forEach(id => attemptedLoads.current.delete(id));
+  }, [tasks]);
 
   // 格式化时间显示
   const formatDuration = (seconds: number): string => {
@@ -340,7 +391,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
   // 获取任务处理时间（处理中显示实时时间，完成后显示最终时间）
   const getTaskProcessingTime = (task: ProcessingTask): number | null => {
-    if (task.status === 'processing') {
+    if (task.status === 'processing' || task.status === 'pending') {
       return timers[task.id] || 0;
     } else if (task.status === 'completed' || task.status === 'failed') {
       return finalProcessingTimes[task.id] || null;
@@ -354,12 +405,8 @@ export const TaskList: React.FC<TaskListProps> = ({
       // 对于PDF文件，显示页码信息
       let totalPages = pdfPageCounts[task.id] || results.get(task.id)?.metadata?.total_pages;
       
-      // 如果没有页数信息且未曾失败过，尝试动态加载
-      // -1表示获取失败，-2表示服务器不可用
-      if (!totalPages && pdfPageCounts[task.id] !== -1 && pdfPageCounts[task.id] !== -2 && 
-          (task.status === 'completed' || task.status === 'processing')) {
-        loadPdfPageCount(task.id);
-      }
+      // 注意：不在渲染函数中调用异步操作
+      // loadPdfPageCount 应该在 useEffect 中调用
       
       // 如果获取失败（-1）或服务器不可用（-2），不显示页数信息
       if (pdfPageCounts[task.id] === -1 || pdfPageCounts[task.id] === -2) {
@@ -367,8 +414,8 @@ export const TaskList: React.FC<TaskListProps> = ({
       }
       
       if (totalPages && totalPages > 0) {
-        if (task.status === 'processing') {
-          // 处理中：显示当前页
+        if (task.status === 'processing' || task.status === 'pending') {
+          // 处理中或等待中：显示当前页
           const currentPage = Math.ceil((task.progress / 100) * totalPages);
           return `第${Math.max(1, currentPage)} / ${totalPages}页`;
         } else if (task.status === 'completed') {
@@ -378,12 +425,12 @@ export const TaskList: React.FC<TaskListProps> = ({
       }
       
       // 如果没有页数信息或其他状态，显示百分比或空
-      if (task.status === 'processing') {
+      if (task.status === 'processing' || task.status === 'pending') {
         return `${task.progress}%`;
       }
     } else if (task.file_type === 'image') {
-      // 对于图片文件，处理中显示百分比
-      if (task.status === 'processing') {
+      // 对于图片文件，处理中或等待中显示百分比
+      if (task.status === 'processing' || task.status === 'pending') {
         return `${task.progress}%`;
       }
     }
@@ -652,7 +699,7 @@ export const TaskList: React.FC<TaskListProps> = ({
               <span className="truncate" title={`提交于 ${formatTimeAgo(task.created_at)}`}>{formatSubmissionTime(task.created_at)}</span>
               
               {/* 处理时间或进度信息 */}
-              {task.status === 'processing' ? (
+              {(task.status === 'processing' || task.status === 'pending') ? (
                 <>
                   <span className="flex-shrink-0">•</span>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -740,8 +787,8 @@ export const TaskList: React.FC<TaskListProps> = ({
           </div>
         </div>
 
-        {/* Progress bar for processing tasks */}
-        {task.status === 'processing' && (
+        {/* Progress bar for pending and processing tasks */}
+        {(task.status === 'processing' || task.status === 'pending') && (
           <div className="mt-2">
             <AnimatedProgress 
               value={task.progress} 

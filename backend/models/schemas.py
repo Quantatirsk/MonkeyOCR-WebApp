@@ -42,6 +42,10 @@ class ProcessingTask(BaseModel):
     split_pages: Optional[bool] = Field(None, description="Whether pages were split during processing")
     from_cache: Optional[bool] = Field(False, description="Whether the result was loaded from cache")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
+    
+    # User context fields
+    user_id: Optional[int] = Field(None, description="ID of user who created this task")
+    is_public: bool = Field(False, description="Whether task is publicly accessible")
 
     class Config:
         json_encoders = {

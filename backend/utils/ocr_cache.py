@@ -20,7 +20,7 @@ class OCRCache:
     Caches OCR results based on file content hash and processing parameters
     """
     
-    def __init__(self, ttl: int = 86400 * 7):  # 7 days default TTL
+    def __init__(self, ttl: int = 86400 * 30):  # 30 days default TTL
         self.ttl = ttl
         self.cache_prefix = "ocr"
     

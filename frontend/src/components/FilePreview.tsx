@@ -23,6 +23,7 @@ import { Badge } from './ui/badge';
 import { ProcessingTask, BlockData, BlockSelection } from '../types';
 import { syncManager } from '../utils/syncManager';
 import { PDFBlockOverlay } from './pdf/PDFBlockOverlay';
+import { getAccessToken } from '../utils/auth';
 
 // Set up PDF.js worker for Vite
 // Use local worker file copied by vite-plugin-static-copy
@@ -80,6 +81,9 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);  // 新增：认证加载状态
+  const blobUrlRef = useRef<string | null>(null);  // 用于跟踪和清理 Blob URL
+  const loadedTaskIdRef = useRef<string | null>(null);  // 跟踪已加载的任务ID，防止重复加载
   const [previewInfo, setPreviewInfo] = useState<any>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const internalContainerRef = React.useRef<HTMLDivElement>(null);
@@ -97,21 +101,77 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   
   // 从服务器获取文件预览URL和信息
   React.useEffect(() => {
+    // 如果任务ID没有变化，且已经有文件URL，则不重复加载
+    if (loadedTaskIdRef.current === task.id && fileUrl && blobUrlRef.current) {
+      return;
+    }
+    
     const loadFilePreview = async () => {
       if (!task.id) return;
       
+      // 只有在成功加载后才标记
+      // loadedTaskIdRef.current = task.id;  // 移到成功加载后
+      
       setIsLoadingFile(true);
       setError(null);
+      
+      // 清理之前的 Blob URL
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
       
       try {
         // 获取预览信息
         const previewData = await syncManager.getTaskPreview(task.id);
         setPreviewInfo(previewData.data);
         
-        // 如果文件存在，设置预览URL
+        // 如果文件存在，获取文件内容
         if (previewData.data?.file_exists) {
-          const url = syncManager.getOriginalFileUrl(task.id);
-          setFileUrl(url);
+          // 使用新的认证工具函数获取令牌
+          const accessToken = getAccessToken();
+          const needsAuth = accessToken !== null;
+          
+          if (needsAuth && accessToken) {
+            // 有认证令牌，使用 fetch 获取文件并创建 Blob URL
+            setIsAuthenticating(true);  // 开始认证加载
+            try {
+              const fileUrl = syncManager.getOriginalFileUrl(task.id);
+              
+              const response = await fetch(fileUrl, {
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`
+                }
+              });
+              
+              if (response.ok) {
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                blobUrlRef.current = blobUrl;  // 保存引用以便清理
+                setFileUrl(blobUrl);  // 设置 Blob URL
+                loadedTaskIdRef.current = task.id;  // 成功加载后标记
+              } else if (response.status === 403) {
+                // 403 错误，可能是权限问题
+                setError('没有权限访问此文件');
+                setFileUrl(null);
+              } else {
+                // 其他错误
+                setError(`文件加载失败: ${response.status}`);
+                setFileUrl(null);
+              }
+            } catch (fetchError) {
+              console.error('Failed to fetch file with auth:', fetchError);
+              setError('文件加载失败');
+              setFileUrl(null);
+            } finally {
+              setIsAuthenticating(false);  // 结束认证加载
+            }
+          } else {
+            // 没有认证令牌，直接使用URL（适用于匿名文件）
+            const url = syncManager.getOriginalFileUrl(task.id);
+            setFileUrl(url);
+            loadedTaskIdRef.current = task.id;  // 成功设置URL后标记
+          }
         } else {
           setFileUrl(null);
         }
@@ -124,7 +184,15 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     };
     
     loadFilePreview();
-  }, [task.id]);
+    
+    // 清理函数
+    return () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [task.id]); // 只依赖 task.id，避免重复加载
 
   // 容器尺寸监听 - 触发PDF缩放重计算
   React.useLayoutEffect(() => {
@@ -295,15 +363,19 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setError('无法加载PDF文件');
   }, []);
 
-  // Loading state
-  if (isLoadingFile) {
+  // Loading state - 包括认证加载状态
+  if (isLoadingFile || isAuthenticating) {
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
         <div className="flex flex-col items-center space-y-4 p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <div className="space-y-2 text-center">
-            <h3 className="text-lg font-semibold">加载文件预览中...</h3>
-            <p className="text-muted-foreground">正在从服务器获取文件信息</p>
+            <h3 className="text-lg font-semibold">
+              {isAuthenticating ? '验证权限中...' : '加载文件预览中...'}
+            </h3>
+            <p className="text-muted-foreground">
+              {isAuthenticating ? '正在验证文件访问权限' : '正在从服务器获取文件信息'}
+            </p>
           </div>
         </div>
       </div>

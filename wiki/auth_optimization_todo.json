@@ -1,0 +1,311 @@
+{
+  "title": "Authentication System Optimization Implementation",
+  "description": "Step-by-step implementation plan to simplify and secure the authentication system",
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Critical Security Fixes",
+      "priority": "CRITICAL",
+      "tasks": [
+        {
+          "id": "SEC-001",
+          "task": "Replace hardcoded JWT secret with environment variable validation",
+          "file": "backend/services/token_manager.py",
+          "changes": [
+            "Remove default JWT secret value",
+            "Add startup validation that JWT_SECRET env var exists",
+            "Generate strong random secret for .env.example"
+          ],
+          "estimated_time": "30min"
+        },
+        {
+          "id": "SEC-002",
+          "task": "Implement proper rate limiting with Redis",
+          "files": [
+            "backend/dependencies/auth.py",
+            "backend/middleware/auth_middleware.py"
+          ],
+          "changes": [
+            "Replace placeholder RateLimiter with Redis-based implementation",
+            "Add sliding window rate limiting",
+            "Configure limits: 5 login attempts/min, 60 API calls/min"
+          ],
+          "estimated_time": "1hr"
+        },
+        {
+          "id": "SEC-003",
+          "task": "Add authentication event logging",
+          "file": "backend/services/auth_service.py",
+          "changes": [
+            "Log all login attempts (success/failure)",
+            "Log password changes",
+            "Log suspicious activity patterns"
+          ],
+          "estimated_time": "45min"
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "name": "Database Schema Simplification",
+      "priority": "HIGH",
+      "tasks": [
+        {
+          "id": "DB-001",
+          "task": "Create migration script for schema changes",
+          "file": "backend/migrations/simplify_auth_schema.py",
+          "changes": [
+            "Backup existing data",
+            "Drop user_sessions table",
+            "Drop task_shares table",
+            "Remove salt column from users table",
+            "Create share_tokens table"
+          ],
+          "estimated_time": "1hr"
+        },
+        {
+          "id": "DB-002",
+          "task": "Update database models and repositories",
+          "files": [
+            "backend/repositories/user_repository.py",
+            "backend/repositories/session_repository.py"
+          ],
+          "changes": [
+            "Remove SessionRepository entirely",
+            "Update UserRepository to remove salt handling",
+            "Remove session-related methods"
+          ],
+          "estimated_time": "1hr"
+        },
+        {
+          "id": "DB-003",
+          "task": "Simplify task sharing to use tokens",
+          "files": [
+            "backend/repositories/task_repository.py",
+            "backend/services/authorization_service.py"
+          ],
+          "changes": [
+            "Replace complex permission levels with simple token-based sharing",
+            "Generate unique share tokens for public task access",
+            "Remove permission hierarchy logic"
+          ],
+          "estimated_time": "1.5hr"
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "name": "Service Layer Consolidation",
+      "priority": "HIGH",
+      "tasks": [
+        {
+          "id": "SVC-001",
+          "task": "Merge Authentication and Authorization services",
+          "files": [
+            "backend/services/auth_service.py",
+            "backend/services/authorization_service.py"
+          ],
+          "changes": [
+            "Create single AuthService class",
+            "Move authorization logic into auth service",
+            "Remove redundant code and methods"
+          ],
+          "estimated_time": "2hr"
+        },
+        {
+          "id": "SVC-002",
+          "task": "Simplify password service",
+          "file": "backend/services/password_service.py",
+          "changes": [
+            "Remove separate salt generation/storage",
+            "Use bcrypt's built-in salt handling",
+            "Remove unused password history and scoring methods",
+            "Keep only hash_password and verify_password"
+          ],
+          "estimated_time": "45min"
+        },
+        {
+          "id": "SVC-003",
+          "task": "Simplify token management",
+          "file": "backend/services/token_manager.py",
+          "changes": [
+            "Remove separate access/refresh token logic",
+            "Single token type with 24h expiry",
+            "Implement token renewal (same claims, new expiry)",
+            "Remove in-memory blacklist (not needed with stateless)"
+          ],
+          "estimated_time": "1hr"
+        }
+      ]
+    },
+    {
+      "phase": 4,
+      "name": "API Endpoint Consolidation",
+      "priority": "MEDIUM",
+      "tasks": [
+        {
+          "id": "API-001",
+          "task": "Consolidate authentication endpoints",
+          "file": "backend/api/auth.py",
+          "changes": [
+            "Remove /logout and /logout-all (stateless, no server action needed)",
+            "Remove /refresh endpoint (use /token/renew instead)",
+            "Combine /me GET and PUT into single endpoint",
+            "Remove unused /verify-email and /reset-password endpoints"
+          ],
+          "estimated_time": "1.5hr"
+        },
+        {
+          "id": "API-002",
+          "task": "Update authentication dependencies",
+          "file": "backend/dependencies/auth.py",
+          "changes": [
+            "Simplify get_current_user to only validate JWT",
+            "Remove session token logic",
+            "Remove database lookups from token validation",
+            "Update rate limiting to use Redis"
+          ],
+          "estimated_time": "1hr"
+        },
+        {
+          "id": "API-003",
+          "task": "Simplify middleware stack",
+          "file": "backend/middleware/auth_middleware.py",
+          "changes": [
+            "Combine three middleware into one AuthMiddleware",
+            "Remove session tracking (stateless)",
+            "Integrate rate limiting directly",
+            "Simplify excluded paths logic"
+          ],
+          "estimated_time": "1hr"
+        }
+      ]
+    },
+    {
+      "phase": 5,
+      "name": "Frontend Updates",
+      "priority": "MEDIUM",
+      "tasks": [
+        {
+          "id": "FE-001",
+          "task": "Simplify auth store",
+          "file": "frontend/src/store/authStore.ts",
+          "changes": [
+            "Remove separate tokens object (just store single token string)",
+            "Remove refresh token logic",
+            "Simplify state to user, token, isAuthenticated"
+          ],
+          "estimated_time": "45min"
+        },
+        {
+          "id": "FE-002",
+          "task": "Update auth client",
+          "file": "frontend/src/api/authClient.ts",
+          "changes": [
+            "Remove refresh token interceptor",
+            "Update endpoints to match new API",
+            "Simplify token renewal logic",
+            "Remove unused methods"
+          ],
+          "estimated_time": "1hr"
+        },
+        {
+          "id": "FE-003",
+          "task": "Update auth components",
+          "files": [
+            "frontend/src/components/auth/LoginForm.tsx",
+            "frontend/src/components/auth/RegisterForm.tsx"
+          ],
+          "changes": [
+            "Remove remember me checkbox (all tokens 24h)",
+            "Update to use simplified auth store",
+            "Remove email verification UI (not implemented)"
+          ],
+          "estimated_time": "45min"
+        }
+      ]
+    },
+    {
+      "phase": 6,
+      "name": "Testing and Cleanup",
+      "priority": "MEDIUM",
+      "tasks": [
+        {
+          "id": "TEST-001",
+          "task": "Create comprehensive auth tests",
+          "file": "backend/tests/test_auth.py",
+          "changes": [
+            "Test registration with proper password hashing",
+            "Test login with rate limiting",
+            "Test token validation and renewal",
+            "Test task access control"
+          ],
+          "estimated_time": "2hr"
+        },
+        {
+          "id": "TEST-002",
+          "task": "Remove dead code",
+          "files": [
+            "backend/utils/auth_cache.py",
+            "backend/repositories/session_repository.py"
+          ],
+          "changes": [
+            "Delete unused auth cache utilities",
+            "Delete session repository",
+            "Remove TODO comments and placeholder code",
+            "Clean up imports"
+          ],
+          "estimated_time": "30min"
+        },
+        {
+          "id": "TEST-003",
+          "task": "Update documentation",
+          "files": [
+            "README.md",
+            "CLAUDE.md",
+            "backend/FIX_403_SUMMARY.md"
+          ],
+          "changes": [
+            "Document new auth flow",
+            "Update API documentation",
+            "Add security best practices section",
+            "Remove references to old auth system"
+          ],
+          "estimated_time": "1hr"
+        }
+      ]
+    }
+  ],
+  "total_estimated_time": "18 hours",
+  "breaking_changes": [
+    "All existing tokens will be invalidated",
+    "API endpoints changed (frontend must be updated)",
+    "Database schema changes (migration required)",
+    "No backward compatibility maintained"
+  ],
+  "rollback_plan": {
+    "steps": [
+      "Backup database before migration",
+      "Keep old code in feature branch",
+      "Test thoroughly in staging environment",
+      "Have rollback script ready"
+    ]
+  },
+  "success_criteria": {
+    "security": [
+      "No hardcoded secrets",
+      "Rate limiting active",
+      "Audit logs working"
+    ],
+    "performance": [
+      "Token validation < 10ms",
+      "No database lookups for auth",
+      "Reduced memory usage"
+    ],
+    "simplicity": [
+      "60% less auth code",
+      "6 API endpoints (down from 12)",
+      "Single token type"
+    ]
+  }
+}

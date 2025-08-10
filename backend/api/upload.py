@@ -7,8 +7,8 @@ import os
 import uuid
 import logging
 from datetime import datetime
-from typing import List
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
 import aiofiles
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 from models import ProcessingTask, APIResponse
 from utils.monkeyocr_client import MonkeyOCRClient
 from utils.file_handler import FileHandler
-from utils.persistence import get_persistence_manager
+from utils.sqlite_persistence import get_persistence_manager
 from utils.ocr_cache import ocr_cache
 from config import settings
+from dependencies.auth import get_current_user_optional, get_current_user
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -44,10 +45,19 @@ async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     extract_type: str = Form("standard"),
-    split_pages: bool = Form(False)
+    split_pages: bool = Form(False),
+    is_public: str = Form("false"),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
     Upload a file for OCR processing
+    
+    Args:
+        file: File to upload
+        extract_type: OCR extraction type
+        split_pages: Whether to split PDF pages
+        is_public: Make task publicly accessible (requires auth)
+        current_user: Current authenticated user (optional)
     """
     try:
         # Validate file type
@@ -76,6 +86,19 @@ async def upload_file(
         if file.content_type == "application/pdf":
             total_pages = file_handler.get_pdf_page_count(file_content)
         
+        # Get user ID if authenticated
+        user_id = current_user.get("user_id") if current_user else None
+        
+        # Parse is_public from string to boolean
+        logger.info(f"Received is_public value: {is_public} (type: {type(is_public)})")
+        is_public_bool = is_public.lower() in ['true', '1', 'yes']
+        logger.info(f"Parsed is_public_bool: {is_public_bool}")
+        
+        # Only authenticated users can make tasks public
+        if is_public_bool and not current_user:
+            logger.info("User not authenticated, setting is_public to False")
+            is_public_bool = False
+        
         # Create task record
         task = ProcessingTask(
             id=task_id,
@@ -95,12 +118,14 @@ async def upload_file(
             last_modified=datetime.now().isoformat(),
             processing_duration=None,
             from_cache=False,
-            updated_at=datetime.now().isoformat()
+            updated_at=datetime.now().isoformat(),
+            user_id=user_id,  # Associate with user if authenticated
+            is_public=is_public_bool  # Public access flag
         )
         
-        # Store task
+        # Store task with user context
         persistence_manager = get_persistence_manager()
-        persistence_manager.add_task(task)
+        await persistence_manager.add_task(task, user_id=user_id)
         
         # Save original file for later access
         try:
@@ -119,12 +144,6 @@ async def upload_file(
                 if cached_result:
                     # Cache hit! Process immediately in main thread
                     logger.info(f"OCR cache hit for task {task_id}, processing immediately")
-                    
-                    # Update status to processing briefly (for UI feedback)
-                    persistence_manager.update_task(task_id, {
-                        "status": "processing",
-                        "progress": 50
-                    })
                     
                     # Try to copy cached files
                     copied_successfully = False
@@ -148,17 +167,31 @@ async def upload_file(
                                 logger.warning(f"Failed to process cached ZIP: {e}")
                         
                         # Mark task as completed with cache flag
-                        persistence_manager.update_task(task_id, {
+                        updated_task = await persistence_manager.update_task(task_id, {
                             "status": "completed",
                             "progress": 100,
                             "result_url": f"/api/download/{task_id}",
                             "completed_at": datetime.now().isoformat(),
                             "from_cache": True,
-                            "processing_duration": 0.1  # Near-instant for cached results
+                            "processing_duration": 0.1,  # Near-instant for cached results
+                            "updated_at": datetime.now().isoformat()  # Explicitly set updated_at
                         })
+                        
+                        if updated_task:
+                            logger.info(f"Task {task_id} updated in DB - status: {updated_task.status}")
+                        else:
+                            logger.error(f"Failed to update task {task_id} in database!")
                         
                         cache_hit = True
                         logger.info(f"Task {task_id} completed from cache immediately")
+                        
+                        # Update the task object to reflect the new status
+                        task.status = "completed"
+                        task.progress = 100
+                        task.result_url = f"/api/download/{task_id}"
+                        task.completed_at = datetime.now().isoformat()
+                        task.from_cache = True
+                        task.processing_duration = 0.1
                     else:
                         # Cache files unavailable, invalidate and proceed normally
                         logger.warning(f"Cached files unavailable, invalidating cache")
@@ -189,11 +222,10 @@ async def upload_file(
             )
         else:
             # Cache hit, task already completed
-            # Reload task to get updated status
-            updated_task = persistence_manager.get_task(task_id)
+            # Return the updated task object directly (already updated above)
             return APIResponse(
                 success=True,
-                data=updated_task,
+                data=task,  # Use the updated task object
                 message="File processed from cache",
                 error=None
             )
@@ -211,7 +243,7 @@ async def get_task_status(task_id: str):
     """
     try:
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         
@@ -229,13 +261,18 @@ async def get_task_status(task_id: str):
 
 
 @router.get("/tasks", response_model=APIResponse[List[ProcessingTask]])
-async def get_all_tasks():
+async def get_all_tasks(
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
     """
-    Get all tasks
+    Get all tasks visible to current user
+    - Authenticated users see only their own tasks
+    - Anonymous users see no tasks (for security)
     """
     try:
         persistence_manager = get_persistence_manager()
-        tasks_list = persistence_manager.get_all_tasks()
+        user_id = current_user.get("user_id") if current_user else None
+        tasks_list = await persistence_manager.get_all_tasks(user_id=user_id)
         # Already sorted by creation time, newest first
         
         return APIResponse(
@@ -250,15 +287,25 @@ async def get_all_tasks():
 
 
 @router.delete("/tasks/{task_id}", response_model=APIResponse[None])
-async def delete_task(task_id: str):
+async def delete_task(
+    task_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
     """
     Delete a task and its associated files with cache cleanup
+    Only task owner can delete their tasks
     """
     try:
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
+        
+        # Check if user can delete this task
+        if task.user_id is not None:
+            # Task has an owner, check if current user is the owner
+            if not current_user or task.user_id != current_user.get("user_id"):
+                raise HTTPException(status_code=403, detail="Access denied: Only task owner can delete")
         
         # Clean up OCR cache if Redis is enabled and we have original file
         if settings.redis_enabled:
@@ -294,7 +341,7 @@ async def delete_task(task_id: str):
         
         # Remove from storage
         persistence_manager = get_persistence_manager()
-        persistence_manager.delete_task(task_id)
+        await persistence_manager.delete_task(task_id)
         
         return APIResponse(
             success=True,
@@ -320,17 +367,22 @@ async def process_file_async(
     """
     Background task to process file with MonkeyOCR API (cache miss cases only)
     """
+    persistence_manager = get_persistence_manager()
+    
     try:
-        persistence_manager = get_persistence_manager()
-        
         # This function is only called for cache misses
         # Cache hits are handled in the main thread now
         logger.info(f"Processing task {task_id} with MonkeyOCR API")
         
+        # Record start time for duration calculation
+        start_time = datetime.now()
+        
         # Update task status to processing
-        persistence_manager.update_task(task_id, {
+        await persistence_manager.update_task(task_id, {
             "status": "processing", 
-            "progress": 10
+            "progress": 10,
+            "updated_at": datetime.now().isoformat(),
+            "processing_started_at": start_time.isoformat()
         })
         
         # Save file temporarily
@@ -338,8 +390,10 @@ async def process_file_async(
         
         try:
             # Update progress
-            persistence_manager = get_persistence_manager()
-            persistence_manager.update_task(task_id, {"progress": 30})
+            await persistence_manager.update_task(task_id, {
+                "progress": 30,
+                "updated_at": datetime.now().isoformat()
+            })
             
             # Call MonkeyOCR API
             result = await monkeyocr_client.process_file(
@@ -349,8 +403,10 @@ async def process_file_async(
             )
             
             # Update progress
-            persistence_manager = get_persistence_manager()
-            persistence_manager.update_task(task_id, {"progress": 70})
+            await persistence_manager.update_task(task_id, {
+                "progress": 70,
+                "updated_at": datetime.now().isoformat()
+            })
             
             # Download and process result
             if result.get("download_url"):
@@ -369,12 +425,14 @@ async def process_file_async(
                         # Continue anyway, the ZIP file is still downloadable
                 
                 # Update task with result
-                persistence_manager = get_persistence_manager()
-                persistence_manager.update_task(task_id, {
+                end_time = datetime.now()
+                await persistence_manager.update_task(task_id, {
                     "status": "completed",
                     "progress": 100,
-                    "completed_at": datetime.now().isoformat(),
-                    "result_url": f"/api/download/{task_id}"
+                    "completed_at": end_time.isoformat(),
+                    "result_url": f"/api/download/{task_id}",
+                    "updated_at": end_time.isoformat(),
+                    "processing_duration": (end_time - start_time).total_seconds()
                 })
                 
                 # Cache the result for future use (only if Redis is enabled)
@@ -407,11 +465,11 @@ async def process_file_async(
                 
     except Exception as e:
         # Update task with error
-        persistence_manager = get_persistence_manager()
-        persistence_manager.update_task(task_id, {
+        await persistence_manager.update_task(task_id, {
             "status": "failed",
             "error_message": str(e),
-            "completed_at": datetime.now().isoformat()
+            "completed_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
         })
         
         print(f"Processing failed for task {task_id}: {e}")
@@ -425,7 +483,7 @@ async def download_result(task_id: str):
     """
     try:
         persistence_manager = get_persistence_manager()
-        task = persistence_manager.get_task(task_id)
+        task = await persistence_manager.get_task(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         

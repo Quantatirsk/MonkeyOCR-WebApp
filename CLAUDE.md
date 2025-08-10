@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 MonkeyOCR WebApp is a full-stack application for OCR content extraction and visualization with Redis caching and LLM translation capabilities.
 
 **Tech Stack:**
+
 - **Frontend**: React 18 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand
 - **Backend**: FastAPI + Python 3.8+ with Redis caching and OpenAI-compatible LLM integration
 - **External Services**: MonkeyOCR API (https://ocr.teea.cn), configurable LLM API
@@ -14,7 +15,15 @@ MonkeyOCR WebApp is a full-stack application for OCR content extraction and visu
 
 ## Development Commands
 
+
+### Fromtend + Backend
+
+```bash
+python start.py
+```
+
 ### Frontend
+
 ```bash
 cd frontend
 npm install                  # Install dependencies
@@ -25,6 +34,7 @@ npm run lint                # Run ESLint with TypeScript checking
 ```
 
 ### Backend
+
 ```bash
 cd backend
 pip install -r requirements.txt                          # Install dependencies
@@ -34,6 +44,7 @@ python -m pytest tests/test_llm_cache.py -v            # Run specific test
 ```
 
 ### Docker Operations
+
 ```bash
 # Development with Redis
 docker-compose up -d redis                    # Start Redis only
@@ -48,6 +59,7 @@ docker-compose exec monkeyocr-webapp bash    # Shell into container
 ## Architecture & Data Flow
 
 ### Request Processing Pipeline
+
 1. **File Upload** → Frontend validates file types (PDF/JPG/PNG/WEBP, max 50MB)
 2. **Task Creation** → Backend generates UUID, creates ProcessingTask with metadata
 3. **Cache Check** → Redis checks for existing OCR results (hash-based on file content + params)
@@ -58,6 +70,7 @@ docker-compose exec monkeyocr-webapp bash    # Shell into container
 6. **Frontend Display**: Markdown rendering with embedded images via absolute URLs
 
 ### Caching Architecture
+
 ```
 Redis Cache Layers:
 1. OCR Results: SHA256(file_content + extract_type + split_pages) → ZIP file path
@@ -66,6 +79,7 @@ Redis Cache Layers:
 ```
 
 ### State Management Pattern
+
 - **Frontend**: Zustand store manages `tasks[]`, `currentTaskId`, `searchQuery`
 - **Backend**: Redis or file-based persistence for task state
 - **Sync**: Polling mechanism for real-time status updates
@@ -73,11 +87,13 @@ Redis Cache Layers:
 ## Key Implementation Details
 
 ### Backend Persistence System
+
 - **Primary**: Redis persistence (`utils/redis_persistence.py`) when `REDIS_ENABLED=true`
 - **Fallback**: File-based JSON storage (`utils/persistence.py`)
 - **Task Model**: Includes `file_hash`, `processing_duration`, `from_cache` flags
 
 ### MonkeyOCR Integration
+
 ```python
 # API Endpoints used:
 /parse         # Standard document parsing
@@ -92,12 +108,14 @@ Redis Cache Layers:
 ```
 
 ### LLM Translation Feature
+
 - Configurable OpenAI-compatible API (supports local models via Ollama/LM Studio)
 - Streaming responses with SSE (Server-Sent Events)
 - Redis caching with configurable TTL
 - Fallback to non-streaming if SSE fails
 
 ### Error Handling Patterns
+
 - Background task processing with status updates
 - Graceful cache invalidation on failures
 - Comprehensive logging with contextual information
@@ -106,6 +124,7 @@ Redis Cache Layers:
 ## Configuration
 
 ### Environment Variables (.env)
+
 ```bash
 # Required
 MONKEYOCR_API_KEY=your_key_here
@@ -127,17 +146,20 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
 ### Frontend Proxy Configuration
+
 Vite automatically proxies `/api` requests to backend (configured in `vite.config.ts`)
 
 ## Common Development Tasks
 
 ### Adding New OCR Processing Mode
+
 1. Update `extraction_type` in `backend/models/schemas.py`
 2. Modify `MonkeyOCRClient.process_file()` in `backend/utils/monkeyocr_client.py`
 3. Update cache key generation in `backend/utils/ocr_cache.py`
 4. Add UI option in `frontend/src/components/UploadZone.tsx`
 
 ### Debugging Cache Issues
+
 ```python
 # Check Redis connection
 redis-cli ping
@@ -153,6 +175,7 @@ grep "cache hit\|cache miss" backend.log
 ```
 
 ### Testing File Processing
+
 ```bash
 # Test with sample file
 curl -X POST http://localhost:8001/api/upload \
@@ -167,12 +190,14 @@ curl http://localhost:8001/api/tasks/{task_id}/status
 ## Performance Optimization
 
 ### Current Optimizations
+
 - **OCR Result Caching**: ~90% cache hit rate for duplicate files
 - **LLM Response Caching**: Reduces API calls by 60-70%
 - **Static File Serving**: Direct nginx serving in production
 - **Parallel Task Processing**: Background tasks with asyncio
 
 ### Monitoring Points
+
 - Redis memory usage: `redis-cli INFO memory`
 - Task processing duration: Check `processing_duration` field
 - Cache hit rates: Monitor `from_cache` flag in task results

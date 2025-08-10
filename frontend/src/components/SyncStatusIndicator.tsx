@@ -3,7 +3,6 @@
  * Shows data synchronization progress and status to users
  */
 
-import React from 'react';
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -21,6 +20,7 @@ import {
   TooltipTrigger 
 } from './ui/tooltip';
 import { useSyncStatus, useSyncActions } from '../store/appStore';
+import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 
 interface SyncStatusIndicatorProps {
@@ -36,9 +36,16 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
 }) => {
   const syncStatus = useSyncStatus();
   const { syncWithServer } = useSyncActions();
+  const { isAuthenticated } = useAuthStore();
 
   // Manual sync handler
   const handleManualSync = async () => {
+    // Only allow sync for authenticated users
+    if (!isAuthenticated) {
+      toast.info("请先登录后再同步数据");
+      return;
+    }
+    
     try {
       await syncWithServer();
       toast.success("数据同步完成");
@@ -151,15 +158,20 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                 size="sm"
                 className="h-6 w-6 p-0"
                 onClick={handleManualSync}
-                disabled={syncStatus?.is_syncing}
+                disabled={syncStatus?.is_syncing || !isAuthenticated}
+                title={!isAuthenticated ? "请先登录" : ""}
               >
                 {syncInfo.icon}
               </Button>
             </div>
           </TooltipTrigger>
           <TooltipContent>
-            {!syncStatus?.is_syncing && (
+            {!isAuthenticated ? (
+              <p className="text-xs">请先登录后再同步</p>
+            ) : !syncStatus?.is_syncing ? (
               <p className="text-xs">点击手动同步</p>
+            ) : (
+              <p className="text-xs">同步中...</p>
             )}
           </TooltipContent>
         </Tooltip>
@@ -188,12 +200,13 @@ export const SyncStatusIndicator: React.FC<SyncStatusIndicatorProps> = ({
                 size="sm"
                 className="h-6 w-6 p-0 hover:bg-muted"
                 onClick={handleManualSync}
+                disabled={!isAuthenticated}
               >
                 <RefreshCw className="w-3 h-3" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <p className="text-xs">手动同步数据</p>
+              <p className="text-xs">{!isAuthenticated ? "请先登录后再同步" : "手动同步数据"}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
