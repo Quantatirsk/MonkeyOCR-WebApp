@@ -34,6 +34,34 @@ async def lifespan(app: FastAPI):
     await init_database()
     logger.info("SQLite database initialized successfully")
     
+    # 创建 demo 用户（如果不存在）
+    from database import get_db_manager
+    from repositories.user_repository import UserRepository
+    from services.password_service import PasswordService
+    
+    db_manager = get_db_manager()
+    user_repo = UserRepository(db_manager)
+    password_service = PasswordService()
+    
+    # 检查 demo 用户是否存在
+    demo_user = await user_repo.get_by_username("demo")
+    if not demo_user:
+        # 创建 demo 用户
+        import secrets
+        salt = secrets.token_hex(32)  # Generate a salt
+        hashed_password = password_service.hash_password("demo123456")
+        demo_user_id = await user_repo.create_user(
+            username="demo",
+            email="demo@monkeyocr.local",
+            password_hash=hashed_password,
+            salt=salt,  # Include the salt
+            is_verified=True,
+            is_active=True
+        )
+        logger.info(f"Demo user created with ID: {demo_user_id}")
+    else:
+        logger.info("Demo user already exists")
+    
     # 初始化 Redis 连接（如果启用）- 用于缓存
     if os.getenv("REDIS_ENABLED", "False").lower() == "true":
         from utils.redis_client import RedisClient

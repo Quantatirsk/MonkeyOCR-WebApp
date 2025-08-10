@@ -7,7 +7,7 @@ import { useAppStore, useUIActions } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
 import { SyncStatusIndicator } from '../SyncStatusIndicator';
 import { UserMenu } from './UserMenu';
-import { AuthContainer } from '../auth/AuthContainer';
+import { AuthPage } from '../auth/AuthPage';
 import { authClient } from '@/api/authClient';
 
 export function Header() {
@@ -20,7 +20,6 @@ export function Header() {
   // Use real auth state from store
   const { user, isAuthenticated, logout: clearAuthData } = useAuthStore();
   const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
   // Task stats - use tasks directly since server already filters by user when authenticated
   const taskStats = {
@@ -30,12 +29,10 @@ export function Header() {
   };
   
   const handleLogin = () => {
-    setAuthMode('login');
     setAuthModalOpen(true);
   };
   
   const handleRegister = () => {
-    setAuthMode('register');
     setAuthModalOpen(true);
   };
   
@@ -141,12 +138,15 @@ export function Header() {
         </div>
       </header>
       
-      {/* Auth Modal */}
-      <AuthContainer
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        initialMode={authMode}
-      />
+      {/* Auth Page */}
+      {authModalOpen && (
+        <AuthPage
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={() => {
+            // Auth state is already updated in AuthPage
+          }}
+        />
+      )}
     </>
   );
 }
