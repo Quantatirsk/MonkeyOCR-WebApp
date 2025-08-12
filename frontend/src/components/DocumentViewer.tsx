@@ -641,7 +641,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             syncEnabled={blockSyncEnabled}
                             onBlockClick={handleMarkdownBlockClickWithTimestamp}
                             activeSearchQuery={documentSearch.activeQuery}
-                            taskId={currentTaskId}
+                            taskId={currentTaskId || undefined}
                             onMarkdownGenerated={setBlockBasedMarkdownForCopy}
                             onTranslateAllStatusChange={handleTranslateAllStatusChange}
                             isWaitingForBlockData={isWaitingForBlockData}

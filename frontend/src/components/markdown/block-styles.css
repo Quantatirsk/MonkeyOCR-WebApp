@@ -280,6 +280,7 @@
   margin: 0.5em 0 0.2em 0 !important; /* Reduced spacing */
   border-bottom: 1px solid hsl(var(--border));
   padding-bottom: 0.2rem;
+  color: hsl(var(--primary)) !important; /* Use primary color (deep blue) */
 }
 
 .markdown-h3 {

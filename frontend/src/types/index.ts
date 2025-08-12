@@ -76,7 +76,7 @@ export interface AppState {
   searchQuery: string;
   theme: 'light' | 'dark';
   taskListVisible: boolean;
-  activeDocumentTab: 'preview' | 'compare' | 'images' | 'metadata';
+  activeDocumentTab: 'preview' | 'compare' | 'translation' | 'images' | 'metadata';
   
   // Sync state (not persisted)
   syncStatus: SyncStatus | null;
@@ -103,7 +103,7 @@ export interface AppActions {
   setUploading: (isUploading: boolean) => void;
   toggleTheme: () => void;
   toggleTaskListVisible: () => void;
-  setActiveDocumentTab: (tab: 'preview' | 'compare' | 'images' | 'metadata') => void;
+  setActiveDocumentTab: (tab: 'preview' | 'compare' | 'translation' | 'images' | 'metadata') => void;
   
   // File operations
   uploadFiles: (files: File[], options?: UploadOptions) => Promise<void>;

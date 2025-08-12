@@ -40,8 +40,8 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = ({
   const translationStartedRef = useRef(false);
   const prevTaskIdRef = useRef<string>();
   
-  // 获取用户翻译引擎偏好
-  const translationEngine = useUserPreferencesStore(state => state.translationEngine);
+  // 获取用户翻译引擎偏好 (currently not used but kept for future reference)
+  // const translationEngine = useUserPreferencesStore(state => state.translationEngine);
   
   // 使用翻译功能
   const blockActions = useBlockActions({
