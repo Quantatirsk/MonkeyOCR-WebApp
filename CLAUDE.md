@@ -4,43 +4,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MonkeyOCR WebApp is a full-stack application for OCR content extraction and visualization with Redis caching and LLM translation capabilities.
+MonkeyOCR WebApp is a full-stack application for OCR content extraction and visualization with Redis caching, LLM translation, and user authentication.
 
 **Tech Stack:**
 
 - **Frontend**: React 18 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand
-- **Backend**: FastAPI + Python 3.8+ with Redis caching and OpenAI-compatible LLM integration
+- **Backend**: FastAPI + Python 3.12+ with SQLite persistence, Redis caching, and OpenAI-compatible LLM
+- **Storage**: SQLite (tasks/users), Redis (caching only), Static files (extracted content)
 - **External Services**: MonkeyOCR API (https://ocr.teea.cn), configurable LLM API
-- **Infrastructure**: Docker + Redis for caching and persistence
 
 ## Development Commands
 
-
-### Fromtend + Backend
+### Quick Start (Frontend + Backend)
 
 ```bash
-python start.py
+python start.py  # Starts both frontend and backend, handles port conflicts
 ```
 
-### Frontend
+### Frontend Development
 
 ```bash
 cd frontend
 npm install                  # Install dependencies
 npm run dev                  # Start dev server (port 5173)
 npm run build               # Build for production
-npm run preview             # Preview production build
 npm run lint                # Run ESLint with TypeScript checking
+npm run preview             # Preview production build
 ```
 
-### Backend
+### Backend Development
 
 ```bash
 cd backend
 pip install -r requirements.txt                          # Install dependencies
 uvicorn main:app --reload --host 0.0.0.0 --port 8001   # Start dev server
-python -m pytest tests/                                 # Run tests
-python -m pytest tests/test_llm_cache.py -v            # Run specific test
+
+# Database operations
+python reset_database.py     # Reset SQLite database
+python check_task_db.py      # Check database contents
 ```
 
 ### Docker Operations
@@ -53,88 +54,143 @@ docker-compose down                           # Stop all services
 # Full stack deployment
 docker-compose up --build                     # Build and run everything
 docker-compose logs -f monkeyocr-webapp      # View application logs
-docker-compose exec monkeyocr-webapp bash    # Shell into container
 ```
 
 ## Architecture & Data Flow
 
 ### Request Processing Pipeline
 
-1. **File Upload** → Frontend validates file types (PDF/JPG/PNG/WEBP, max 50MB)
-2. **Task Creation** → Backend generates UUID, creates ProcessingTask with metadata
-3. **Cache Check** → Redis checks for existing OCR results (hash-based on file content + params)
-4. **OCR Processing**:
-   - Cache hit: Return immediately with cached result
-   - Cache miss: Call MonkeyOCR API → Download ZIP → Extract markdown + images
-5. **Result Storage**: Static files served from `/static/{task_id}/` endpoint
-6. **Frontend Display**: Markdown rendering with embedded images via absolute URLs
+1. **Authentication** → JWT-based auth with demo user (demo/demo123456)
+2. **File Upload** → Frontend validates (PDF/JPG/PNG/WEBP, max 50MB)
+3. **Task Creation** → Backend generates UUID, stores in SQLite
+4. **Cache Check** → Redis checks for existing results (SHA256 hash)
+5. **OCR Processing**:
+   - Cache hit: Return cached result immediately
+   - Cache miss: MonkeyOCR API → ZIP download → Extract to static/{task_id}/
+6. **Result Display**: Markdown with rewritten image paths for static serving
 
-### Caching Architecture
+### Storage Architecture
 
 ```
-Redis Cache Layers:
-1. OCR Results: SHA256(file_content + extract_type + split_pages) → ZIP file path
-2. LLM Translations: Hash(prompt + content) → Translated text (TTL: 1 hour)
-3. Task Persistence: Task metadata with status history and processing metrics
+SQLite (Primary Storage):
+- Users table: Authentication and user data
+- Tasks table: Task metadata, status, processing metrics
+
+Redis (Caching Only):
+- OCR Results: file_hash → ZIP path (30 days TTL)
+- LLM Translations: prompt_hash → translation (24 hours TTL)
+
+Static Files:
+- /static/{task_id}/: Extracted markdown and images
+- /results/{task_id}_result.zip: Original ZIP from MonkeyOCR
 ```
 
-### State Management Pattern
+### Authentication & Middleware Stack
 
-- **Frontend**: Zustand store manages `tasks[]`, `currentTaskId`, `searchQuery`
-- **Backend**: Redis or file-based persistence for task state
-- **Sync**: Polling mechanism for real-time status updates
+1. **SecurityMiddleware**: CSP headers, security policies
+2. **AuthMiddleware**: JWT validation, user context
+3. **RateLimitMiddleware**: In-memory rate limiting (no Redis dependency)
+
+Rate limits:
+- Login: 50 requests/minute per IP
+- Upload: 100 requests/minute per user
+- Default: 600 requests/minute per user
 
 ## Key Implementation Details
 
-### Backend Persistence System
+### Frontend Block System
 
-- **Primary**: Redis persistence (`utils/redis_persistence.py`) when `REDIS_ENABLED=true`
-- **Fallback**: File-based JSON storage (`utils/persistence.py`)
-- **Task Model**: Includes `file_hash`, `processing_duration`, `from_cache` flags
+The frontend uses a sophisticated block-based architecture for content display and synchronization:
+
+**Core Components:**
+- `BlockData`: Structured content blocks (text, title, image, table, interline_equation)
+- `BlockProcessor`: Utilities for block manipulation and finding
+- `BlockMarkdownGenerator`: Converts blocks to markdown with 1:1 DOM mapping
+- `BlockMarkdownViewer`: Interactive markdown display with block highlighting
+- `SyncManager`: Manages scroll and selection sync between PDF/markdown views
+
+**Block Type Handling:**
+- **text**: Regular paragraphs with list detection (ordered/unordered)
+- **title**: Headers with level detection (H1-H3)
+- **image**: Static file serving with path rewriting
+- **table**: HTML table rendering with auto-fixing for incomplete structures
+- **interline_equation**: LaTeX formulas with KaTeX rendering
+
+### Translation System
+
+**Parallel Translation Architecture:**
+- Concurrent LLM calls (8 parallel) with retry mechanism
+- Machine Translation API (10 parallel) for faster batch processing
+- Block-level caching with content hashing
+- Inline display mode with original/translation pairs
+
+**Translation Display Modes:**
+- **Inline Mode**: Translation appears below original in same block
+- **Compare Mode**: Side-by-side comparison with sync scrolling
+- **Export**: Clean markdown generation for copy/download
+
+### Persistence System
+
+```python
+# SQLite for primary storage
+utils/sqlite_persistence.py: SQLitePersistenceManager
+- Task CRUD operations
+- User authentication data
+- Processing metrics
+
+# Redis for caching only
+utils/redis_client.py: CacheManager
+- OCR result caching
+- LLM response caching
+- Graceful fallback to memory cache
+```
 
 ### MonkeyOCR Integration
 
 ```python
-# API Endpoints used:
-/parse         # Standard document parsing
-/parse/split   # Page-by-page parsing
-/batch/submit  # Batch processing (future)
+# utils/monkeyocr_client.py
+API endpoints:
+- /parse: Standard parsing
+- /parse/split: Page-by-page parsing
 
-# Result processing:
+# utils/zip_processor.py
+Processing flow:
 1. Download ZIP from MonkeyOCR
-2. Extract to results/{task_id}/
-3. Fix markdown image paths: ![](images/xxx) → ![](/static/{task_id}/images/xxx)
-4. Serve images as static files
+2. Extract to static/{task_id}/
+3. Rewrite markdown paths: ![](images/x) → ![](/static/{task_id}/images/x)
+4. Generate content manifest
 ```
 
-### LLM Translation Feature
+### LLM Translation
 
-- Configurable OpenAI-compatible API (supports local models via Ollama/LM Studio)
-- Streaming responses with SSE (Server-Sent Events)
-- Redis caching with configurable TTL
-- Fallback to non-streaming if SSE fails
-
-### Error Handling Patterns
-
-- Background task processing with status updates
-- Graceful cache invalidation on failures
-- Comprehensive logging with contextual information
-- HTTP exception hierarchy with detailed error messages
+```python
+# api/llm.py
+Features:
+- OpenAI-compatible API (Ollama/LM Studio support)
+- SSE streaming with fallback
+- Redis caching with hash-based keys
+- Configurable model and temperature
+```
 
 ## Configuration
 
-### Environment Variables (.env)
+### Required Environment Variables
 
 ```bash
-# Required
+# .env file (copy from .env.example)
 MONKEYOCR_API_KEY=your_key_here
+JWT_SECRET_KEY=your_secure_random_string_here
+```
 
-# Optional but recommended
+### Optional Configuration
+
+```bash
+# Redis (caching)
 REDIS_ENABLED=true
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# LLM Configuration (optional)
+# LLM (translation)
 LLM_BASE_URL=https://api.openai.com/v1
 LLM_API_KEY=your_key_here
 LLM_MODEL_NAME=gpt-4o-mini
@@ -142,71 +198,70 @@ LLM_MODEL_NAME=gpt-4o-mini
 # Development
 DEBUG=true
 LOG_LEVEL=DEBUG
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
-
-### Frontend Proxy Configuration
-
-Vite automatically proxies `/api` requests to backend (configured in `vite.config.ts`)
 
 ## Common Development Tasks
 
-### Adding New OCR Processing Mode
-
-1. Update `extraction_type` in `backend/models/schemas.py`
-2. Modify `MonkeyOCRClient.process_file()` in `backend/utils/monkeyocr_client.py`
-3. Update cache key generation in `backend/utils/ocr_cache.py`
-4. Add UI option in `frontend/src/components/UploadZone.tsx`
-
-### Debugging Cache Issues
-
-```python
-# Check Redis connection
-redis-cli ping
-
-# Monitor cache operations
-redis-cli monitor
-
-# Clear specific cache
-redis-cli DEL "ocr:result:*"
-
-# View cache stats in logs
-grep "cache hit\|cache miss" backend.log
-```
-
-### Testing File Processing
+### Database Management
 
 ```bash
-# Test with sample file
-curl -X POST http://localhost:8001/api/upload \
-  -F "file=@sample.pdf" \
-  -F "extract_type=standard" \
-  -F "split_pages=false"
+# Reset database and create demo user
+python backend/reset_database.py
 
-# Check task status
-curl http://localhost:8001/api/tasks/{task_id}/status
+# Check task data
+python backend/check_task_db.py
+
+# Manual SQLite queries
+sqlite3 backend/data/monkeyocr.db
+```
+
+### Testing Authentication
+
+```bash
+# Login as demo user
+curl -X POST http://localhost:8001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"demo","password":"demo123456"}'
+
+# Use token in requests
+curl -H "Authorization: Bearer {token}" \
+  http://localhost:8001/api/tasks
+```
+
+### Cache Debugging
+
+```bash
+# Monitor Redis operations
+redis-cli monitor
+
+# Check cache keys
+redis-cli --scan --pattern "ocr:*"
+redis-cli --scan --pattern "llm:*"
+
+# Clear caches
+redis-cli FLUSHDB
 ```
 
 ## Performance Optimization
 
 ### Current Optimizations
 
-- **OCR Result Caching**: ~90% cache hit rate for duplicate files
-- **LLM Response Caching**: Reduces API calls by 60-70%
-- **Static File Serving**: Direct nginx serving in production
-- **Parallel Task Processing**: Background tasks with asyncio
+- **SQLite**: WAL mode, optimized indexes, connection pooling
+- **Redis Caching**: 90% hit rate for duplicate OCR requests
+- **Static Serving**: Direct file serving for extracted content
+- **In-Memory Rate Limiting**: No Redis dependency for rate limits
 
 ### Monitoring Points
 
-- Redis memory usage: `redis-cli INFO memory`
-- Task processing duration: Check `processing_duration` field
-- Cache hit rates: Monitor `from_cache` flag in task results
-- API response times: FastAPI automatic metrics at `/metrics` (if enabled)
+- SQLite: `backend/data/monkeyocr.db` size and query performance
+- Redis: `redis-cli INFO memory` for cache usage
+- Task metrics: `processing_duration` and `from_cache` fields
+- Rate limits: Check logs for limit violations
 
 ## Important Architectural Decisions
 
-1. **ZIP Processing**: MonkeyOCR returns ZIPs; we extract and serve contents as static files rather than storing in database
-2. **Task IDs as Namespaces**: Each task gets unique directory for isolation
-3. **Markdown Path Rewriting**: Essential for image display; paths rewritten during ZIP extraction
-4. **Dual Persistence**: Redis for production performance, file-based for development simplicity
-5. **Cache Invalidation**: Automatic cleanup on task deletion to prevent stale data
+1. **SQLite over Redis for persistence**: Better reliability, simpler deployment
+2. **Static file extraction**: Serve images directly instead of database storage
+3. **Task ID namespacing**: Isolate each task's files in `/static/{task_id}/`
+4. **In-memory rate limiting**: Reduce Redis dependency, improve performance
+5. **Demo user auto-creation**: Simplifies initial setup and testing

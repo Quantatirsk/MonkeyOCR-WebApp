@@ -236,6 +236,7 @@ from api.sync import router as sync_router
 from api.upload import router as upload_router
 from api.llm import router as llm_router
 from api.auth import router as auth_router
+from api.mt import router as mt_router
 
 # Authentication routes (register first for priority)
 app.include_router(auth_router)
@@ -247,6 +248,9 @@ app.include_router(sync_router)
 
 # LLM routes
 app.include_router(llm_router)
+
+# Machine Translation routes
+app.include_router(mt_router)
 
 # Mount frontend static files AFTER all API routes
 # This serves all frontend assets and handles client-side routing

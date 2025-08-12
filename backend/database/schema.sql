@@ -48,8 +48,6 @@ CREATE TABLE IF NOT EXISTS processing_tasks (
     is_public BOOLEAN DEFAULT 0,
     
     -- Processing metadata
-    extraction_type TEXT,
-    split_pages BOOLEAN DEFAULT 0,
     total_pages INTEGER,
     processing_duration REAL,
     from_cache BOOLEAN DEFAULT 0,

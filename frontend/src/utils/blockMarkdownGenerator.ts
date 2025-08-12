@@ -56,15 +56,29 @@ export class BlockMarkdownGenerator {
           // Convert list item markers to proper HTML list
           // Remove the list marker (-, *, +, or number.) from the beginning
           let cleanContent = formattedContent.trim();
+          let isOrderedList = false;
+          let listStartNumber = 1;
+          
           if (cleanContent.startsWith('- ') || cleanContent.startsWith('* ') || cleanContent.startsWith('+ ')) {
             cleanContent = cleanContent.substring(2); // Remove marker and space
-          } else if (cleanContent.match(/^\d+\.\s/)) {
+            isOrderedList = false;
+          } else if (cleanContent.match(/^(\d+)\.\s/)) {
+            // Extract the starting number for ordered lists
+            const match = cleanContent.match(/^(\d+)\.\s/);
+            if (match) {
+              listStartNumber = parseInt(match[1], 10);
+              isOrderedList = true;
+            }
             cleanContent = cleanContent.replace(/^\d+\.\s/, ''); // Remove numbered marker
           }
           
-          // Wrap in a proper list item
+          // Wrap in a proper list item - use ol for ordered lists, ul for unordered
           // Add extra newlines before and after to ensure div is not inside a paragraph
-          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<ul class="markdown-unordered-list"><li class="markdown-list-item">${cleanContent}</li></ul>\n\n</div>\n\n`);
+          const listClass = isOrderedList ? 'markdown-ordered-list' : 'markdown-unordered-list';
+          const listTag = isOrderedList ? 'ol' : 'ul';
+          // Add start attribute for ordered lists that don't start from 1
+          const startAttr = isOrderedList && listStartNumber !== 1 ? ` start="${listStartNumber}"` : '';
+          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<${listTag}${startAttr} class="${listClass}"><li class="markdown-list-item">${cleanContent}</li></${listTag}>\n\n</div>\n\n`);
         } else {
           // Add extra newlines before and after to ensure div is not inside a paragraph
           markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${formattedContent}\n\n</div>\n\n`);
@@ -93,6 +107,10 @@ export class BlockMarkdownGenerator {
         return this.formatImage(block, taskId);
       case 'table':
         return this.formatTable(block);
+      case 'interline_equation':
+        // Interline equations are already wrapped with $$ by backend
+        // Just return the content as-is for proper rendering
+        return content;
       default:
         return content;
     }
@@ -133,27 +151,18 @@ export class BlockMarkdownGenerator {
                        !!trimmed.match(/^\d+\.\s/);
     
     if (isListItem) {
-      // For list items, return as-is to preserve the list marker
+      // For list items, return as-is to preserve the list marker (including the number)
       return trimmed;
     }
     
-    // Preserve paragraph structure while cleaning up each paragraph
-    // Split by double (or more) newlines to identify paragraphs
-    const paragraphs = content.split(/\n{2,}/);
+    // Convert all newlines (single or multiple) to double newlines
+    // This ensures proper paragraph separation in markdown
+    // First normalize: replace multiple newlines with double newlines
+    let normalized = content.replace(/\n{2,}/g, '\n\n');
+    // Then replace single newlines with double newlines
+    normalized = normalized.replace(/([^\n])\n([^\n])/g, '$1\n\n$2');
     
-    // Clean up each paragraph
-    const cleanedParagraphs = paragraphs.map(para => {
-      // Within each paragraph, single newlines should become spaces
-      // This is standard Markdown behavior
-      return para
-        .replace(/\n/g, ' ') // Single newlines → spaces
-        .replace(/\s+/g, ' ') // Multiple spaces → single space
-        .trim();
-    }).filter(para => para.length > 0); // Remove empty paragraphs
-    
-    // Rejoin with double newlines to maintain paragraph separation
-    // This keeps it as ONE block but renders as multiple paragraphs
-    return cleanedParagraphs.join('\n\n');
+    return normalized.trim();
   }
 
   /**
@@ -474,7 +483,7 @@ export class BlockMarkdownGenerator {
       }
     }
 
-    // Join with single newline since we already have newlines in each part
-    return markdownParts.join('\n');
+    // Join with double newline for proper paragraph separation in markdown editors
+    return markdownParts.join('\n\n');
   }
 }

@@ -44,8 +44,6 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    extract_type: str = Form("standard"),
-    split_pages: bool = Form(False),
     is_public: str = Form("false"),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
@@ -54,8 +52,6 @@ async def upload_file(
     
     Args:
         file: File to upload
-        extract_type: OCR extraction type
-        split_pages: Whether to split PDF pages
         is_public: Make task publicly accessible (requires auth)
         current_user: Current authenticated user (optional)
     """
@@ -111,8 +107,6 @@ async def upload_file(
             error_message=None,
             result_url=None,
             total_pages=total_pages,
-            extraction_type=extract_type,
-            split_pages=split_pages,
             file_hash=None,
             file_size=len(file_content),
             last_modified=datetime.now().isoformat(),
@@ -137,9 +131,7 @@ async def upload_file(
         cache_hit = False
         if settings.redis_enabled:
             try:
-                cached_result = await ocr_cache.get_cached_result(
-                    file_content, extract_type, split_pages
-                )
+                cached_result = await ocr_cache.get_cached_result(file_content)
                 
                 if cached_result:
                     # Cache hit! Process immediately in main thread
@@ -196,7 +188,7 @@ async def upload_file(
                         # Cache files unavailable, invalidate and proceed normally
                         logger.warning(f"Cached files unavailable, invalidating cache")
                         try:
-                            await ocr_cache.invalidate_cache(file_content, extract_type, split_pages)
+                            await ocr_cache.invalidate_cache(file_content)
                         except:
                             pass
             except Exception as e:
@@ -209,9 +201,7 @@ async def upload_file(
                 task_id,
                 file_content,
                 file.filename or "unknown",
-                file.content_type or "application/octet-stream",
-                extract_type,
-                split_pages
+                file.content_type or "application/octet-stream"
             )
             
             return APIResponse(
@@ -316,14 +306,8 @@ async def delete_task(
                     async with aiofiles.open(original_file_path, 'rb') as f:
                         file_content = await f.read()
                     
-                    # Get task processing parameters (use defaults if not available)
-                    extract_type = getattr(task, 'extraction_type', 'standard')
-                    split_pages = getattr(task, 'split_pages', False)
-                    
                     # Clear OCR cache
-                    cache_cleared = await ocr_cache.invalidate_cache(
-                        file_content, extract_type, split_pages
-                    )
+                    cache_cleared = await ocr_cache.invalidate_cache(file_content)
                     
                     if cache_cleared:
                         logger.info(f"Cleared OCR cache for deleted task {task_id}")
@@ -360,9 +344,7 @@ async def process_file_async(
     task_id: str,
     file_content: bytes,
     filename: str,
-    _content_type: str,  # Unused parameter, kept for API compatibility
-    extract_type: str,
-    split_pages: bool
+    _content_type: str  # Unused parameter, kept for API compatibility
 ):
     """
     Background task to process file with MonkeyOCR API (cache miss cases only)
@@ -395,12 +377,8 @@ async def process_file_async(
                 "updated_at": datetime.now().isoformat()
             })
             
-            # Call MonkeyOCR API
-            result = await monkeyocr_client.process_file(
-                temp_file_path,
-                extract_type=extract_type,
-                split_pages=split_pages
-            )
+            # Call MonkeyOCR API (always uses standard mode)
+            result = await monkeyocr_client.process_file(temp_file_path)
             
             # Update progress
             await persistence_manager.update_task(task_id, {
@@ -446,9 +424,7 @@ async def process_file_async(
                             "cached_download_url": f"/api/download/{task_id}"
                         }
                         
-                        await ocr_cache.cache_result(
-                            file_content, extract_type, split_pages, cache_data
-                        )
+                        await ocr_cache.cache_result(file_content, cache_data)
                         logger.info(f"Cached OCR result for task {task_id}")
                         
                     except Exception as cache_error:

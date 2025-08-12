@@ -116,7 +116,7 @@ export class BlockProcessor {
   /**
    * Get block color scheme based on type
    */
-  static getBlockColorScheme(type: 'text' | 'title' | 'image' | 'table'): {
+  static getBlockColorScheme(type: 'text' | 'title' | 'image' | 'table' | 'interline_equation'): {
     border: string;
     background: string;
     label: string;
@@ -139,6 +139,12 @@ export class BlockProcessor {
           border: '#8B5CF6', // violet-500
           background: 'rgba(139, 92, 246, 0.1)', // violet-500 with 10% opacity
           label: '#5B21B6' // violet-800
+        };
+      case 'interline_equation':
+        return {
+          border: '#EC4899', // pink-500
+          background: 'rgba(236, 72, 153, 0.1)', // pink-500 with 10% opacity
+          label: '#831843' // pink-800
         };
       case 'text':
       default:

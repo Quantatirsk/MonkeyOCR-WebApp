@@ -29,7 +29,8 @@ const getBlockTypeLabel = (type?: string): string => {
     'text': '文本',
     'title': '标题',
     'table': '表格',
-    'image': '图片'
+    'image': '图片',
+    'interline_equation': '公式'
   };
   return labels[type || ''] || '未知';
 };

@@ -98,8 +98,7 @@ export const useBlockSync = ({
 
   // Core actions
   const selectBlock = useCallback((blockIndex: number, pageNumber?: number) => {
-    if (!syncState.syncEnabled) return;
-
+    // Don't check syncEnabled here - we want to allow selection even when initializing
     const block = BlockProcessor.findBlockByIndex(blockData, blockIndex);
     if (!block) return;
 
@@ -116,7 +115,7 @@ export const useBlockSync = ({
     if (onBlockInteraction) {
       onBlockInteraction(blockIndex, 'click');
     }
-  }, [blockData, syncState.syncEnabled, onBlockInteraction]);
+  }, [blockData, onBlockInteraction]);
 
   const clearSelection = useCallback(() => {
     setSyncState(prev => ({

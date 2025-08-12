@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Monitor, ArrowLeftRight, FileText, Image, Eye } from 'lucide-react';
+import { Monitor, ArrowLeftRight, Image, Eye, Languages } from 'lucide-react';
 import { TAB_TYPES, type TabType } from './constants';
 
 interface TabNavigationProps {
@@ -18,7 +18,7 @@ interface TabNavigationProps {
 const TAB_ICONS = {
   [TAB_TYPES.PREVIEW]: Monitor,
   [TAB_TYPES.COMPARE]: ArrowLeftRight,
-  [TAB_TYPES.CONTENT]: FileText,
+  [TAB_TYPES.TRANSLATION]: Languages,
   [TAB_TYPES.IMAGES]: Image,
   [TAB_TYPES.METADATA]: Eye
 };
@@ -26,7 +26,7 @@ const TAB_ICONS = {
 const TAB_LABELS = {
   [TAB_TYPES.PREVIEW]: '预览',
   [TAB_TYPES.COMPARE]: '对照',
-  [TAB_TYPES.CONTENT]: '内容',
+  [TAB_TYPES.TRANSLATION]: '翻译',
   [TAB_TYPES.IMAGES]: '图片',
   [TAB_TYPES.METADATA]: '详情'
 };

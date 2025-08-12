@@ -20,12 +20,14 @@ export const LANGUAGE_NAMES = {
 } as const;
 
 export type SupportedLanguage = 'zh' | 'en';
+export type TranslationEngine = 'mt' | 'llm';
 export type DetectionResult = {
   detected: string;
   confidence: 'high' | 'medium' | 'low';
   targetLanguage: SupportedLanguage;
   sourceName: string;
   targetName: string;
+  recommendedEngine?: TranslationEngine;
 };
 
 /**
@@ -58,7 +60,8 @@ export function detectLanguageAndTarget(text: string): DetectionResult {
       confidence: 'high',
       targetLanguage: 'en',
       sourceName: '中文',
-      targetName: '英文'
+      targetName: '英文',
+      recommendedEngine: 'mt' // 中英互译推荐使用MT
     };
   } else if (detected === LANGUAGE_CODES.ENGLISH || detected === LANGUAGE_CODES.UNDEFINED) {
     // 英文或未检测到语言时，翻译为中文
@@ -67,16 +70,18 @@ export function detectLanguageAndTarget(text: string): DetectionResult {
       confidence: detected === LANGUAGE_CODES.ENGLISH ? 'high' : 'medium',
       targetLanguage: 'zh',
       sourceName: '英文',
-      targetName: '中文'
+      targetName: '中文',
+      recommendedEngine: detected === LANGUAGE_CODES.ENGLISH ? 'mt' : 'llm' // 英文->中文用MT，未知语言用LLM
     };
   } else {
-    // 其他语言翻译为中文
+    // 其他语言翻译为中文，必须使用LLM
     return {
       detected,
       confidence: 'medium',
       targetLanguage: 'zh',
       sourceName: '其他语言',
-      targetName: '中文'
+      targetName: '中文',
+      recommendedEngine: 'llm' // 其他语言只能用LLM
     };
   }
 }
@@ -128,7 +133,8 @@ function heuristicDetection(text: string): DetectionResult {
       confidence: 'medium',
       targetLanguage: 'en',
       sourceName: '中文',
-      targetName: '英文'
+      targetName: '英文',
+      recommendedEngine: 'mt' // 中英互译推荐MT
     };
   } else {
     // 默认认为是英文或其他非中文语言
@@ -137,7 +143,8 @@ function heuristicDetection(text: string): DetectionResult {
       confidence: 'low',
       targetLanguage: 'zh',
       sourceName: '英文',
-      targetName: '中文'
+      targetName: '中文',
+      recommendedEngine: 'mt' // 假设是英文，推荐MT
     };
   }
 }
@@ -155,4 +162,62 @@ export function getLanguageDisplayName(code: SupportedLanguage): string {
 export function isTextSuitableForDetection(text: string): boolean {
   const cleanText = cleanTextForDetection(text);
   return cleanText.length >= 3; // 至少3个字符才能进行可靠检测
+}
+
+/**
+ * 检查语言对是否被MT支持
+ * MT只支持中英互译
+ */
+export function isSupportedByMT(sourceLang: string, targetLang: string): boolean {
+  // 标准化语言代码
+  const normalizeLanguage = (lang: string): 'zh' | 'en' | 'other' => {
+    if (lang === 'zh' || lang === 'cmn' || lang === 'chi' || lang === 'zho') {
+      return 'zh';
+    }
+    if (lang === 'en' || lang === 'eng') {
+      return 'en';
+    }
+    return 'other';
+  };
+  
+  const normalizedSource = normalizeLanguage(sourceLang);
+  const normalizedTarget = normalizeLanguage(targetLang);
+  
+  // MT支持中英互译
+  return (
+    (normalizedSource === 'zh' && normalizedTarget === 'en') ||
+    (normalizedSource === 'en' && normalizedTarget === 'zh')
+  );
+}
+
+
+/**
+ * 根据语言检测结果和用户偏好决定使用哪个翻译引擎
+ * 注意：这个函数不再检查内容类型，内容类型的判断应该在调用方基于 block.type 进行
+ */
+export function selectTranslationEngine(
+  detectionResult: DetectionResult,
+  userPreference: TranslationEngine
+): { engine: TranslationEngine; reason?: string } {
+  const { detected, targetLanguage, recommendedEngine } = detectionResult;
+  
+  // 如果用户选择LLM，总是使用LLM
+  if (userPreference === 'llm') {
+    return { engine: 'llm', reason: '用户偏好设置' };
+  }
+  
+  // 如果用户选择MT，但语言不支持，fallback到LLM
+  if (userPreference === 'mt') {
+    if (recommendedEngine === 'mt' && isSupportedByMT(detected, targetLanguage)) {
+      return { engine: 'mt' };
+    } else {
+      return { 
+        engine: 'llm', 
+        reason: `MT不支持此语言对，自动切换到LLM翻译` 
+      };
+    }
+  }
+  
+  // 默认使用推荐的引擎
+  return { engine: recommendedEngine || 'llm' };
 }

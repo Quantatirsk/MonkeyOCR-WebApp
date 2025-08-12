@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # LLM Configuration
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
-    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "gpt-4.1-nano")
+    llm_model_name: str = os.getenv("LLM_MODEL_NAME", "google/gemini-2.5-flash-lite")
     
     # MonkeyOCR Configuration
     monkeyocr_api_key: str = os.getenv("MONKEYOCR_API_KEY", "")

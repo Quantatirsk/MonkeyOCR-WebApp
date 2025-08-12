@@ -79,10 +79,15 @@ export function AuthPage({ onClose, onSuccess }: AuthPageProps) {
     }
   });
 
-  // Auto-fill demo credentials
-  const fillDemoCredentials = () => {
+  // Auto-fill demo credentials and submit
+  const useDemoAccount = async () => {
     loginForm.setValue('emailOrUsername', 'demo');
     loginForm.setValue('password', 'demo123456');
+    // Trigger form submission directly
+    await handleLogin({
+      emailOrUsername: 'demo',
+      password: 'demo123456'
+    });
   };
 
   // Handle login
@@ -256,14 +261,19 @@ export function AuthPage({ onClose, onSuccess }: AuthPageProps) {
               </div>
             </div>
 
-            {/* Demo Hint */}
-            <div className="rounded-lg border bg-muted/50 p-4">
-              <div className="flex items-center space-x-2 text-sm">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <p>
-                  <span className="font-semibold">试用提示：</span>
-                  点击"试用演示账号"快速体验所有功能
-                </p>
+            {/* Demo Hint - More prominent */}
+            <div className="rounded-lg border-2 border-primary/50 bg-gradient-to-r from-primary/10 to-primary/5 p-4 shadow-lg">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                <div>
+                  <p className="font-bold text-base">🎉 免费试用</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    使用演示账号 <span className="font-mono font-bold text-primary">demo / demo123456</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    点击下方"一键试用演示账号"立即体验
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -271,6 +281,20 @@ export function AuthPage({ onClose, onSuccess }: AuthPageProps) {
           {/* Right Side - Auth Form */}
           <div className="flex items-start justify-center">
             <div className="w-full max-w-md space-y-4">
+              {/* Demo Account Hint - Above form for mobile visibility */}
+              <div className="lg:hidden mb-4 rounded-lg border-2 border-primary/50 bg-gradient-to-r from-primary/10 to-primary/5 p-3 shadow-lg">
+                <div className="flex items-center space-x-2">
+                  <Sparkles className="h-5 w-5 text-primary animate-pulse flex-shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-bold">🎉 免费试用</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      账号 <span className="font-mono font-bold text-primary">demo</span> / 
+                      密码 <span className="font-mono font-bold text-primary">demo123456</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Form Card */}
               <div className="rounded-lg border bg-card p-6 shadow-lg">
                 {/* Mode Tabs */}
@@ -364,7 +388,7 @@ export function AuthPage({ onClose, onSuccess }: AuthPageProps) {
                           )}
                         </div>
 
-                        <div className="flex flex-col space-y-2">
+                        <div className="flex flex-col space-y-3">
                           <Button type="submit" disabled={isLoading} className="w-full">
                             {isLoading ? (
                               <>
@@ -376,16 +400,29 @@ export function AuthPage({ onClose, onSuccess }: AuthPageProps) {
                             )}
                           </Button>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={fillDemoCredentials}
-                            disabled={isLoading}
-                            className="w-full"
-                          >
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            试用演示账号
-                          </Button>
+                          {/* Demo Account Button - More prominent */}
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-primary/10 blur-xl" />
+                            <Button
+                              type="button"
+                              variant="default"
+                              onClick={useDemoAccount}
+                              disabled={isLoading}
+                              className="relative w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
+                              size="lg"
+                            >
+                              <Sparkles className="mr-2 h-5 w-5 animate-pulse" />
+                              <span className="font-bold">一键试用演示账号</span>
+                            </Button>
+                          </div>
+                          
+                          {/* Demo account info */}
+                          <div className="text-center">
+                            <p className="text-xs text-muted-foreground">
+                              演示账号：<span className="font-mono font-semibold">demo</span> | 
+                              密码：<span className="font-mono font-semibold">demo123456</span>
+                            </p>
+                          </div>
                         </div>
                       </form>
                     </motion.div>

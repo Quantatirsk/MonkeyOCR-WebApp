@@ -13,7 +13,13 @@ import {
   buildMultimodalTranslateMessages,
   buildMultimodalExplainMessages
 } from '../prompts';
-import { detectLanguageAndTarget, isTextSuitableForDetection } from '../languageDetection';
+import { 
+  detectLanguageAndTarget, 
+  isTextSuitableForDetection,
+  isSupportedByMT
+} from '../languageDetection';
+import { mtTranslationService } from '../../../services/mtTranslationService';
+import { useUserPreferencesStore } from '../../../store/userPreferencesStore';
 import type { 
   BlockActionState, 
   StreamingState, 
@@ -319,16 +325,80 @@ export const useBlockActions = ({
         detectedLanguageInfo = detectLanguageAndTarget(contentToTranslate);
         actualTargetLanguage = detectedLanguageInfo.targetLanguage;
         
-        // 显示语言检测结果（合并开始提示）
-        toast.info(`检测到${detectedLanguageInfo.sourceName}，正在翻译为${detectedLanguageInfo.targetName}...`, { 
-          duration: 2000 
-        });
-        
         console.log('🌐 语言检测结果:', detectedLanguageInfo);
       } else {
-        // 文本太短，显示默认翻译提示
+        // 文本太短，使用默认翻译方向
         console.log('⚠️ 文本过短，使用默认翻译方向:', targetLanguage);
-        toast.info('正在翻译选中区块...', { duration: 1500 });
+      }
+
+      // 获取用户的翻译引擎偏好
+      const userTranslationEngine = useUserPreferencesStore.getState().translationEngine;
+      const userLLMModel = useUserPreferencesStore.getState().llmModel;
+      
+      // 表格、图片和公式类型必须使用LLM
+      let engineSelection;
+      if (contentType === 'table' || contentType === 'image' || contentType === 'interline_equation') {
+        let reason = '';
+        if (contentType === 'table') reason = '表格内容需要使用LLM翻译';
+        else if (contentType === 'image') reason = '图片内容需要使用LLM翻译';
+        else if (contentType === 'interline_equation') reason = '数学公式需要使用LLM翻译';
+        
+        engineSelection = {
+          engine: 'llm' as const,
+          reason
+        };
+      } else {
+        // 标题和文本类型可以使用MT（根据语言和用户偏好）
+        // 不需要再检查内容，因为我们已经知道确切的块类型
+        console.log('🔍 Block type for MT selection:', {
+          contentType,
+          userTranslationEngine,
+          detectedLanguageInfo,
+          targetLanguage: actualTargetLanguage
+        });
+        
+        const languageInfo = detectedLanguageInfo || { 
+          detected: 'und', 
+          confidence: 'low', 
+          targetLanguage: actualTargetLanguage as 'zh' | 'en',
+          sourceName: '未知',
+          targetName: actualTargetLanguage === 'zh' ? '中文' : '英文'
+        };
+        
+        // 直接根据用户偏好和语言支持决定引擎
+        const isMTSupported = isSupportedByMT(languageInfo.detected, actualTargetLanguage);
+        console.log('🔍 MT support check:', {
+          sourceLang: languageInfo.detected,
+          targetLang: actualTargetLanguage,
+          isMTSupported
+        });
+        
+        if (userTranslationEngine === 'mt' && isMTSupported) {
+          engineSelection = { engine: 'mt' as const };
+        } else if (userTranslationEngine === 'mt') {
+          // MT被选中但语言不支持
+          engineSelection = { 
+            engine: 'llm' as const, 
+            reason: 'MT不支持此语言对，自动切换到LLM翻译' 
+          };
+        } else {
+          // 用户选择了LLM
+          engineSelection = { engine: 'llm' as const };
+        }
+      }
+      
+      // 仅在控制台记录翻译引擎选择
+      if (detectedLanguageInfo) {
+        const engineInfo = engineSelection.engine === 'mt' ? ' (机器翻译)' : ' (AI翻译)';
+        console.log(`🌐 检测到${detectedLanguageInfo.sourceName}，正在翻译为${detectedLanguageInfo.targetName}${engineInfo}...`);
+      } else {
+        const engineInfo = engineSelection.engine === 'mt' ? '机器翻译' : 'AI翻译';
+        console.log(`🌐 正在使用${engineInfo}翻译选中区块...`);
+      }
+      
+      // 如果有切换原因，仅在控制台记录
+      if (engineSelection.reason) {
+        console.log('🔄 翻译引擎选择:', engineSelection);
       }
 
       // 对于图片类型，检查并提取图片URL和标题，然后转换为base64
@@ -396,30 +466,87 @@ export const useBlockActions = ({
         );
       }
 
-      // 发起流式翻译请求
-      // 计算合理的 token 限制
-      // 中文字符通常需要 2-3 个 tokens，翻译后可能会扩展
-      // 使用更保守的估算：原文长度 * 4，最小 1000，最大 8000
-      const estimatedTokens = Math.min(8000, Math.max(1000, block.content.length * 4));
-      
-      const stream = await llmWrapper.streamChat({
-        messages,
-        temperature: 0.3,
-        maxTokens: estimatedTokens
-      });
-
-      // 处理流式响应
-      await handleStreamingResponse(stream, 'translate', blockIndex, (translatedContent) => {
-        // 保存翻译结果
-        setActionState(prev => ({
-          ...prev,
-          translations: new Map(prev.translations).set(blockIndex, translatedContent),
-          actionMode: 'idle'
-        }));
+      // 根据选择的引擎进行翻译
+      if (engineSelection.engine === 'mt') {
+        // 使用MT翻译（非流式）
+        try {
+          console.log('🚀 使用MT翻译服务...');
+          const translatedText = await mtTranslationService.translateText(
+            contentToTranslate,
+            detectedLanguageInfo?.detected || 'en',
+            actualTargetLanguage
+          );
+          
+          // 保存翻译结果
+          setActionState(prev => ({
+            ...prev,
+            translations: new Map(prev.translations).set(blockIndex, translatedText),
+            actionMode: 'idle',
+            processingBlocks: new Set([...prev.processingBlocks].filter(id => id !== blockIndex)),
+            activeOperations: new Map([...prev.activeOperations].filter(([id]) => id !== blockIndex))
+          }));
+          
+          // 触发完成回调
+          onActionComplete?.(blockIndex, 'translate', translatedText);
+          
+          // 仅在控制台记录
+          console.log('✅ 机器翻译完成');
+          
+        } catch (mtError) {
+          console.error('MT翻译失败，尝试fallback到LLM:', mtError);
+          console.log('⚠️ 机器翻译失败，切换到AI翻译...');
+          
+          // Fallback到LLM
+          const estimatedTokens = Math.min(8000, Math.max(1000, block.content.length * 4));
+          const stream = await llmWrapper.streamChat({
+            messages,
+            temperature: 0.3,
+            maxTokens: estimatedTokens,
+            model: userLLMModel || undefined
+          });
+          
+          // 处理流式响应
+          await handleStreamingResponse(stream, 'translate', blockIndex, (translatedContent) => {
+            // 保存翻译结果
+            setActionState(prev => ({
+              ...prev,
+              translations: new Map(prev.translations).set(blockIndex, translatedContent),
+              actionMode: 'idle'
+            }));
+            
+            // 仅在控制台记录
+            console.log('✅ AI翻译完成');
+          });
+        }
+      } else {
+        // 使用LLM翻译（流式）
+        console.log('🤖 使用LLM翻译服务...');
         
-        // 显示成功提示
-        toast.success('翻译完成', { duration: 1000 });
-      });
+        // 计算合理的 token 限制
+        // 中文字符通常需要 2-3 个 tokens，翻译后可能会扩展
+        // 使用更保守的估算：原文长度 * 4，最小 1000，最大 8000
+        const estimatedTokens = Math.min(8000, Math.max(1000, block.content.length * 4));
+        
+        const stream = await llmWrapper.streamChat({
+          messages,
+          temperature: 0.3,
+          maxTokens: estimatedTokens,
+          model: userLLMModel || undefined
+        });
+
+        // 处理流式响应
+        await handleStreamingResponse(stream, 'translate', blockIndex, (translatedContent) => {
+          // 保存翻译结果
+          setActionState(prev => ({
+            ...prev,
+            translations: new Map(prev.translations).set(blockIndex, translatedContent),
+            actionMode: 'idle'
+          }));
+          
+          // 仅在控制台记录
+          console.log('✅ AI翻译完成');
+        });
+      }
 
     } catch (error) {
       console.error('Translation error:', error);
@@ -469,8 +596,8 @@ export const useBlockActions = ({
     // 触发开始回调
     onActionStart?.(blockIndex, 'explain');
     
-    // 显示开始提示
-    toast.info('正在生成解释...', { duration: 1000 });
+    // 仅在控制台记录
+    console.log('🔍 正在生成解释...');
 
     try {
       // 获取要解释的内容（表格类型使用HTML内容）
@@ -536,8 +663,8 @@ export const useBlockActions = ({
           actionMode: 'idle',
                   }));
         
-        // 显示成功提示
-        toast.success('解释生成完成', { duration: 1000 });
+        // 仅在控制台记录
+        console.log('✅ 解释生成完成');
       });
 
     } catch (error) {
@@ -581,7 +708,7 @@ export const useBlockActions = ({
       error: null
     }));
 
-    toast.info('操作已取消', { duration: 1000 });
+    console.log('ℹ️ 操作已取消');
   }, [streamingState.isStreaming]);
 
   // 清除翻译
@@ -632,7 +759,7 @@ export const useBlockActions = ({
     }));
   }, []);
   
-  // 全文翻译功能
+  // 快速翻译功能 - 改进版：并发执行带重试机制
   const translateAllBlocks = useCallback(async (
     onProgress?: (completed: number, total: number) => void,
     batchSize: number = 10
@@ -647,51 +774,182 @@ export const useBlockActions = ({
     const totalBlocks = sortedBlocks.length;
     let completedBlocks = 0;
     
-    console.log(`🌍 开始全文翻译，共 ${totalBlocks} 个区块，每批 ${batchSize} 个`);
-    toast.info(`开始全文翻译 (共${totalBlocks}个区块)`, { duration: 2000 });
+    console.log(`🌍 开始快速翻译，共 ${totalBlocks} 个区块，并发数: ${batchSize}`);
     
-    // 分批处理
-    for (let i = 0; i < sortedBlocks.length; i += batchSize) {
-      const batch = sortedBlocks.slice(i, Math.min(i + batchSize, sortedBlocks.length));
-      console.log(`📦 处理第 ${Math.floor(i/batchSize) + 1} 批，包含 ${batch.length} 个区块`);
+    // 获取用户的翻译引擎偏好
+    const userTranslationEngine = useUserPreferencesStore.getState().translationEngine;
+    const userLLMModel = useUserPreferencesStore.getState().llmModel;
+    
+    // 带重试的翻译单个区块函数
+    const translateBlockWithRetry = async (block: any, maxRetries: number = 3): Promise<void> => {
+      let lastError: Error | null = null;
       
-      // 并行处理当前批次的区块
-      const batchPromises = batch.map(async (block) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          // 使用 ref 获取最新状态，避免闭包问题
+          // 使用 ref 获取最新状态
           const currentState = actionStateRef.current;
           
           // 跳过已翻译的区块
           if (currentState.translations.has(block.index)) {
-            completedBlocks++;
-            onProgress?.(completedBlocks, totalBlocks);
             return;
           }
           
-          // 调用单个区块的翻译方法
-          await translateBlock(block.index, true);
-          completedBlocks++;
-          onProgress?.(completedBlocks, totalBlocks);
+          // 对于LLM翻译，不使用原来的translateBlock方法（它是顺序流式的）
+          // 直接在这里实现并发的非流式翻译
+          if (userTranslationEngine === 'llm' || 
+              block.type === 'table' || 
+              block.type === 'image' || 
+              block.type === 'interline_equation') {
+            
+            // 构建消息
+            const contentType = block.type || 'text';
+            const contentToTranslate = contentType === 'table' 
+              ? (block.html_content || block.content)
+              : block.content;
+            
+            // 检测语言
+            let detectedLanguageInfo = null;
+            let actualTargetLanguage = targetLanguage;
+            if (isTextSuitableForDetection(contentToTranslate)) {
+              detectedLanguageInfo = detectLanguageAndTarget(contentToTranslate);
+              actualTargetLanguage = detectedLanguageInfo.targetLanguage;
+            }
+            
+            let messages;
+            // 对于图片类型，特殊处理
+            if (contentType === 'image') {
+              const imageInfo = extractImageInfo(contentToTranslate);
+              if (imageInfo) {
+                try {
+                  const base64DataUrl = await LLMWrapper.imageUrlToDataUrl(imageInfo.url);
+                  messages = buildMultimodalTranslateMessages(
+                    contentType,
+                    contentToTranslate,
+                    base64DataUrl,
+                    actualTargetLanguage,
+                    detectedLanguageInfo?.detected,
+                    detectedLanguageInfo ? {
+                      sourceName: detectedLanguageInfo.sourceName,
+                      targetName: detectedLanguageInfo.targetName,
+                      confidence: detectedLanguageInfo.confidence
+                    } : undefined
+                  );
+                } catch (error) {
+                  console.error(`图片转换失败 (区块 ${block.index}):`, error);
+                  throw error;
+                }
+              } else {
+                messages = buildTranslateMessages(
+                  contentType, 
+                  contentToTranslate, 
+                  actualTargetLanguage,
+                  detectedLanguageInfo?.detected,
+                  detectedLanguageInfo ? {
+                    sourceName: detectedLanguageInfo.sourceName,
+                    targetName: detectedLanguageInfo.targetName,
+                    confidence: detectedLanguageInfo.confidence
+                  } : undefined
+                );
+              }
+            } else {
+              messages = buildTranslateMessages(
+                contentType, 
+                contentToTranslate, 
+                actualTargetLanguage,
+                detectedLanguageInfo?.detected,
+                detectedLanguageInfo ? {
+                  sourceName: detectedLanguageInfo.sourceName,
+                  targetName: detectedLanguageInfo.targetName,
+                  confidence: detectedLanguageInfo.confidence
+                } : undefined
+              );
+            }
+            
+            // 计算token限制
+            const estimatedTokens = Math.min(8000, Math.max(1000, block.content.length * 4));
+            
+            // 直接调用LLM（非流式）
+            const response = await llmWrapper.chat({
+              messages,
+              temperature: 0.3,
+              maxTokens: estimatedTokens,
+              model: userLLMModel || undefined
+            });
+            
+            if (response && response.trim()) {
+              // 保存翻译结果
+              setActionState(prev => ({
+                ...prev,
+                translations: new Map(prev.translations).set(block.index, response)
+              }));
+              
+              return; // 成功，退出重试循环
+            } else {
+              throw new Error('翻译结果为空');
+            }
+            
+          } else {
+            // 使用MT或原有的translateBlock方法
+            await translateBlock(block.index, true);
+            return; // 成功
+          }
           
         } catch (error) {
-          console.error(`区块 ${block.index} 翻译失败:`, error);
-          completedBlocks++;
-          onProgress?.(completedBlocks, totalBlocks);
+          lastError = error as Error;
+          console.warn(`区块 ${block.index} 翻译失败 (尝试 ${attempt}/${maxRetries}):`, error);
+          
+          if (attempt < maxRetries) {
+            // 指数退避：第1次重试等1秒，第2次等2秒，第3次等4秒
+            const delay = Math.pow(2, attempt - 1) * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      });
+      }
       
-      // 等待当前批次完成
-      await Promise.allSettled(batchPromises);
+      // 所有重试都失败了
+      console.error(`区块 ${block.index} 翻译最终失败:`, lastError);
+      throw lastError;
+    };
+    
+    // 使用并发控制器
+    const concurrencyLimit = batchSize;
+    const queue: any[] = [...sortedBlocks];
+    const executing: Promise<void>[] = [];
+    
+    while (queue.length > 0 || executing.length > 0) {
+      // 填充执行队列到并发限制
+      while (executing.length < concurrencyLimit && queue.length > 0) {
+        const block = queue.shift()!;
+        
+        const promise = translateBlockWithRetry(block)
+          .then(() => {
+            completedBlocks++;
+            onProgress?.(completedBlocks, totalBlocks);
+          })
+          .catch((error) => {
+            console.error(`区块 ${block.index} 翻译失败（跳过）:`, error);
+            completedBlocks++;
+            onProgress?.(completedBlocks, totalBlocks);
+          })
+          .finally(() => {
+            // 从执行队列中移除
+            const index = executing.indexOf(promise);
+            if (index > -1) {
+              executing.splice(index, 1);
+            }
+          });
+        
+        executing.push(promise);
+      }
       
-      // 批次间短暂延迟，避免请求过于密集
-      if (i + batchSize < sortedBlocks.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+      // 等待至少一个任务完成
+      if (executing.length > 0) {
+        await Promise.race(executing);
       }
     }
     
-    console.log('✅ 全文翻译完成');
-    toast.success('全文翻译完成', { duration: 2000 });
-  }, [enabled, blockData, translateBlock]);
+    console.log('✅ 快速翻译完成');
+  }, [enabled, blockData, targetLanguage, translateBlock, llmWrapper]);
 
   // 获取翻译内容
   const getTranslation = useCallback((blockIndex: number): string | null => {

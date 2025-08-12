@@ -86,12 +86,6 @@ class ApiClient {
     formData.append('file', file);
     
     // Add options as form data
-    if (options.extract_type) {
-      formData.append('extract_type', options.extract_type);
-    }
-    if (options.split_pages !== undefined) {
-      formData.append('split_pages', options.split_pages ? 'true' : 'false');
-    }
     // 默认设置为私有文件（登录用户的文件默认私有）
     formData.append('is_public', options.is_public ? 'true' : 'false');
 

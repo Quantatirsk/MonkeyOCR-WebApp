@@ -143,7 +143,7 @@
 .markdown-viewer .w-md-editor-preview table {
   border-collapse: collapse !important;
   width: 100% !important;
-  margin: 0.3em 0 !important;
+  margin: 0.3em auto !important; /* Center with auto margins */
   font-size: 0.7em !important;
   overflow: visible !important;
   overflow-x: visible !important;
@@ -185,6 +185,17 @@
   overflow-x: visible !important;
 }
 
+/* Images should be limited to 90% width */
+.markdown-viewer img,
+.wmde-markdown img,
+.w-md-editor-preview img {
+  max-width: 90% !important;
+  width: auto !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 auto !important;
+}
+
 .markdown-viewer .wmde-markdown th,
 .markdown-viewer .wmde-markdown td,
 .markdown-viewer .w-md-editor-preview th,
@@ -222,10 +233,12 @@
 }
 
 .markdown-viewer .katex-display {
-  margin: 1.2em 0 !important;
+  margin: 1.2em auto !important;
   text-align: center !important;
   overflow-x: auto !important;
+  display: block !important;
 }
+
 
 .markdown-viewer .katex-inline {
   margin: 0 0.1em !important;

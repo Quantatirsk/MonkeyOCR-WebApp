@@ -35,9 +35,8 @@ class SQLitePersistenceManager:
             query = """
                 INSERT INTO processing_tasks (
                     id, user_id, filename, file_type, file_hash, file_size,
-                    status, progress, extraction_type, split_pages,
-                    total_pages, created_at, metadata, is_public
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    status, progress, total_pages, created_at, metadata, is_public
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             params = (
@@ -49,8 +48,6 @@ class SQLitePersistenceManager:
                 task.file_size,
                 task.status,
                 task.progress,
-                task.extraction_type,
-                task.split_pages,
                 task.total_pages,
                 task.created_at,
                 metadata_json,
@@ -188,6 +185,9 @@ class SQLitePersistenceManager:
                     task_data = dict(row)
                     task_data['metadata'] = self.db.from_json(task_data.get('metadata'))
                     task_data['status_history'] = history
+                    
+                    # Remove split_pages field as it's no longer in the model
+                    task_data.pop('split_pages', None)
                     
                     # Ensure datetime fields are strings
                     for field in ['created_at', 'updated_at', 'completed_at', 'processing_started_at']:

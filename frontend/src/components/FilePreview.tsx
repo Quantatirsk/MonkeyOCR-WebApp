@@ -363,20 +363,17 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setError('无法加载PDF文件');
   }, []);
 
-  // Loading state - 包括认证加载状态
+  // Loading state - unified loading animation matching the markdown side
   if (isLoadingFile || isAuthenticating) {
     return (
       <div className={`${className} h-full flex items-center justify-center bg-background`}>
-        <div className="flex flex-col items-center space-y-4 p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <div className="space-y-2 text-center">
-            <h3 className="text-lg font-semibold">
-              {isAuthenticating ? '验证权限中...' : '加载文件预览中...'}
-            </h3>
-            <p className="text-muted-foreground">
-              {isAuthenticating ? '正在验证文件访问权限' : '正在从服务器获取文件信息'}
-            </p>
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center space-x-2">
+            <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+            <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
+            <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
           </div>
+          <p className="text-sm text-muted-foreground">正在加载文档...</p>
         </div>
       </div>
     );
@@ -554,6 +551,16 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
               file={fileUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
+              loading={
+                <div className="text-center space-y-2 py-8">
+                  <div className="inline-flex items-center space-x-2">
+                    <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+                    <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
+                    <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">正在渲染文档...</p>
+                </div>
+              }
             >
               {numPages > 0 && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
                 const pageRotation = currentPageRotations[pageNum] || 0;

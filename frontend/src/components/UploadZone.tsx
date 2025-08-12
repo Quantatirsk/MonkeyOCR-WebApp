@@ -46,10 +46,8 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
 }) => {
   const { isUploading, uploadFiles } = useAppStore();
   const [uploadQueue, setUploadQueue] = useState<FileUploadItem[]>([]);
-  const [uploadOptions, setUploadOptions] = useState<UploadOptions>({
-    extract_type: 'standard',
-    split_pages: false
-  });
+  // Upload options (only public/private setting now)
+  const uploadOptions: UploadOptions = {};
 
   // Handle file drop and selection
   const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
@@ -212,13 +210,13 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
         </Alert>
       )}
 
-      {/* Processing Options & File Queue - Merged */}
+      {/* File Queue */}
       {uploadQueue.length > 0 && (
         <Card>
           <CardContent className="p-3 space-y-3">
             {/* Header with actions */}
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium">任务配置 ({uploadQueue.length})</h4>
+              <h4 className="text-sm font-medium">待处理文件 ({uploadQueue.length})</h4>
               <div className="flex items-center space-x-1">
                 <Button 
                   onClick={handleUpload}
@@ -238,44 +236,6 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
                 >
                   <Trash2 className="w-3 h-3" />
                 </Button>
-              </div>
-            </div>
-            
-            {/* Processing options - compact */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">提取类型</label>
-                <select 
-                  className="w-full h-7 px-2 text-xs border rounded"
-                  value={uploadOptions.extract_type}
-                  onChange={(e) => setUploadOptions(prev => ({ 
-                    ...prev, 
-                    extract_type: e.target.value as any 
-                  }))}
-                  disabled={isUploading}
-                >
-                  <option value="standard">标准</option>
-                  <option value="split">分页</option>
-                  <option value="text">纯文本</option>
-                  <option value="formula">公式识别</option>
-                  <option value="table">表格提取</option>
-                </select>
-              </div>
-              
-              <div className="flex items-end">
-                <label className="flex items-center space-x-1.5">
-                  <input
-                    type="checkbox"
-                    checked={uploadOptions.split_pages}
-                    onChange={(e) => setUploadOptions(prev => ({ 
-                      ...prev, 
-                      split_pages: e.target.checked 
-                    }))}
-                    disabled={isUploading}
-                    className="w-3 h-3"
-                  />
-                  <span className="text-xs font-medium">按页拆分</span>
-                </label>
               </div>
             </div>
             

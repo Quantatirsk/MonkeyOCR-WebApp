@@ -244,8 +244,7 @@ class FileHandler:
         self, 
         zip_path: str, 
         markdown_content: str, 
-        image_count: int,
-        extraction_type: str
+        image_count: int
     ) -> DocumentMetadata:
         """
         Generate metadata for the document result
@@ -254,7 +253,6 @@ class FileHandler:
             zip_path: Path to the result ZIP file
             markdown_content: Processed markdown content
             image_count: Number of images found
-            extraction_type: Type of extraction performed
             
         Returns:
             DocumentMetadata object
@@ -275,8 +273,7 @@ class FileHandler:
         return DocumentMetadata(
             total_pages=estimated_pages,
             processing_time=processing_time,
-            file_size=file_size,
-            extraction_type=extraction_type
+            file_size=file_size
         )
     
     async def get_result_file(self, task_id: str) -> Optional[str]:

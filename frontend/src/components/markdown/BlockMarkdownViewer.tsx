@@ -10,13 +10,13 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
-import { visit } from 'unist-util-visit';
 import 'katex/dist/katex.min.css';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
 import { TooltipProvider } from '../ui/tooltip';
 import { BlockContainer } from './BlockContainer';
+import { InlineBlockContainer } from './InlineBlockContainer';
 import './block-styles.css';
 
 export interface BlockMarkdownViewerProps {
@@ -51,43 +51,16 @@ export interface BlockMarkdownViewerProps {
   onRefreshTranslation?: (blockIndex: number) => void;
   /** Callback to refresh explanation */
   onRefreshExplanation?: (blockIndex: number) => void;
+  /** Use inline translation display instead of overlay */
+  useInlineTranslation?: boolean;
 }
 
 interface BlockMapping {
   blockIndex: number;
   paragraphIndex: number;
-  blockType: 'text' | 'title' | 'image' | 'table';
+  blockType: 'text' | 'title' | 'image' | 'table' | 'interline_equation';
 }
 
-// Rehype plugin to sanitize unknown HTML tags
-function rehypeSanitizeUnknownTags() {
-  return (tree: any) => {
-    visit(tree, 'element', (node: any) => {
-      // List of known HTML tags that should be preserved
-      const knownTags = new Set([
-        'div', 'span', 'p', 'a', 'img', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'td', 'th',
-        'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'em', 'strong', 'b', 'i', 'u',
-        'br', 'hr', 'sup', 'sub', 'del', 'ins', 'mark', 'small', 'big', 'cite', 'abbr', 'time',
-        'section', 'article', 'nav', 'aside', 'header', 'footer', 'main', 'figure', 'figcaption',
-        'details', 'summary', 'iframe', 'video', 'audio', 'source', 'track', 'canvas', 'svg', 'math'
-      ]);
-      
-      // If the tag is unknown, convert it to a div with a custom class
-      if (!knownTags.has(node.tagName)) {
-        const originalTag = node.tagName;
-        node.tagName = 'div';
-        node.properties = node.properties || {};
-        node.properties.className = node.properties.className || [];
-        if (Array.isArray(node.properties.className)) {
-          node.properties.className.push(`custom-tag-${originalTag}`);
-        } else {
-          node.properties.className = [`custom-tag-${originalTag}`];
-        }
-        node.properties['data-original-tag'] = originalTag;
-      }
-    });
-  };
-}
 
 
 // 通用的子元素处理函数，支持 LaTeX 和格式化
@@ -121,7 +94,8 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
   if (!text || typeof text !== 'string') return text;
   
   // 先处理数学公式，再处理格式标记
-  const mathAndFormatRegex = /(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
+  // 添加对 \begin{...}\end{...} 环境的支持
+  const mathAndFormatRegex = /(\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}|\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
   const parts = text.split(mathAndFormatRegex);
   
   if (parts.length === 1) {
@@ -131,8 +105,35 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
   return parts.map((part, index) => {
     if (!part) return null;
     
+    // LaTeX 环境 \begin{...}...\end{...}
+    if (part.match(/^\\begin\{[^}]+\}/)) {
+      try {
+        const html = katex.renderToString(part, {
+          throwOnError: false,
+          displayMode: true,
+          output: 'html',
+          strict: false,
+          trust: true,
+        });
+        return (
+          <div 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ 
+              background: 'transparent', 
+              textAlign: 'center', 
+              margin: '0.5em auto',
+              display: 'block'
+            }} 
+          />
+        );
+      } catch (error) {
+        console.error('KaTeX render error for LaTeX environment:', error);
+        return <span key={index}>{part}</span>;
+      }
+    }
     // 块级数学公式 $$...$$
-    if (part.match(/^\$\$[^$]+\$\$$/)) {
+    else if (part.match(/^\$\$[^$]+\$\$$/)) {
       const mathContent = part.slice(2, -2);
       try {
         const html = katex.renderToString(mathContent, {
@@ -148,7 +149,8 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
             style={{ 
               background: 'transparent', 
               textAlign: 'center', 
-              margin: '0.5em 0' 
+              margin: '0.5em auto',
+              display: 'block'
             }} 
           />
         );
@@ -221,6 +223,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
   streamingTranslation,
   onRefreshTranslation,
   onRefreshExplanation,
+  useInlineTranslation = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -256,9 +259,65 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     }
   }, [blockData, content, syncEnabled]);
 
-  // Just return clean content for proper Markdown rendering
+  // Process content to escape non-HTML angle brackets
   const processedContent = useMemo(() => {
-    return content;
+    // List of valid HTML tags that should not be escaped
+    const validHtmlTags = [
+      'div', 'span', 'p', 'a', 'img', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
+      'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'strong', 'em', 'b', 'i', 'u', 'code', 'pre', 'blockquote',
+      'br', 'hr', 'sub', 'sup', 'mark', 'del', 'ins', 'small',
+      'section', 'article', 'header', 'footer', 'nav', 'aside'
+    ];
+    
+    // Create a regex pattern for valid HTML tags (opening and closing)
+    const validTagPattern = validHtmlTags.map(tag => 
+      `<\\/?${tag}(?:\\s[^>]*)?>` // Matches <tag>, </tag>, or <tag attr="value">
+    ).join('|');
+    
+    // Also match HTML comments and doctype
+    const htmlPattern = new RegExp(`(${validTagPattern}|<!--[\\s\\S]*?-->|<!DOCTYPE[^>]*>)`, 'gi');
+    
+    // Replace < and > that are NOT part of valid HTML tags
+    const htmlMatches: { start: number; end: number; content: string }[] = [];
+    
+    // First, find all valid HTML tags and store their positions
+    let match;
+    const regex = new RegExp(htmlPattern);
+    while ((match = regex.exec(content)) !== null) {
+      htmlMatches.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        content: match[0]
+      });
+    }
+    
+    // Sort matches by position
+    htmlMatches.sort((a, b) => a.start - b.start);
+    
+    // Build the result string, escaping non-HTML angle brackets
+    let processedResult = '';
+    let lastIndex = 0;
+    
+    for (const htmlMatch of htmlMatches) {
+      // Process the text before this HTML tag
+      const textBefore = content.substring(lastIndex, htmlMatch.start);
+      // Escape angle brackets in non-HTML text
+      const escapedText = textBefore.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      processedResult += escapedText;
+      
+      // Add the HTML tag as-is
+      processedResult += htmlMatch.content;
+      
+      lastIndex = htmlMatch.end;
+    }
+    
+    // Process any remaining text after the last HTML tag
+    const remainingText = content.substring(lastIndex);
+    const escapedRemaining = remainingText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    processedResult += escapedRemaining;
+    
+    return processedResult;
   }, [content]);
 
   // Map rendered elements to block indices after render
@@ -414,9 +473,11 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
       if (className === 'block-container') {
         const blockIndex = parseInt(props['data-block-index'] || '-1', 10);
         
-        // 使用专门的 BlockContainer 组件处理翻译覆盖层
+        // 根据useInlineTranslation选择使用哪种容器组件
+        const ContainerComponent = useInlineTranslation ? InlineBlockContainer : BlockContainer;
+        
         return (
-          <BlockContainer
+          <ContainerComponent
             {...props}
             blockIndex={blockIndex}
             blockData={blockData || []}
@@ -427,7 +488,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
             onRefreshExplanation={onRefreshExplanation}
           >
             {children}
-          </BlockContainer>
+          </ContainerComponent>
         );
       }
       // Default div rendering
@@ -507,9 +568,14 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
             alt={alt}
             className="markdown-image"
             loading="lazy"
-            style={{ maxWidth: '100%', height: 'auto' }}
+            style={{ 
+              maxWidth: '90%', 
+              height: 'auto',
+              display: 'block',
+              margin: '0 auto'
+            }}
           />
-          {alt && <span className="markdown-image-caption" style={{ display: 'block', textAlign: 'center', fontSize: '0.9em', marginTop: '0.5em' }}>{alt}</span>}
+          {alt && <span className="markdown-image-caption" style={{ display: 'block', textAlign: 'center', fontSize: '0.9em', marginTop: '0.5em' }}>{processWithMathAndFormatting(alt)}</span>}
         </>
       );
     },
@@ -538,8 +604,14 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
 
     // Custom table renderers
     table: ({ children, ...props }: any) => (
-      <div className="markdown-table-container">
-        <table {...props} className="markdown-table">
+      <div className="markdown-table-container" style={{ 
+        display: 'flex', 
+        justifyContent: 'center',
+        width: '100%'
+      }}>
+        <table {...props} className="markdown-table" style={{
+          margin: '0 auto'
+        }}>
           {children}
         </table>
       </div>
@@ -589,7 +661,38 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
       <li {...props} className="markdown-list-item">
         {processChildrenWithLatex(children)}
       </li>
-    )
+    ),
+    
+    // Custom link renderer for URLs and emails
+    a: ({ href, children, ...props }: any) => {
+      // Determine if it's an email link
+      const isEmail = href?.startsWith('mailto:');
+      
+      return (
+        <a 
+          {...props}
+          href={href}
+          target={!isEmail ? "_blank" : undefined}
+          rel={!isEmail ? "noopener noreferrer" : undefined}
+          className="markdown-link"
+          style={{
+            color: 'hsl(var(--primary))',
+            textDecoration: 'underline',
+            textUnderlineOffset: '2px',
+            transition: 'opacity 0.2s',
+            cursor: 'pointer'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '0.8';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '1';
+          }}
+        >
+          {children}
+        </a>
+      );
+    }
   }), [blockData, translations, explanations, streamingTranslation]);
 
   return (
@@ -622,7 +725,6 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
           ]}
           rehypePlugins={[
             rehypeRaw,
-            rehypeSanitizeUnknownTags,
             [rehypeKatex, {
               strict: false,
               throwOnError: false,
@@ -646,24 +748,6 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
 
       </div>
     </TooltipProvider>
-  );
-}, (prevProps, nextProps) => {
-  // Custom comparison function for React.memo optimization
-  return (
-    prevProps.content === nextProps.content &&
-    prevProps.syncEnabled === nextProps.syncEnabled &&
-    prevProps.fontSize === nextProps.fontSize &&
-    prevProps.className === nextProps.className &&
-    prevProps.selectedBlock?.blockIndex === nextProps.selectedBlock?.blockIndex &&
-    prevProps.selectedBlock?.isActive === nextProps.selectedBlock?.isActive &&
-    JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks) &&
-    prevProps.blockData?.length === nextProps.blockData?.length &&
-    prevProps.translations?.size === nextProps.translations?.size &&
-    prevProps.explanations?.size === nextProps.explanations?.size &&
-    prevProps.streamingTranslation?.blockIndex === nextProps.streamingTranslation?.blockIndex &&
-    prevProps.streamingTranslation?.isStreaming === nextProps.streamingTranslation?.isStreaming &&
-    prevProps.streamingTranslation?.content === nextProps.streamingTranslation?.content &&  // 比较流式内容
-    prevProps.streamingTranslation?.type === nextProps.streamingTranslation?.type  // 比较流式类型
   );
 });
 

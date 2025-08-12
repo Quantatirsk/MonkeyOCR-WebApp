@@ -27,8 +27,6 @@ class TaskRepository(BaseRepository):
         file_type: str,
         file_hash: Optional[str] = None,
         file_size: Optional[int] = None,
-        extraction_type: Optional[str] = None,
-        split_pages: bool = False,
         is_public: bool = False
     ) -> str:
         """
@@ -43,8 +41,6 @@ class TaskRepository(BaseRepository):
             "file_size": file_size,
             "status": "pending",
             "progress": 0,
-            "extraction_type": extraction_type,
-            "split_pages": 1 if split_pages else 0,
             "is_public": 1 if is_public else 0,
             "created_at": datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat()

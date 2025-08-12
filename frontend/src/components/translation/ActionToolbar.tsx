@@ -34,6 +34,8 @@ const ActionToolbar: React.FC<ActionToolbarProps> = React.memo(({
         return { label: '表格', variant: 'outline' as const };
       case 'image':
         return { label: '图片', variant: 'destructive' as const };
+      case 'interline_equation':
+        return { label: '公式', variant: 'outline' as const };
       default:
         return { label: '未知', variant: 'secondary' as const };
     }

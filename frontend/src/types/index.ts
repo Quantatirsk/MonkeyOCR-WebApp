@@ -35,7 +35,6 @@ export interface DocumentMetadata {
   total_pages: number;
   processing_time: number;
   file_size: number;
-  extraction_type: 'standard' | 'split' | 'text' | 'formula' | 'table';
 }
 
 // Document result interface
@@ -57,8 +56,6 @@ export interface APIResponse<T = any> {
 
 // Upload options interface
 export interface UploadOptions {
-  extract_type?: 'standard' | 'split' | 'text' | 'formula' | 'table';
-  split_pages?: boolean;
   is_public?: boolean;  // 是否公开文件（默认为私有）
 }
 
@@ -79,7 +76,7 @@ export interface AppState {
   searchQuery: string;
   theme: 'light' | 'dark';
   taskListVisible: boolean;
-  activeDocumentTab: 'preview' | 'compare' | 'content' | 'images' | 'metadata';
+  activeDocumentTab: 'preview' | 'compare' | 'images' | 'metadata';
   
   // Sync state (not persisted)
   syncStatus: SyncStatus | null;
@@ -106,7 +103,7 @@ export interface AppActions {
   setUploading: (isUploading: boolean) => void;
   toggleTheme: () => void;
   toggleTaskListVisible: () => void;
-  setActiveDocumentTab: (tab: 'preview' | 'compare' | 'content' | 'images' | 'metadata') => void;
+  setActiveDocumentTab: (tab: 'preview' | 'compare' | 'images' | 'metadata') => void;
   
   // File operations
   uploadFiles: (files: File[], options?: UploadOptions) => Promise<void>;
@@ -176,14 +173,13 @@ export type Theme = 'light' | 'dark' | 'system';
 
 // Processing status types
 export type ProcessingStatus = ProcessingTask['status'];
-export type ExtractionType = DocumentMetadata['extraction_type'];
 export type FileType = ProcessingTask['file_type'];
 
 // Block data interfaces for PDF-Markdown sync feature
 export interface BlockData {
   index: number;
   bbox: [number, number, number, number]; // [x1, y1, x2, y2]
-  type: 'text' | 'title' | 'image' | 'table';
+  type: 'text' | 'title' | 'image' | 'table' | 'interline_equation';
   content: string;
   page_num: number;
   page_size: [number, number]; // [width, height]

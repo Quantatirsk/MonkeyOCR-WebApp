@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { FileText, ArrowLeftRight, Eye, RotateCw } from 'lucide-react';
+import { FileText, ArrowLeftRight, Eye, RotateCw, Image, Languages } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
@@ -20,6 +20,7 @@ import { DocumentToolbar } from './document/DocumentToolbar';
 import { ImageGallery } from './document/ImageGallery';
 import { DocumentMetadata } from './document/DocumentMetadata';
 import { FloatingActionBar } from './document/FloatingActionBar';
+import { TranslationPanel } from './document/TranslationPanel';
 
 // Hooks
 import { usePdfState } from './document/hooks/usePdfState';
@@ -30,8 +31,7 @@ import { useDocumentSearch } from './document/hooks/useDocumentSearch';
 import { TAB_TYPES, FONT_SIZES } from './document/constants';
 import { applySearchHighlight } from './document/utils';
 
-// Existing components
-import { ModernMarkdownViewer } from './markdown/ModernMarkdownViewer';
+// Markdown components
 import { BlockMarkdownViewer } from './markdown/BlockMarkdownViewer';
 import { FilePreview } from './FilePreview';
 import { useBlockActions } from './translation';
@@ -52,26 +52,7 @@ interface DocumentViewerProps {
   className?: string;
 }
 
-// Memoized Markdown content panel
-const MarkdownContentPanel = React.memo(({ 
-  processedMarkdown, 
-  markdownZoom
-}: { 
-  processedMarkdown: string; 
-  markdownZoom: number;
-}) => (
-  <div className="flex-1 overflow-hidden">
-    <ScrollArea className="h-full w-full">
-      <div className="p-3 pr-4 min-w-0 w-full">
-        <ModernMarkdownViewer 
-          content={processedMarkdown}
-          className="w-full min-w-0"
-          fontSize={markdownZoom}
-        />
-      </div>
-    </ScrollArea>
-  </div>
-));
+// Removed MarkdownContentPanel - no longer needed as content tab is removed
 
 // Enhanced block sync markdown panel with translation support
 const BlockSyncMarkdownPanel = React.memo(({ 
@@ -86,7 +67,8 @@ const BlockSyncMarkdownPanel = React.memo(({
   taskId,
   onMarkdownGenerated,
   enableTranslationFeatures = true,
-  onTranslateAllStatusChange
+  onTranslateAllStatusChange,
+  isWaitingForBlockData = false
 }: { 
   originalMarkdown: string;
   markdownZoom: number;
@@ -100,6 +82,7 @@ const BlockSyncMarkdownPanel = React.memo(({
   onMarkdownGenerated?: (markdown: string) => void;
   enableTranslationFeatures?: boolean;
   onTranslateAllStatusChange?: (isTranslating: boolean, progress?: { completed: number; total: number }) => void;
+  isWaitingForBlockData?: boolean;
 }) => {
   // Translation functionality integration
   const blockActions = useBlockActions({
@@ -108,20 +91,29 @@ const BlockSyncMarkdownPanel = React.memo(({
     targetLanguage: 'zh'
   });
 
-  // Generate block-based markdown content
-  const blockBasedMarkdown = useMemo(() => {
-    if (!syncEnabled || blockData.length === 0) {
-      return originalMarkdown;
+  // Clear translations and explanations when taskId changes (file switching)
+  const prevTaskIdRef = useRef<string | undefined>(taskId);
+  useEffect(() => {
+    // Only clear if taskId actually changed (not on initial mount or same taskId)
+    if (prevTaskIdRef.current !== undefined && prevTaskIdRef.current !== taskId) {
+      console.log('Clearing translations due to file switch:', prevTaskIdRef.current, '->', taskId);
+      blockActions.clearAllTranslations();
+      blockActions.clearAllExplanations();
     }
-    return BlockMarkdownGenerator.generateFromBlocks(blockData, taskId);
-  }, [blockData, syncEnabled, originalMarkdown, taskId]);
-  
-  // Generate clean markdown for copying (without HTML wrappers)
-  const cleanMarkdownForCopy = useMemo(() => {
-    if (!syncEnabled || blockData.length === 0) {
-      return originalMarkdown;
+    prevTaskIdRef.current = taskId;
+  }, [taskId, blockActions.clearAllTranslations, blockActions.clearAllExplanations]);
+
+  // Generate block-based markdown content with stable reference
+  const [blockBasedMarkdown, cleanMarkdownForCopy] = useMemo(() => {
+    // Always use block-based markdown when sync is enabled and data is available
+    if (syncEnabled && blockData.length > 0) {
+      const blockMarkdown = BlockMarkdownGenerator.generateFromBlocks(blockData, taskId);
+      const cleanMarkdown = BlockMarkdownGenerator.generateCleanMarkdown(blockData, taskId);
+      return [blockMarkdown, cleanMarkdown];
     }
-    return BlockMarkdownGenerator.generateCleanMarkdown(blockData, taskId);
+    // Fall back to original markdown only when sync is disabled
+    // When waiting for block data, still return original to prevent empty content
+    return [originalMarkdown, originalMarkdown];
   }, [blockData, syncEnabled, originalMarkdown, taskId]);
   
   // Notify parent about generated markdown (clean version for copying)
@@ -131,8 +123,9 @@ const BlockSyncMarkdownPanel = React.memo(({
     }
   }, [cleanMarkdownForCopy, onMarkdownGenerated, syncEnabled, blockData.length]);
 
-  // Apply search highlighting
+  // Apply search highlighting with stable reference
   const processedMarkdown = useMemo(() => {
+    if (!blockBasedMarkdown) return '';
     return applySearchHighlight(blockBasedMarkdown, activeSearchQuery || '');
   }, [blockBasedMarkdown, activeSearchQuery]);
   
@@ -228,12 +221,33 @@ const BlockSyncMarkdownPanel = React.memo(({
     blockActions.actionState.selectedBlockIndex
   ]);
   
+  // Prevent double rendering with stable content
+  const markdownContent = useMemo(() => processedMarkdown || '', [processedMarkdown]);
+  
+  // Show loading indicator when waiting for block data
+  if (isWaitingForBlockData) {
+    return (
+      <div className="flex-1 overflow-hidden block-sync-markdown-panel">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center space-x-2">
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
+            </div>
+            <p className="text-sm text-muted-foreground">正在加载区块数据...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="flex-1 overflow-hidden block-sync-markdown-panel">
       <ScrollArea className="h-full w-full">
         <div className="p-3 pr-4 min-w-0 w-full">
           <BlockMarkdownViewer 
-            content={processedMarkdown}
+            content={markdownContent}
             blockData={blockData}
             selectedBlock={selectedBlock}
             highlightedBlocks={highlightedBlocks}
@@ -323,6 +337,9 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   const [fontSizeLevel, setFontSizeLevel] = useState(0);
   const markdownZoom = FONT_SIZES[fontSizeLevel];
   
+  // Store generated block-based markdown for copying and search
+  const [blockBasedMarkdownForCopy, setBlockBasedMarkdownForCopy] = useState<string>('');
+  
   // Custom hooks
   const pdfState = usePdfState(currentTaskId || undefined);
   const { blockData } = useBlockDataLoader({
@@ -331,13 +348,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     activeTab: activeDocumentTab,
     enabled: true
   });
+  // Simplified search for compare view only
   const documentSearch = useDocumentSearch({
-    content: currentResult?.markdown_content || '',
+    content: blockBasedMarkdownForCopy || currentResult?.markdown_content || '',
     initialQuery: searchQuery
   });
   
-  // Block sync hooks
+  // Block sync hooks - optimized for compare view
   const blockSyncEnabled = blockData.length > 0 && activeDocumentTab === TAB_TYPES.COMPARE;
+  const isWaitingForBlockData = activeDocumentTab === TAB_TYPES.COMPARE && blockData.length === 0;
   const blockSync = useBlockSync({
     blockData,
     enabled: blockSyncEnabled
@@ -345,7 +364,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   
   const scrollSync = useScrollSync({
     blockData,
-    markdownContent: documentSearch.processedContent,
+    markdownContent: blockBasedMarkdownForCopy || currentResult?.markdown_content || '',
     enabled: blockSyncEnabled && blockSync.isScrollSyncEnabled,
     selectedBlock: blockSync.selectedBlock,
     debounceDelay: 50
@@ -353,9 +372,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   
   // Track markdown click timestamp for sync
   const lastMarkdownClickRef = useRef<number>(0);
-  
-  // Store generated block-based markdown for copying
-  const [blockBasedMarkdownForCopy, setBlockBasedMarkdownForCopy] = useState<string>('');
   
   // 全文翻译状态
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
@@ -408,14 +424,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   }, []);
   
   const handleCopyMarkdown = useCallback(async () => {
-    const contentToCopy = (activeDocumentTab === TAB_TYPES.COMPARE && blockSyncEnabled && blockBasedMarkdownForCopy) 
+    // Always copy block-based markdown when available in compare view
+    const contentToCopy = (blockSyncEnabled && blockBasedMarkdownForCopy) 
       ? blockBasedMarkdownForCopy 
       : currentResult?.markdown_content;
       
     if (contentToCopy) {
       try {
         await navigator.clipboard.writeText(contentToCopy);
-        const message = (activeDocumentTab === TAB_TYPES.COMPARE && blockSyncEnabled && blockBasedMarkdownForCopy)
+        const message = (blockSyncEnabled && blockBasedMarkdownForCopy)
           ? "已复制拼接内容"
           : "已复制到剪贴板";
         toast.success(message);
@@ -424,7 +441,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
         toast.error("复制失败");
       }
     }
-  }, [activeDocumentTab, blockSyncEnabled, blockBasedMarkdownForCopy, currentResult]);
+  }, [blockSyncEnabled, blockBasedMarkdownForCopy, currentResult]);
   
   const handleDownload = useCallback(async () => {
     if (!currentTaskId) return;
@@ -483,17 +500,16 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     }
   }, []);
   
+  // 全文翻译进度状态
+  const [translationProgress, setTranslationProgress] = useState<{ current: number; total: number } | undefined>();
+
   // 处理全文翻译状态变化
   const handleTranslateAllStatusChange = useCallback((isTranslating: boolean, progress?: { completed: number; total: number }) => {
     setIsTranslatingAll(isTranslating);
     if (progress) {
-      // 显示进度提示
-      if (progress.completed < progress.total) {
-        toast.info(`翻译进度: ${progress.completed}/${progress.total}`, { 
-          id: 'translate-all-progress',
-          duration: 1000 
-        });
-      }
+      setTranslationProgress({ current: progress.completed, total: progress.total });
+    } else if (!isTranslating) {
+      setTranslationProgress(undefined);
     }
   }, []);
 
@@ -548,9 +564,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                                 <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">原始文档</h3>
                                 <Badge variant="outline" className="text-xs">
                                   {currentTask.file_type.toUpperCase()}
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs">
-                                  {currentResult.metadata.extraction_type}
                                 </Badge>
                                 <Badge variant="outline" className="text-xs truncate max-w-32">
                                   {currentTask.filename}
@@ -615,28 +628,24 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             onTranslateAll={handleTranslateAll}
                             showTranslateAll={blockSyncEnabled}
                             isTranslatingAll={isTranslatingAll}
+                            translationProgress={translationProgress}
                             searchQuery={documentSearch.localQuery}
                             onSearch={handleSearch}
                           />
-                          {blockSyncEnabled ? (
-                            <BlockSyncMarkdownPanel 
-                              originalMarkdown={currentResult?.markdown_content || ''}
-                              markdownZoom={markdownZoom}
-                              blockData={blockData}
-                              selectedBlock={blockSync.selectedBlock}
-                              highlightedBlocks={blockSync.highlightedBlocks}
-                              syncEnabled={blockSync.isSyncEnabled}
-                              onBlockClick={handleMarkdownBlockClickWithTimestamp}
-                              activeSearchQuery={documentSearch.activeQuery}
-                              onMarkdownGenerated={setBlockBasedMarkdownForCopy}
-                              onTranslateAllStatusChange={handleTranslateAllStatusChange}
-                            />
-                          ) : (
-                            <MarkdownContentPanel 
-                              processedMarkdown={documentSearch.processedContent}
-                              markdownZoom={markdownZoom}
-                            />
-                          )}
+                          <BlockSyncMarkdownPanel 
+                            originalMarkdown={currentResult?.markdown_content || ''}
+                            markdownZoom={markdownZoom}
+                            blockData={blockData}
+                            selectedBlock={blockSync.selectedBlock}
+                            highlightedBlocks={blockSync.highlightedBlocks}
+                            syncEnabled={blockSyncEnabled}
+                            onBlockClick={handleMarkdownBlockClickWithTimestamp}
+                            activeSearchQuery={documentSearch.activeQuery}
+                            taskId={currentTaskId}
+                            onMarkdownGenerated={setBlockBasedMarkdownForCopy}
+                            onTranslateAllStatusChange={handleTranslateAllStatusChange}
+                            isWaitingForBlockData={isWaitingForBlockData}
+                          />
                         </div>
                       </ResizablePanel>
                     </ResizablePanelGroup>
@@ -675,33 +684,22 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
               )}
             </div>
 
-            {/* Content tab */}
-            <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.CONTENT ? 'block' : 'hidden'}`}>
+            {/* Content tab removed - functionality moved to compare view */}
+
+            {/* Translation tab */}
+            <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.TRANSLATION ? 'block' : 'hidden'}`}>
               {currentResult ? (
-                <div className="flex-1 flex flex-col overflow-hidden h-full">
-                  <DocumentToolbar
-                    title="文档查看器"
-                    fileType={currentTask.file_type}
-                    extractionType={currentResult.metadata.extraction_type}
-                    fontSizeLevel={fontSizeLevel}
-                    onFontSizeChange={handleFontSizeChange}
-                    onCopy={handleCopyMarkdown}
-                    onDownload={handleDownload}
-                    searchQuery={documentSearch.localQuery}
-                    onSearch={handleSearch}
-                    searchPlaceholder="在文档内容中搜索...（按回车搜索）"
-                  />
-                  <MarkdownContentPanel 
-                    processedMarkdown={documentSearch.processedContent}
-                    markdownZoom={markdownZoom}
-                  />
-                </div>
+                <TranslationPanel
+                  blockData={blockData}
+                  taskId={currentTaskId || ''}
+                  className="h-full"
+                />
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center space-y-2">
-                    <FileText className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <Languages className="w-8 h-8 text-muted-foreground mx-auto" />
                     <p className="text-sm text-muted-foreground">
-                      等待OCR处理完成以查看内容
+                      等待OCR处理完成以使用翻译功能
                     </p>
                   </div>
                 </div>
@@ -718,7 +716,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
               ) : (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center space-y-2">
-                    <Eye className="w-8 h-8 text-muted-foreground mx-auto" />
+                    <Image className="w-8 h-8 text-muted-foreground mx-auto" />
                     <p className="text-sm text-muted-foreground">
                       等待OCR处理完成以查看提取的图片
                     </p>

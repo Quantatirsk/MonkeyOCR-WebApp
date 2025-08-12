@@ -60,28 +60,20 @@ class MonkeyOCRClient:
         
     async def process_file(
         self,
-        file_path: str,
-        extract_type: str = "standard",
-        split_pages: bool = False
+        file_path: str
     ) -> Dict[str, Any]:
         """
         Process a file with MonkeyOCR API
         
         Args:
             file_path: Path to the file to process
-            extract_type: Type of extraction (standard, split, text, formula, table)
-            split_pages: Whether to split pages
             
         Returns:
             Dict containing the API response with download URL
         """
         
-        # Determine endpoint based on extract_type
-        if extract_type == "split" or split_pages:
-            endpoint = "/parse/split"
-        else:
-            endpoint = "/parse"
-            
+        # Always use standard parse endpoint
+        endpoint = "/parse"
         url = f"{self.base_url}{endpoint}"
         
         # Prepare file for upload
@@ -95,9 +87,8 @@ class MonkeyOCRClient:
             "file": (file_path_obj.name, file_handle, self._get_content_type(file_path_obj))
         }
         
+        # No additional data needed for standard mode
         data = {}
-        if extract_type != "standard":
-            data["type"] = extract_type
             
         try:
             async with httpx.AsyncClient(timeout=self.timeout) as client:

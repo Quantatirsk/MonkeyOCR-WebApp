@@ -229,8 +229,7 @@ export class LLMWrapper {
       console.error('Failed to get models:', error)
       // Return fallback models if API call fails
       return [
-        { id: 'gpt-4.1-nano', object: 'model', created: Date.now(), owned_by: 'openai', permission: [] as unknown[], root: 'gpt-4.1-nano', parent: null },
-        { id: 'gpt-4.1-mini', object: 'model', created: Date.now(), owned_by: 'openai', permission: [] as unknown[], root: 'gpt-4.1-mini', parent: null }
+        { id: 'google/gemini-2.5-flash-lite', object: 'model', created: Date.now(), owned_by: 'google', permission: [] as unknown[], root: 'google/gemini-2.5-flash-lite', parent: null }
       ]
     }
   }
@@ -332,11 +331,16 @@ export class LLMWrapper {
   private async makeRequest(options: ChatCompletionOptions): Promise<Response> {
     // Build request body with required fields
     const requestBody: any = {
-      model: options.model || 'google/gemini-2.5-flash-lite', // Provide default model
       messages: options.messages,
       stream: options.stream || false,
       max_tokens: options.maxTokens,
       temperature: options.temperature || 0.7
+    }
+    
+    // Only include model if explicitly provided
+    // This allows backend to use its configured default model
+    if (options.model) {
+      requestBody.model = options.model;
     }
     
     if (options.apiKey) {

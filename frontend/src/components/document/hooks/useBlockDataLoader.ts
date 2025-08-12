@@ -1,6 +1,6 @@
 /**
  * useBlockDataLoader Hook
- * Manages block data loading for compare view
+ * Manages block data loading for compare and translation views
  */
 
 import { useState, useEffect } from 'react';
@@ -37,7 +37,7 @@ export const useBlockDataLoader = ({
       enabled &&
       taskId &&
       hasResult &&
-      activeTab === TAB_TYPES.COMPARE &&
+      (activeTab === TAB_TYPES.COMPARE || activeTab === TAB_TYPES.TRANSLATION) &&
       !loading &&
       loadedTaskId !== taskId;
 
@@ -83,9 +83,9 @@ export const useBlockDataLoader = ({
     }
   }, [taskId, hasResult, activeTab, enabled, loading, loadedTaskId]);
 
-  // Clear block data when leaving compare tab
+  // Clear block data when leaving compare/translation tabs
   useEffect(() => {
-    if (activeTab !== TAB_TYPES.COMPARE && blockData.length > 0) {
+    if (activeTab !== TAB_TYPES.COMPARE && activeTab !== TAB_TYPES.TRANSLATION && blockData.length > 0) {
       setBlockData([]);
       setLoadedTaskId(null);
     }

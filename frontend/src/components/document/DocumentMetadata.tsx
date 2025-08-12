@@ -6,14 +6,12 @@
 import React from 'react';
 import { Download, Copy } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
 import { ScrollArea } from '../ui/scroll-area';
 import { formatProcessingTime, formatFileSize } from './utils';
 
 interface DocumentMetadataProps {
   metadata: {
-    extraction_type: string;
     processing_time: number;
     total_pages: number;
     file_size: number;
@@ -45,12 +43,6 @@ export const DocumentMetadata: React.FC<DocumentMetadataProps> = React.memo(({
           <div className="space-y-2">
             <h4 className="text-sm font-semibold">处理信息</h4>
             <div className="space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">提取类型：</span>
-                <Badge variant="outline" className="text-xs">
-                  {metadata.extraction_type}
-                </Badge>
-              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">处理时间：</span>
                 <span>{formatProcessingTime(metadata.processing_time)}</span>

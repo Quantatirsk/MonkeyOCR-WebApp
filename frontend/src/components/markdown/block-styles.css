@@ -16,12 +16,49 @@
   display: block;
   position: relative;
   padding: 0; /* 移除padding，由.block-content-wrapper提供内边距 */
-  margin: 0.15em 0 0.25em 0 !important;
+  margin: 0.1em 0 0.15em 0 !important; /* Reduced vertical spacing between blocks */
   border-radius: 3px;
   /* Remove transition for instant response */
   cursor: pointer;
   background-color: transparent;
   border-left: 0; /* 移除边框，由.block-content-wrapper处理 */
+}
+
+/* Center content for specific block types - Simplified */
+/* For formulas - use block layout to keep translation/explanation below */
+.block-container[data-block-type="interline_equation"] .block-content-wrapper {
+  text-align: center !important;
+  display: block !important; /* Use block to maintain vertical layout */
+}
+
+/* Ensure all content in formula blocks is centered */
+.block-container[data-block-type="interline_equation"] .block-content-wrapper > * {
+  text-align: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.block-container[data-block-type="interline_equation"] .katex-display,
+.block-container[data-block-type="interline_equation"] .katex {
+  display: block !important;
+  margin: 0 auto !important;
+  text-align: center !important;
+}
+
+/* For inline formulas in formula blocks */
+.block-container[data-block-type="interline_equation"] p {
+  text-align: center !important;
+}
+
+/* For images - center the image */
+.block-container[data-block-type="image"] .block-content-wrapper {
+  text-align: center !important;
+  display: block !important; /* Changed from flex to block to maintain vertical layout */
+}
+
+/* For tables - center the table container only, not the content */
+.block-container[data-block-type="table"] .block-content-wrapper {
+  display: block !important; /* Changed from flex to block to maintain vertical layout */
 }
 
 /* Ensure paragraphs inside block containers don't add extra margin */
@@ -76,7 +113,7 @@
   display: block;
   position: relative;
   padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
-  margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
+  margin: 0.1em 0 0.15em 0 !important; /* Further reduced spacing between blocks */
   border-radius: 4px;
   transition: background-color 0.15s ease, border-color 0.15s ease; /* 仅对不影响布局的属性过渡 */
   cursor: pointer;
@@ -90,6 +127,7 @@
 .block-container .simulated-list-item {
   display: block;
   margin-left: 2em !important;
+  margin-bottom: 0.05em !important; /* Add reduced spacing between list items in blocks */
   position: relative;
 }
 
@@ -194,7 +232,7 @@
   margin-bottom: 0;
 }
 
-/* Enhanced markdown styling - match ModernMarkdownViewer styles */
+/* Enhanced markdown styling for BlockMarkdownViewer */
 .markdown-content {
   max-width: none;
   display: block;
@@ -216,7 +254,7 @@
 .markdown-paragraph {
   color: hsl(var(--foreground)) !important;
   line-height: 1.4 !important; /* Match content tab */
-  margin: 0.15em 0 0.25em 0 !important; /* Reduced spacing between blocks */
+  margin: 0.1em 0 0.15em 0 !important; /* Further reduced spacing between blocks */
   display: block !important; /* Ensure block-level display */
   text-align: justify !important; /* 段落文字两端对齐 */
   text-justify: inter-word; /* 单词间对齐 */
@@ -272,11 +310,25 @@
 }
 
 .markdown-image {
-  max-width: 100%;
+  display: block !important;
+  margin: 0 auto !important;
+  max-width: 90%; /* Limit image width to 90% */
   height: auto;
   border-radius: 0.5rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: transform 0.2s ease;
+}
+
+/* Center images inside block containers - More specific selector to override global styles */
+.block-container[data-block-type="image"] img,
+.block-container[data-block-type="image"] .markdown-image,
+.block-markdown-viewer img,
+.block-markdown-viewer .markdown-image {
+  display: block !important;
+  margin: 0 auto !important;
+  max-width: 90% !important; /* Limit to 90% width - using !important to override global styles */
+  width: auto !important;
+  height: auto !important;
 }
 
 .markdown-image:hover {
@@ -346,6 +398,8 @@
 .markdown-unordered-list {
   list-style-type: disc !important;
   list-style-position: outside !important;
+  padding-left: 1.5em !important; /* Add proper left padding */
+  margin: 0.2em 0 !important; /* Reduced from 0.5em to 0.2em */
 }
 
 /* Ensure list items in unordered lists show bullets */
@@ -355,11 +409,20 @@
 }
 
 .markdown-ordered-list {
-  list-style-type: decimal;
+  list-style-type: decimal !important;
+  list-style-position: outside !important;
+  padding-left: 1.5em !important; /* Add proper left padding */
+  margin: 0.2em 0 !important; /* Reduced from 0.5em to 0.2em */
+}
+
+/* Ensure list items in ordered lists show numbers */
+.markdown-ordered-list > .markdown-list-item {
+  list-style-type: decimal !important;
+  display: list-item !important;
 }
 
 .markdown-list-item {
-  margin-bottom: 0.1em !important; /* Reduced item spacing */
+  margin-bottom: 0.05em !important; /* Further reduced item spacing from 0.1em to 0.05em */
   line-height: 1.4 !important; /* Match content tab line height */
 }
 
@@ -369,24 +432,28 @@
 
 /* Table styling - clean border implementation */
 .markdown-table-container {
-  margin: 0.3em 0 !important; /* Reduced spacing */
+  margin: 0.3em auto !important; /* Center with auto margins */
   overflow: visible !important; /* Match content tab - force text wrapping */
   overflow-x: visible !important;
   overflow-y: visible !important;
-  /* Remove container border to avoid double borders */
+  /* Center table container */
+  display: flex !important;
+  justify-content: center !important;
 }
 
 .markdown-table {
   border-collapse: collapse !important;
-  width: 100% !important;
+  width: auto !important; /* Changed from 100% to auto for better centering */
+  max-width: 100% !important;
   font-size: 0.7em !important; /* Even smaller table font size */
   overflow: visible !important;
   overflow-x: visible !important;
   overflow-y: visible !important;
   table-layout: auto !important; /* Allow natural column width distribution */
-  /* Add outer border to table element itself */
-  border: 1px solid #6b7280 !important;
-  border-radius: 0.375rem !important; /* Subtle rounded corners */
+  /* Remove outer border for cleaner look */
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 auto !important; /* Center the table */
 }
 
 .markdown-table-header {
@@ -396,7 +463,6 @@
 .markdown-table-header-cell {
   border: 1px solid #6b7280 !important; /* Fine dark gray border */
   padding: 3px 5px !important; /* Keep current padding */
-  text-align: left !important;
   font-weight: 600 !important;
   color: hsl(var(--foreground));
   font-size: 0.7em !important; /* Even smaller header font */
@@ -406,14 +472,13 @@
   white-space: normal !important;
 }
 
-/* First header cell - round top-left corner */
+/* Remove rounded corners for cleaner look */
 .markdown-table-header-cell:first-child {
-  border-top-left-radius: 0.25rem !important;
+  border-top-left-radius: 0 !important;
 }
 
-/* Last header cell - round top-right corner */
 .markdown-table-header-cell:last-child {
-  border-top-right-radius: 0.25rem !important;
+  border-top-right-radius: 0 !important;
 }
 
 .markdown-table-cell {
@@ -427,14 +492,13 @@
   white-space: normal !important;
 }
 
-/* Last row first cell - round bottom-left corner */
+/* Remove rounded corners for cleaner look */
 .markdown-table-row:last-child .markdown-table-cell:first-child {
-  border-bottom-left-radius: 0.25rem !important;
+  border-bottom-left-radius: 0 !important;
 }
 
-/* Last row last cell - round bottom-right corner */
 .markdown-table-row:last-child .markdown-table-cell:last-child {
-  border-bottom-right-radius: 0.25rem !important;
+  border-bottom-right-radius: 0 !important;
 }
 
 .markdown-table-row:hover {
@@ -512,6 +576,36 @@
   }
 }
 
+/* Link styles */
+.markdown-link {
+  color: hsl(var(--primary)) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 2px !important;
+  transition: opacity 0.2s ease !important;
+  cursor: pointer !important;
+  word-break: break-word !important; /* Ensure long URLs wrap properly */
+}
+
+.markdown-link:hover {
+  opacity: 0.8 !important;
+  text-decoration: underline !important;
+}
+
+.markdown-link:visited {
+  color: hsl(var(--primary) / 0.8) !important;
+}
+
+/* Link styles in dark mode */
+@media (prefers-color-scheme: dark) {
+  .markdown-link {
+    color: hsl(var(--primary)) !important;
+  }
+  
+  .markdown-link:visited {
+    color: hsl(var(--primary) / 0.7) !important;
+  }
+}
+
 /* High contrast mode */
 @media (prefers-contrast: high) {
   .block-paragraph {
@@ -536,9 +630,17 @@
 }
 
 .block-markdown-viewer .katex-display {
-  margin: 1.2em 0 !important;
+  margin: 1.2em auto !important;
   text-align: center !important;
   overflow-x: auto !important;
+  display: block !important;
+}
+
+/* Center interline equations in block containers */
+.block-container[data-block-type="interline_equation"] .katex-display {
+  margin: 0 auto !important;
+  text-align: center !important;
+  display: block !important;
 }
 
 .block-markdown-viewer .katex-inline {
@@ -585,6 +687,116 @@
   }
 }
 
+/* Inline Translation Styles - Professional Layout */
+.inline-translation-container {
+  display: block;
+  position: relative;
+  margin: 0.1em 0 0.15em 0;
+}
+
+/* 当有翻译时的容器样式 - 增加与其他区块的间距 */
+.block-container.inline-translation-container.with-translation {
+  margin: 0.3em 0 0.4em 0 !important; /* 缩小的间距 */
+  position: relative;
+  padding: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* 奇数 merged block - 浅蓝色背景 */
+.block-container.inline-translation-container.with-translation:nth-of-type(odd) {
+  background-color: rgba(219, 234, 254, 0.3); /* 非常浅的蓝色 */
+}
+
+/* 偶数 merged block - 浅灰色背景 */
+.block-container.inline-translation-container.with-translation:nth-of-type(even) {
+  background-color: rgba(243, 244, 246, 0.8); /* 非常浅的灰色 */
+}
+
+/* 确保第一个区块的顶部间距正常 */
+.block-container.inline-translation-container.with-translation:first-child {
+  margin-top: 0.3em !important;
+}
+
+/* 相邻的翻译区块之间的间距 */
+.block-container.inline-translation-container.with-translation + .block-container {
+  margin-top: 0.3em !important;
+}
+
+/* 原文部分 */
+.inline-translation-container .original-section {
+  display: block;
+  position: relative;
+  margin-bottom: 0.6em; /* 原文和译文之间的间距 */
+}
+
+/* 译文部分 */
+.inline-translation-container .translation-section {
+  display: block;
+  position: relative;
+  padding-left: 0;
+  margin-top: 0.4em; /* 译文顶部间距 */
+}
+
+/* 译文内容包装器 */
+.inline-translation-container .translation-content-wrapper {
+  display: block;
+  color: hsl(var(--foreground)); /* 与原文完全相同的颜色 */
+  opacity: 0.92; /* 轻微透明度区分 */
+}
+
+/* 译文markdown内容 - 继承原文所有样式 */
+.inline-translation-container .translation-markdown {
+  display: block;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 译文内容不需要特殊样式 - 直接继承原文的所有 markdown 样式 */
+/* 译文会自动使用 .markdown-* 类名，从而继承所有原文样式 */
+
+/* 整体选中时的效果 - 奇数区块 */
+.block-container.inline-translation-container.with-translation:nth-of-type(odd):hover {
+  background-color: rgba(254, 243, 199, 0.4); /* 浅黄色 hover */
+  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.1);
+}
+
+/* 整体选中时的效果 - 偶数区块 */
+.block-container.inline-translation-container.with-translation:nth-of-type(even):hover {
+  background-color: rgba(254, 243, 199, 0.4); /* 相同的浅黄色 hover */
+  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.1);
+}
+
+/* 选中状态 - 点击后的选中效果 */
+.block-container.inline-translation-container.with-translation.selected {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  border: 2px solid rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 选中状态的 hover 效果 */
+.block-container.inline-translation-container.with-translation.selected:hover {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+  border: 2px solid rgba(59, 130, 246, 0.6) !important;
+}
+
+/* 原有的 block-selected 状态（保留用于其他用途） */
+.block-container.inline-translation-container.with-translation.block-selected {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Animation for streaming status dots */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 /* Print styles */
 @media print {
   .block-marker {
@@ -601,5 +813,10 @@
   
   .block-overlay-info {
     display: none;
+  }
+  
+  .inline-translation-container .translation-divider {
+    display: block;
+    print-color-adjust: exact;
   }
 }

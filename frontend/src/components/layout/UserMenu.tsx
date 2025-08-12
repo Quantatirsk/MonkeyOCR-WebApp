@@ -11,6 +11,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { UserSettings } from '@/components/settings/UserSettings';
 
 interface UserMenuProps {
   user: {
@@ -35,6 +36,7 @@ export function UserMenu({
   onLogout
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Get user initials for avatar fallback
   const getInitials = (username: string) => {
@@ -47,8 +49,9 @@ export function UserMenu({
   };
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
-      <DropdownMenuTrigger asChild>
+    <>
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
           className="relative h-10 px-2 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -116,7 +119,10 @@ export function UserMenu({
         <DropdownMenuSeparator />
         
         <DropdownMenuItem
-          onClick={onSettingsClick}
+          onClick={() => {
+            setIsSettingsOpen(true);
+            onSettingsClick?.();
+          }}
           className="cursor-pointer"
         >
           <Settings className="mr-2 h-4 w-4" />
@@ -134,5 +140,12 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    
+    {/* User Settings Dialog */}
+    <UserSettings 
+      isOpen={isSettingsOpen} 
+      onClose={() => setIsSettingsOpen(false)} 
+    />
+    </>
   );
 }

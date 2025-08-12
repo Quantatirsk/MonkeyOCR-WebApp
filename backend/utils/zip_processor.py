@@ -270,8 +270,7 @@ class ZipProcessor:
         return DocumentMetadata(
             total_pages=estimated_pages,
             processing_time=0,  # This should be tracked during processing
-            file_size=file_size,
-            extraction_type="standard"  # This should be passed from the request
+            file_size=file_size
         )
     
     def cleanup_task_directory(self, task_id: str):
@@ -361,6 +360,7 @@ class ZipProcessor:
             for block in preproc_blocks:
                 # Skip image blocks from preproc_blocks to avoid duplication with images array
                 # Skip table blocks from preproc_blocks to avoid duplication with tables array
+                # Process text, title, and interline_equation blocks
                 if block.get('type') not in ['image', 'table']:
                     all_raw_blocks.append({
                         'source_type': 'preproc',
@@ -460,13 +460,29 @@ class ZipProcessor:
     
     def _process_block(self, block: Dict[str, Any], page_num: int, page_size: list, global_index: int) -> Optional[Dict[str, Any]]:
         """
-        Process a regular block (text, title, or image from preproc_blocks)
+        Process a regular block (text, title, interline_equation, or image from preproc_blocks)
         """
         block_type = block.get('type', 'text')
         
         if block_type == 'image':
             # Handle image blocks with nested structure
             return self._process_image_block_from_preproc(block, page_num, page_size, global_index)
+        elif block_type == 'interline_equation':
+            # Handle interline equation blocks - wrap content with $$
+            content = self._extract_text_content(block)
+            # Wrap the equation content with $$ for proper rendering
+            formatted_content = f"$${content}$$" if content else ""
+            
+            return {
+                'index': global_index,
+                'bbox': block.get('bbox', [0, 0, 0, 0]),
+                'type': 'interline_equation',  # Keep the original type for frontend
+                'content': formatted_content,
+                'page_num': page_num,
+                'page_size': page_size,
+                '_raw_index': block.get('index', None),
+                '_global_index': global_index
+            }
         else:
             # Handle text and title blocks
             content = self._extract_text_content(block)

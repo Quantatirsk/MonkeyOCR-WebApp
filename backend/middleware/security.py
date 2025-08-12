@@ -19,22 +19,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         
-        # Content Security Policy - 添加 blob: 支持 PDF.js
-        csp_sources = os.getenv("CSP_CONNECT_SOURCES", "").strip()
-        connect_src = f"'self' blob: {csp_sources}" if csp_sources else "'self' blob:"
+        # Content Security Policy - 完全解除限制以提供更大灵活性
+        # 注意：在生产环境中建议启用适当的 CSP 策略
+        # response.headers["Content-Security-Policy"] = "default-src *; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline';"
         
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; "
-            "style-src 'self' 'unsafe-inline'; "
-            "img-src 'self' data: blob: https:; "
-            "font-src 'self' data:; "
-            f"connect-src {connect_src}; "
-            "media-src 'self' blob:; "
-            "object-src 'none'; "
-            "frame-ancestors 'none'; "
-            "worker-src 'self' blob:;"
-        )
+        # 完全移除 CSP 限制
+        # 如果需要恢复，取消注释上面的行
         
         # Cache control
         if request.url.path.startswith('/static/'):

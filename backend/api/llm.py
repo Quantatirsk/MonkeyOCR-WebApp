@@ -39,7 +39,7 @@ class Message(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     """Chat completion request model compatible with OpenAI API"""
-    model: str = Field(..., description="Model to use for completion")
+    model: Optional[str] = Field(default=None, description="Model to use for completion (uses backend default if not specified)")
     messages: List[Message] = Field(..., description="List of messages")
     stream: bool = Field(default=False, description="Enable streaming response")
     temperature: Optional[float] = Field(default=0.7, description="Temperature for response generation")
@@ -164,8 +164,11 @@ async def create_chat_completion(request: ChatCompletionRequest):
                         content_parts.append(image_part)
                 openai_messages.append({"role": msg.role, "content": content_parts})
         
+        # Use backend configured model if not specified in request
+        model_to_use = request.model or get_llm_config()["model"]
+        
         completion_params = {
-            "model": request.model,
+            "model": model_to_use,
             "messages": openai_messages,
             "temperature": request.temperature,
             "stream": request.stream,
@@ -184,7 +187,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
                     if settings.redis_enabled:
                         cached_response = await llm_cache.get_cached_response(
                             openai_messages, 
-                            request.model,
+                            model_to_use,
                             temperature=request.temperature,
                             max_tokens=request.max_tokens,
                             top_p=request.top_p
@@ -278,7 +281,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
                                 "id": chunks_data[0]['id'] if chunks_data else "unknown",
                                 "object": "chat.completion",
                                 "created": chunks_data[0]['created'] if chunks_data else int(time.time()),
-                                "model": request.model,
+                                "model": model_to_use,
                                 "choices": [{
                                     "index": 0,
                                     "message": {
@@ -291,7 +294,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
                             
                             await llm_cache.cache_response(
                                 openai_messages,
-                                request.model,
+                                model_to_use,
                                 complete_response,
                                 temperature=request.temperature,
                                 max_tokens=request.max_tokens,
@@ -325,7 +328,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
             if settings.redis_enabled:
                 cached_response = await llm_cache.get_cached_response(
                     openai_messages, 
-                    request.model,
+                    model_to_use,
                     temperature=request.temperature,
                     max_tokens=request.max_tokens,
                     top_p=request.top_p
@@ -343,7 +346,7 @@ async def create_chat_completion(request: ChatCompletionRequest):
             if settings.redis_enabled:
                 await llm_cache.cache_response(
                     openai_messages,
-                    request.model,
+                    model_to_use,
                     response_data,
                     temperature=request.temperature,
                     max_tokens=request.max_tokens,

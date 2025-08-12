@@ -18,6 +18,7 @@ interface CompactMarkdownViewerProps {
   content: string;
   className?: string;
   overlayType?: 'translate' | 'explain';
+  useCompactStyle?: boolean; // 是否使用紧凑样式，默认为true
 }
 
 // 处理数学公式和格式标记 - 与 BlockMarkdownViewer 保持一致
@@ -25,7 +26,8 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
   if (!text || typeof text !== 'string') return text;
   
   // 先处理数学公式，再处理格式标记
-  const mathAndFormatRegex = /(\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
+  // 添加对 \begin{...}\end{...} 环境的支持
+  const mathAndFormatRegex = /(\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}|\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
   const parts = text.split(mathAndFormatRegex);
   
   if (parts.length === 1) {
@@ -35,8 +37,42 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
   return parts.map((part, index) => {
     if (!part) return null;
     
+    // LaTeX 环境 \begin{...}...\end{...}
+    if (part.match(/^\\begin\{[^}]+\}/)) {
+      try {
+        const html = katex.renderToString(part, {
+          throwOnError: false,
+          displayMode: true,
+          output: 'html',
+          strict: false,
+          trust: true,
+          macros: {
+            "\\RR": "\\mathbb{R}",
+            "\\NN": "\\mathbb{N}",
+            "\\ZZ": "\\mathbb{Z}",
+            "\\QQ": "\\mathbb{Q}",
+            "\\CC": "\\mathbb{C}",
+          }
+        });
+        return (
+          <div 
+            key={index}
+            dangerouslySetInnerHTML={{ __html: html }} 
+            style={{ 
+              background: 'transparent', 
+              textAlign: 'center', 
+              margin: '0.5em auto',
+              display: 'block'
+            }} 
+          />
+        );
+      } catch (error) {
+        console.error('KaTeX render error for LaTeX environment:', error);
+        return <span key={index}>{part}</span>;
+      }
+    }
     // 块级数学公式 $$...$$
-    if (part.match(/^\$\$[^$]+\$\$$/)) {
+    else if (part.match(/^\$\$[^$]+\$\$$/)) {
       const mathContent = part.slice(2, -2);
       try {
         const html = katex.renderToString(mathContent, {
@@ -59,7 +95,8 @@ function processWithMathAndFormatting(text: string): React.ReactNode {
             style={{ 
               background: 'transparent', 
               textAlign: 'center', 
-              margin: '0.5em 0' 
+              margin: '0.5em auto',
+              display: 'block'
             }} 
           />
         );
@@ -150,7 +187,7 @@ function processChildrenWithLatex(children: any): any {
   return children;
 }
 
-export function CompactMarkdownViewer({ content, className = '', overlayType = 'translate' }: CompactMarkdownViewerProps) {
+export function CompactMarkdownViewer({ content, className = '', overlayType = 'translate', useCompactStyle = true }: CompactMarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   
   // 根据覆盖层类型设置主题色
@@ -170,36 +207,36 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
     styleElement.textContent = `
       /* 紧凑型Markdown样式 - 翻译模式 */
       .compact-markdown-translate {
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
       }
       
       .compact-markdown-translate .wmde-markdown,
       .compact-markdown-translate .w-md-editor-preview {
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
       }
 
       /* 紧凑型Markdown样式 - 解释模式 */
       .compact-markdown-explain {
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
       }
       
       .compact-markdown-explain .wmde-markdown,
       .compact-markdown-explain .w-md-editor-preview {
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
       }
 
       /* 标题样式 - 极小间距，使用主题蓝色系 CSS 变量 */
       .compact-markdown-translate h1, .compact-markdown-explain h1,
       .compact-markdown-translate .wmde-markdown h1, .compact-markdown-explain .wmde-markdown h1 {
-        font-size: 14px !important;
+        font-size: 15px !important;
         font-weight: 600 !important;
         margin: 4px 0 2px 0 !important;
         color: hsl(var(--primary)) !important;
@@ -207,7 +244,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       
       .compact-markdown-translate h2, .compact-markdown-explain h2,
       .compact-markdown-translate .wmde-markdown h2, .compact-markdown-explain .wmde-markdown h2 {
-        font-size: 13px !important;
+        font-size: 14px !important;
         font-weight: 600 !important;
         margin: 3px 0 2px 0 !important;
         color: hsl(var(--primary)) !important;
@@ -215,7 +252,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       
       .compact-markdown-translate h3, .compact-markdown-explain h3,
       .compact-markdown-translate .wmde-markdown h3, .compact-markdown-explain .wmde-markdown h3 {
-        font-size: 12px !important;
+        font-size: 13px !important;
         font-weight: 600 !important;
         margin: 2px 0 1px 0 !important;
         color: hsl(var(--secondary)) !important;
@@ -225,7 +262,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       .compact-markdown-explain h4, .compact-markdown-explain h5, .compact-markdown-explain h6,
       .compact-markdown-translate .wmde-markdown h4, .compact-markdown-translate .wmde-markdown h5, .compact-markdown-translate .wmde-markdown h6,
       .compact-markdown-explain .wmde-markdown h4, .compact-markdown-explain .wmde-markdown h5, .compact-markdown-explain .wmde-markdown h6 {
-        font-size: 11px !important;
+        font-size: 12px !important;
         font-weight: 600 !important;
         margin: 2px 0 1px 0 !important;
         color: hsl(var(--secondary)) !important;
@@ -235,27 +272,37 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       .compact-markdown-translate p, .compact-markdown-explain p,
       .compact-markdown-translate .wmde-markdown p, .compact-markdown-explain .wmde-markdown p {
         margin: 2px 0 !important;
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
       }
 
       /* 列表 - 极小缩进和间距 */
-      .compact-markdown-translate ul, .compact-markdown-translate ol,
-      .compact-markdown-explain ul, .compact-markdown-explain ol,
-      .compact-markdown-translate .wmde-markdown ul, .compact-markdown-translate .wmde-markdown ol,
-      .compact-markdown-explain .wmde-markdown ul, .compact-markdown-explain .wmde-markdown ol {
+      .compact-markdown-translate ul, .compact-markdown-explain ul,
+      .compact-markdown-translate .wmde-markdown ul, .compact-markdown-explain .wmde-markdown ul {
         margin: 2px 0 2px 12px !important;
         padding-left: 8px !important;
         font-size: 11px !important;
+        list-style-type: disc !important;
+        list-style-position: outside !important;
+      }
+      
+      .compact-markdown-translate ol, .compact-markdown-explain ol,
+      .compact-markdown-translate .wmde-markdown ol, .compact-markdown-explain .wmde-markdown ol {
+        margin: 2px 0 2px 12px !important;
+        padding-left: 8px !important;
+        font-size: 11px !important;
+        list-style-type: decimal !important;
+        list-style-position: outside !important;
       }
 
       .compact-markdown-translate li, .compact-markdown-explain li,
       .compact-markdown-translate .wmde-markdown li, .compact-markdown-explain .wmde-markdown li {
         margin: 1px 0 !important;
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         color: #1f2937 !important;
+        display: list-item !important;
       }
 
       /* 表格样式 - 保持功能性但缩小尺寸 */
@@ -263,13 +310,17 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       .compact-markdown-translate .wmde-markdown table, .compact-markdown-explain .wmde-markdown table {
         font-size: 10px !important;
         line-height: 1.2 !important;
-        margin: 4px 0 !important;
+        margin: 4px auto !important; /* Center the table with auto margins */
         border-collapse: collapse !important;
-        width: 100% !important;
+        width: auto !important; /* Changed from 100% to auto - same as BlockMarkdownViewer */
         max-width: 100% !important;
         word-break: normal !important;
         table-layout: auto !important;
         overflow: visible !important;
+        /* Add outer border to table element itself - same as BlockMarkdownViewer */
+        border: 1px solid #6b7280 !important;
+        border-radius: 0.375rem !important; /* Subtle rounded corners */
+        display: table !important; /* Ensure table display */
       }
 
       .compact-markdown-translate th, .compact-markdown-translate td,
@@ -277,7 +328,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       .compact-markdown-translate .wmde-markdown th, .compact-markdown-translate .wmde-markdown td,
       .compact-markdown-explain .wmde-markdown th, .compact-markdown-explain .wmde-markdown td {
         padding: 2px 4px !important;
-        border: 1px solid #e5e7eb !important;
+        border: 1px solid #6b7280 !important;
         font-size: 10px !important;
         line-height: 1.2 !important;
         word-break: break-word !important;
@@ -324,12 +375,46 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       }
 
       .compact-markdown-translate .katex-display, .compact-markdown-explain .katex-display {
-        margin: 0.3em 0 !important;
+        margin: 0.3em auto !important;
         white-space: nowrap !important;
         word-break: normal !important;
         overflow-wrap: normal !important;
         display: block !important;
         text-align: center !important;
+      }
+      
+      /* 居中显示图片 */
+      .compact-markdown-translate img, .compact-markdown-explain img {
+        display: block !important;
+        margin: 0.5em auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+      }
+      
+      /* 居中显示表格容器，但保持单元格内容正常对齐 */
+      .compact-markdown-translate .markdown-table-container,
+      .compact-markdown-explain .markdown-table-container {
+        display: flex !important;
+        justify-content: center !important;
+        width: 100% !important;
+        overflow-x: auto !important;
+      }
+      
+      /* 确保表格容器内的表格居中 */
+      .compact-markdown-translate .markdown-table-container table,
+      .compact-markdown-explain .markdown-table-container table {
+        margin: 0 auto !important;
+        width: auto !important;
+      }
+      
+      /* 居中显示数学公式块 */
+      .compact-markdown-translate .katex-display,
+      .compact-markdown-explain .katex-display,
+      .compact-markdown-translate .block-container[data-block-type="interline_equation"],
+      .compact-markdown-explain .block-container[data-block-type="interline_equation"] {
+        display: block !important;
+        text-align: center !important;
+        margin: 0.5em auto !important;
       }
 
       /* KaTeX内部元素不应该被强制换行 */
@@ -385,27 +470,28 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       }
 
 
-      /* HTML表格样式 */
-      .compact-markdown-translate table, .compact-markdown-explain table {
-        font-size: 11px !important;
-        line-height: 1.3 !important;
+      /* HTML表格样式 - 这个规则会被前面更具体的规则覆盖 */
+      .compact-markdown-translate > table, .compact-markdown-explain > table {
+        font-size: 12px !important;
+        line-height: 1.4 !important;
         border-collapse: collapse !important;
-        margin: 4px 0 !important;
-        width: 100% !important;
+        margin: 4px auto !important; /* Center with auto margins */
+        width: auto !important;
+        display: table !important;
       }
       
       .compact-markdown-translate th, .compact-markdown-explain th {
-        font-size: 10px !important;
+        font-size: 11px !important;
         font-weight: 600 !important;
         padding: 3px 6px !important;
-        border: 1px solid #e5e7eb !important;
+        border: 1px solid #6b7280 !important;
         background-color: #f9fafb !important;
       }
       
       .compact-markdown-translate td, .compact-markdown-explain td {
-        font-size: 11px !important;
+        font-size: 12px !important;
         padding: 3px 6px !important;
-        border: 1px solid #e5e7eb !important;
+        border: 1px solid #6b7280 !important;
       }
     `;
     
@@ -428,8 +514,21 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );
 
+    // 检测是否是纯HTML表格内容（不包含其他markdown语法）
+    // 如果是纯HTML表格，确保它被正确处理
+    const isHTMLTable = processed.trim().startsWith('<table') && processed.trim().endsWith('</table>');
+    if (isHTMLTable) {
+      // 对于纯HTML表格，添加一个换行确保ReactMarkdown正确处理
+      // 这有助于rehypeRaw插件识别并解析HTML
+      processed = '\n' + processed.trim() + '\n';
+      console.log('🔍 检测到HTML表格内容，已处理:', processed.substring(0, 200));
+    }
+
     return processed;
   }, [content]);
+
+  // 检查是否是纯HTML表格
+  const isPureHTMLTable = content && content.trim().startsWith('<table') && content.trim().endsWith('</table>');
 
   return (
     <div 
@@ -444,10 +543,46 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       }}
     >
       {/* 使用 ReactMarkdown 组件，与主视图保持一致 */}
-      <div className="compact-markdown-content" style={{ fontSize: '11px', lineHeight: '1.3' }}>
+      <div className="compact-markdown-content" style={useCompactStyle ? { fontSize: '12px', lineHeight: '1.4' } : {}}>
+        {isPureHTMLTable ? (
+          // 对于纯HTML表格，直接渲染HTML
+          <div 
+            dangerouslySetInnerHTML={{ __html: content }}
+            className="html-table-content"
+          />
+        ) : (
         <ReactMarkdown
           // 自定义组件渲染器
           components={{
+            // 图片居中显示
+            img: ({ src, alt, ...props }: any) => (
+              <img 
+                {...props}
+                src={src}
+                alt={alt}
+                style={{
+                  display: 'block',
+                  margin: '0.5em auto',
+                  maxWidth: '100%',
+                  height: 'auto'
+                }}
+              />
+            ),
+            // 表格居中容器
+            table: ({ children, ...props }: any) => (
+              <div className="markdown-table-container" style={{ 
+                display: 'flex', 
+                justifyContent: 'center',
+                width: '100%'
+              }}>
+                <table {...props} style={{ 
+                  margin: '0 auto',
+                  width: 'auto' /* Force auto width to override CSS */
+                }}>
+                  {children}
+                </table>
+              </div>
+            ),
             // 表格单元格处理 LaTeX - 与 BlockMarkdownViewer 一致
             td: ({ children, ...props }: any) => (
               <td {...props} className="markdown-table-cell">
@@ -465,9 +600,31 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
                 {processChildrenWithLatex(children)}
               </p>
             ),
+            // 无序列表
+            ul: ({ children, ...props }: any) => (
+              <ul {...props} style={{ 
+                listStyleType: 'disc', 
+                listStylePosition: 'outside',
+                paddingLeft: '1.2em',
+                margin: '0.2em 0'
+              }}>
+                {children}
+              </ul>
+            ),
+            // 有序列表
+            ol: ({ children, ...props }: any) => (
+              <ol {...props} style={{ 
+                listStyleType: 'decimal', 
+                listStylePosition: 'outside',
+                paddingLeft: '1.2em',
+                margin: '0.2em 0'
+              }}>
+                {children}
+              </ol>
+            ),
             // 列表项处理 LaTeX
             li: ({ children, ...props }: any) => (
-              <li {...props} className="markdown-list-item">
+              <li {...props} className="markdown-list-item" style={{ display: 'list-item' }}>
                 {processChildrenWithLatex(children)}
               </li>
             ),
@@ -481,8 +638,8 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
             }]
           ]}
           rehypePlugins={[
-            rehypeRaw,  // 先处理 HTML 内容
-            [rehypeKatex, {  // 然后处理数学公式
+            rehypeRaw,  // 处理 HTML 内容
+            [rehypeKatex, {  // 处理数学公式
               strict: false,
               throwOnError: false,
               errorColor: '#cc0000',
@@ -501,6 +658,7 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
         >
           {processedContent}
         </ReactMarkdown>
+        )}
       </div>
     </div>
   );

@@ -38,8 +38,6 @@ class ProcessingTask(BaseModel):
     # Processing metadata
     processing_started_at: Optional[str] = None
     processing_duration: Optional[float] = Field(None, description="Processing duration in seconds")
-    extraction_type: Optional[str] = Field(None, description="Type of extraction performed")
-    split_pages: Optional[bool] = Field(None, description="Whether pages were split during processing")
     from_cache: Optional[bool] = Field(False, description="Whether the result was loaded from cache")
     updated_at: Optional[str] = Field(None, description="Last update timestamp")
     
@@ -66,7 +64,6 @@ class DocumentMetadata(BaseModel):
     total_pages: int
     processing_time: float
     file_size: int
-    extraction_type: Literal['standard', 'split', 'text', 'formula', 'table']
 
 
 class DocumentResult(BaseModel):
@@ -92,8 +89,7 @@ class APIResponse(BaseModel, Generic[T]):
 
 class UploadRequest(BaseModel):
     """File upload request model"""
-    extract_type: Literal['standard', 'split', 'text', 'formula', 'table'] = 'standard'
-    split_pages: bool = False
+    # No extraction type needed - always uses standard mode
 
 
 class TaskStatusResponse(APIResponse[ProcessingTask]):
