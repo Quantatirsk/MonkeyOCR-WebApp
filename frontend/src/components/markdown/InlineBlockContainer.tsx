@@ -173,6 +173,13 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   children,
   ...props
 }) => {
+  // Filter out non-HTML props that might be passed from parent components
+  const {
+    onRefreshTranslation,
+    onRefreshExplanation,
+    explanations,
+    ...htmlProps
+  } = props;
   const [isSelected, setIsSelected] = useState(false);
   
   const currentBlockData = useMemo(() => 
@@ -262,7 +269,7 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   if (shouldShowTranslation) {
     return (
       <div 
-        {...props} 
+        {...htmlProps} 
         className={`block-container inline-translation-container with-translation ${isSelected ? 'selected' : ''}`}
         onClick={handleBlockClick}
       >
@@ -465,7 +472,7 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   
   // 没有翻译时，使用普通容器
   return (
-    <div {...props} className="block-container inline-translation-container">
+    <div {...htmlProps} className="block-container inline-translation-container">
       <div className="block-content-wrapper original-content">
         {children}
       </div>
