@@ -32,6 +32,11 @@ npm run lint                # Run ESLint with TypeScript checking
 npm run preview             # Preview production build
 ```
 
+#### 检查编译错误
+```bash
+npx tsc --noEmit
+```
+
 ### Backend Development
 
 ```bash

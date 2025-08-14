@@ -43,7 +43,7 @@ const initialState: AppState = {
   searchQuery: '',
   theme: 'light',
   // taskListVisible 已迁移到 uiStore
-  activeDocumentTab: 'preview',
+  activeDocumentTab: 'compare',
   // Sync state (not persisted)
   syncStatus: null,
   isInitialized: false

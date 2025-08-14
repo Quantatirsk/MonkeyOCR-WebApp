@@ -3,7 +3,7 @@
  * Enhanced Markdown renderer with block marking and sync capabilities
  */
 
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -11,6 +11,19 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+// Import specific languages for better performance
+import typescript from 'react-syntax-highlighter/dist/cjs/languages/prism/typescript';
+import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
+import python from 'react-syntax-highlighter/dist/cjs/languages/prism/python';
+import bash from 'react-syntax-highlighter/dist/cjs/languages/prism/bash';
+import json from 'react-syntax-highlighter/dist/cjs/languages/prism/json';
+import markdown from 'react-syntax-highlighter/dist/cjs/languages/prism/markdown';
+import css from 'react-syntax-highlighter/dist/cjs/languages/prism/css';
+import sql from 'react-syntax-highlighter/dist/cjs/languages/prism/sql';
+import yaml from 'react-syntax-highlighter/dist/cjs/languages/prism/yaml';
+import { Copy, Check } from 'lucide-react';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
@@ -18,6 +31,24 @@ import { TooltipProvider } from '../ui/tooltip';
 import { BlockContainer } from './BlockContainer';
 import { InlineBlockContainer } from './InlineBlockContainer';
 import './block-styles.css';
+import './code-block-styles.css';
+
+// Register languages
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('ts', typescript);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('js', javascript);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('py', python);
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('sh', bash);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('markdown', markdown);
+SyntaxHighlighter.registerLanguage('md', markdown);
+SyntaxHighlighter.registerLanguage('css', css);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('yaml', yaml);
+SyntaxHighlighter.registerLanguage('yml', yaml);
 
 export interface BlockMarkdownViewerProps {
   /** Markdown content to render */
@@ -66,6 +97,71 @@ interface BlockMapping {
   paragraphIndex: number;
   blockType: 'text' | 'title' | 'image' | 'table' | 'interline_equation';
 }
+
+// Code block component with copy functionality
+const CodeBlock: React.FC<{
+  language?: string;
+  value: string;
+  inline?: boolean;
+}> = ({ language, value, inline }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  if (inline) {
+    return (
+      <code className="markdown-inline-code">
+        {value}
+      </code>
+    );
+  }
+
+  return (
+    <div className="markdown-code-block-container">
+      <div className="markdown-code-header">
+        <span className="markdown-code-language">
+          {language || 'plaintext'}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="markdown-code-copy-button"
+          aria-label="Copy code"
+        >
+          {copied ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+          <span className="markdown-code-copy-text">
+            {copied ? 'Copied!' : 'Copy'}
+          </span>
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language || 'plaintext'}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          borderRadius: '0 0 0.375rem 0.375rem',
+          fontSize: '0.875rem',
+        }}
+        showLineNumbers={true}
+        wrapLines={false}
+        wrapLongLines={false}
+      >
+        {value}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
 
 
 
@@ -270,6 +366,28 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
 
   // Process content to escape non-HTML angle brackets
   const processedContent = useMemo(() => {
+    // First, let's identify and protect code blocks
+    const codeBlockRegex = /```[\s\S]*?```/g;
+    const inlineCodeRegex = /`[^`]+`/g;
+    
+    // Store code blocks and replace them with placeholders
+    const codeBlocks: string[] = [];
+    let tempContent = content;
+    
+    // Replace code blocks with placeholders
+    tempContent = tempContent.replace(codeBlockRegex, (match) => {
+      const index = codeBlocks.length;
+      codeBlocks.push(match);
+      return `__CODE_BLOCK_${index}__`;
+    });
+    
+    // Replace inline code with placeholders
+    tempContent = tempContent.replace(inlineCodeRegex, (match) => {
+      const index = codeBlocks.length;
+      codeBlocks.push(match);
+      return `__CODE_BLOCK_${index}__`;
+    });
+    
     // List of valid HTML tags that should not be escaped
     const validHtmlTags = [
       'div', 'span', 'p', 'a', 'img', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
@@ -293,7 +411,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     // First, find all valid HTML tags and store their positions
     let match;
     const regex = new RegExp(htmlPattern);
-    while ((match = regex.exec(content)) !== null) {
+    while ((match = regex.exec(tempContent)) !== null) {
       htmlMatches.push({
         start: match.index,
         end: match.index + match[0].length,
@@ -310,7 +428,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     
     for (const htmlMatch of htmlMatches) {
       // Process the text before this HTML tag
-      const textBefore = content.substring(lastIndex, htmlMatch.start);
+      const textBefore = tempContent.substring(lastIndex, htmlMatch.start);
       // Escape angle brackets in non-HTML text
       const escapedText = textBefore.replace(/</g, '&lt;').replace(/>/g, '&gt;');
       processedResult += escapedText;
@@ -322,9 +440,14 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     }
     
     // Process any remaining text after the last HTML tag
-    const remainingText = content.substring(lastIndex);
+    const remainingText = tempContent.substring(lastIndex);
     const escapedRemaining = remainingText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     processedResult += escapedRemaining;
+    
+    // Restore code blocks
+    codeBlocks.forEach((block, index) => {
+      processedResult = processedResult.replace(`__CODE_BLOCK_${index}__`, block);
+    });
     
     return processedResult;
   }, [content]);
@@ -566,19 +689,56 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
       );
     },
 
-    // Custom code block renderer
-    pre: ({ children, ...props }: any) => (
-      <pre {...props} className="markdown-code-block">
-        {children}
-      </pre>
-    ),
+    // Custom code block renderer with syntax highlighting
+    pre: ({ children, ...props }: any) => {
+      // Extract the code element from pre
+      if (children?.props?.children) {
+        const className = children.props.className || '';
+        const match = /language-(\w+)/.exec(className);
+        const language = match ? match[1] : undefined;
+        const codeString = String(children.props.children).replace(/\n$/, '');
+        
+        return (
+          <CodeBlock
+            language={language}
+            value={codeString}
+            inline={false}
+          />
+        );
+      }
+      
+      // Fallback for non-standard code blocks
+      return (
+        <pre {...props} className="markdown-code-block">
+          {children}
+        </pre>
+      );
+    },
 
     // Custom inline code renderer
-    code: ({ children, ...props }: any) => (
-      <code {...props} className="markdown-inline-code">
-        {children}
-      </code>
-    ),
+    code: ({ inline, className, children, ...props }: any) => {
+      const match = /language-(\w+)/.exec(className || '');
+      const language = match ? match[1] : undefined;
+      
+      // For inline code, just render as simple code element
+      if (inline !== false) {
+        return (
+          <code className="markdown-inline-code" {...props}>
+            {children}
+          </code>
+        );
+      }
+      
+      // For block code (when used without pre), use CodeBlock
+      const codeString = String(children).replace(/\n$/, '');
+      return (
+        <CodeBlock
+          language={language}
+          value={codeString}
+          inline={false}
+        />
+      );
+    },
 
     // Custom blockquote renderer
     blockquote: ({ children, ...props }: any) => (

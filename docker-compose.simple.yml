@@ -12,7 +12,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     volumes:
-      - ./data:/app/data
+      - data:/app/data
+      - static:/app/static
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -40,6 +41,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+
+volumes:
+  ocr_data:
+  ocr_static:
+
 
 networks:
   api-network:

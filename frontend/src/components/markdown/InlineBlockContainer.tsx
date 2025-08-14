@@ -12,11 +12,41 @@ import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { Copy } from 'lucide-react';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+// Import specific languages for better performance
+import typescript from 'react-syntax-highlighter/dist/cjs/languages/prism/typescript';
+import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
+import python from 'react-syntax-highlighter/dist/cjs/languages/prism/python';
+import bash from 'react-syntax-highlighter/dist/cjs/languages/prism/bash';
+import json from 'react-syntax-highlighter/dist/cjs/languages/prism/json';
+import markdown from 'react-syntax-highlighter/dist/cjs/languages/prism/markdown';
+import css from 'react-syntax-highlighter/dist/cjs/languages/prism/css';
+import sql from 'react-syntax-highlighter/dist/cjs/languages/prism/sql';
+import yaml from 'react-syntax-highlighter/dist/cjs/languages/prism/yaml';
+import { Copy, Check } from 'lucide-react';
 import { BlockData } from '../../types';
 import { BlockProcessor } from '../../utils/blockProcessor';
 import { getStaticFileUrl } from '../../config';
 import { toast } from 'sonner';
+import './code-block-styles.css';
+
+// Register languages
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('ts', typescript);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('js', javascript);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('py', python);
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('sh', bash);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('markdown', markdown);
+SyntaxHighlighter.registerLanguage('md', markdown);
+SyntaxHighlighter.registerLanguage('css', css);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('yaml', yaml);
+SyntaxHighlighter.registerLanguage('yml', yaml);
 
 interface InlineBlockContainerProps {
   blockIndex: number;
@@ -37,6 +67,71 @@ interface InlineBlockContainerProps {
   children: React.ReactNode;
   [key: string]: any;
 }
+
+// Code block component with copy functionality
+const CodeBlock: React.FC<{
+  language?: string;
+  value: string;
+  inline?: boolean;
+}> = ({ language, value, inline }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  if (inline) {
+    return (
+      <code className="markdown-inline-code">
+        {value}
+      </code>
+    );
+  }
+
+  return (
+    <div className="markdown-code-block-container">
+      <div className="markdown-code-header">
+        <span className="markdown-code-language">
+          {language || 'plaintext'}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="markdown-code-copy-button"
+          aria-label="Copy code"
+        >
+          {copied ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+          <span className="markdown-code-copy-text">
+            {copied ? 'Copied!' : 'Copy'}
+          </span>
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language || 'plaintext'}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          borderRadius: '0 0 0.375rem 0.375rem',
+          fontSize: '0.875rem',
+        }}
+        showLineNumbers={true}
+        wrapLines={false}
+        wrapLongLines={false}
+      >
+        {value}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
 
 // 从 BlockMarkdownViewer 复制的处理函数
 function processChildrenWithLatex(children: any): any {
@@ -435,17 +530,55 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
                     {processChildrenWithLatex(children)}
                   </li>
                 ),
-                // 代码
-                pre: ({ children, ...props }: any) => (
-                  <pre {...props} className="markdown-code-block">
-                    {children}
-                  </pre>
-                ),
-                code: ({ children, ...props }: any) => (
-                  <code {...props} className="markdown-inline-code">
-                    {children}
-                  </code>
-                ),
+                // Custom code block renderer with syntax highlighting
+                pre: ({ children, ...props }: any) => {
+                  // Extract the code element from pre
+                  if (children?.props?.children) {
+                    const className = children.props.className || '';
+                    const match = /language-(\w+)/.exec(className);
+                    const language = match ? match[1] : undefined;
+                    const codeString = String(children.props.children).replace(/\n$/, '');
+                    
+                    return (
+                      <CodeBlock
+                        language={language}
+                        value={codeString}
+                        inline={false}
+                      />
+                    );
+                  }
+                  
+                  // Fallback for non-standard code blocks
+                  return (
+                    <pre {...props} className="markdown-code-block">
+                      {children}
+                    </pre>
+                  );
+                },
+                // Custom inline code renderer
+                code: ({ inline, className, children, ...props }: any) => {
+                  const match = /language-(\w+)/.exec(className || '');
+                  const language = match ? match[1] : undefined;
+                  
+                  // For inline code, just render as simple code element
+                  if (inline !== false) {
+                    return (
+                      <code className="markdown-inline-code" {...props}>
+                        {children}
+                      </code>
+                    );
+                  }
+                  
+                  // For block code (when used without pre), use CodeBlock
+                  const codeString = String(children).replace(/\n$/, '');
+                  return (
+                    <CodeBlock
+                      language={language}
+                      value={codeString}
+                      inline={false}
+                    />
+                  );
+                },
                 // 引用
                 blockquote: ({ children, ...props }: any) => (
                   <blockquote {...props} className="markdown-blockquote">

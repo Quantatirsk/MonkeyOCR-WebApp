@@ -1,0 +1,104 @@
+/* API Documentation Styles */
+.api-documentation {
+  padding: 1rem;
+}
+
+.api-documentation .markdown-content {
+  max-width: none;
+}
+
+.api-documentation pre {
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.375rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.api-documentation code {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.875rem;
+}
+
+.api-documentation .markdown-inline-code {
+  background-color: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  color: hsl(var(--primary));
+}
+
+.api-documentation h1 {
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+.api-documentation h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: hsl(var(--foreground));
+}
+
+.api-documentation h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.api-documentation ul,
+.api-documentation ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.api-documentation li {
+  margin: 0.25rem 0;
+  line-height: 1.6;
+}
+
+.api-documentation p {
+  line-height: 1.6;
+  margin: 0.75rem 0;
+}
+
+.api-documentation strong {
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+/* Syntax highlighting for code blocks */
+.api-documentation .hljs-keyword,
+.api-documentation .hljs-selector-tag,
+.api-documentation .hljs-literal,
+.api-documentation .hljs-title,
+.api-documentation .hljs-section,
+.api-documentation .hljs-doctag,
+.api-documentation .hljs-type,
+.api-documentation .hljs-name,
+.api-documentation .hljs-strong {
+  font-weight: 600;
+}
+
+.api-documentation .hljs-string,
+.api-documentation .hljs-number,
+.api-documentation .hljs-quote,
+.api-documentation .hljs-meta,
+.api-documentation .hljs-symbol,
+.api-documentation .hljs-bullet,
+.api-documentation .hljs-link,
+.api-documentation .hljs-deletion,
+.api-documentation .hljs-variable,
+.api-documentation .hljs-template-variable,
+.api-documentation .hljs-attr,
+.api-documentation .hljs-attribute,
+.api-documentation .hljs-built_in {
+  color: hsl(var(--primary));
+}

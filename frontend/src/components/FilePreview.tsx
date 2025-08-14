@@ -20,6 +20,7 @@ import {
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
 import { Badge } from './ui/badge';
+import { Skeleton } from './ui/skeleton';
 import { ProcessingTask, BlockData, BlockSelection } from '../types';
 import { syncManager } from '../utils/syncManager';
 import { PDFBlockOverlay } from './pdf/PDFBlockOverlay';
@@ -367,17 +368,52 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setError('无法加载PDF文件');
   }, []);
 
-  // Loading state - unified loading animation matching the markdown side
+  // Loading state - skeleton screen matching the document structure
   if (isLoadingFile || isAuthenticating) {
     return (
-      <div className={`${className} h-full flex items-center justify-center bg-background`}>
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center space-x-2">
-            <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
-            <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
-            <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
+      <div className={`${className} h-full overflow-auto bg-muted/5`}>
+        <div className="p-8 space-y-4">
+          {/* 标题骨架 */}
+          <Skeleton className="h-8 w-3/4" />
+          
+          {/* 第一段内容骨架 */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
           </div>
-          <p className="text-sm text-muted-foreground">正在加载文档...</p>
+          
+          {/* 副标题骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+          
+          {/* 额外段落骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+          
+          {/* 更多内容骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-6 w-2/5" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+          
+          {/* 额外段落骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
         </div>
       </div>
     );

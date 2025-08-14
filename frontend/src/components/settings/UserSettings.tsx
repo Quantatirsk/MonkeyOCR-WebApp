@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Settings2, Languages, Sparkles, Globe, Zap, Brain } from 'lucide-react';
+import { Settings2, Languages, Sparkles, Globe, Zap, Brain, Key, Copy, Eye, EyeOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -31,8 +31,10 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useUserPreferencesStore } from '@/store/userPreferencesStore';
+import { useAuthStore } from '@/store/authStore';
 import { llmWrapper } from '@/lib/llmwrapper';
 import { mtTranslationService } from '@/services/mtTranslationService';
 
@@ -57,9 +59,12 @@ export const UserSettings: React.FC<UserSettingsProps> = ({ isOpen, onClose }) =
     resetToDefaults,
   } = useUserPreferencesStore();
 
+  const { token } = useAuthStore();
+
   const [llmModels, setLLMModels] = useState<LLMModel[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [mtAvailable, setMtAvailable] = useState(true);
+  const [showToken, setShowToken] = useState(false);
 
   // Load available LLM models
   useEffect(() => {
@@ -113,6 +118,21 @@ export const UserSettings: React.FC<UserSettingsProps> = ({ isOpen, onClose }) =
     toast.info('已恢复默认设置', { duration: 2000 });
   };
 
+  const handleCopyToken = async () => {
+    if (token) {
+      try {
+        await navigator.clipboard.writeText(token);
+        toast.success('Token 已复制到剪贴板', { duration: 2000 });
+      } catch (error) {
+        toast.error('复制失败，请手动选择复制');
+      }
+    }
+  };
+
+  const toggleTokenVisibility = () => {
+    setShowToken(!showToken);
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[720px] max-h-[85vh]">
@@ -128,8 +148,10 @@ export const UserSettings: React.FC<UserSettingsProps> = ({ isOpen, onClose }) =
           </DialogHeader>
 
           <div className="grid gap-4 py-4 lg:grid-cols-2 flex-1 overflow-y-auto">
-          {/* AI Model Configuration - Always visible */}
-          <Card className="h-fit">
+          {/* Left Column */}
+          <div className="space-y-4">
+            {/* AI Model Configuration */}
+            <Card className="h-fit">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Brain className="h-4 w-4" />
@@ -167,8 +189,58 @@ export const UserSettings: React.FC<UserSettingsProps> = ({ isOpen, onClose }) =
             </CardContent>
           </Card>
 
-          {/* Translation Settings */}
+          {/* API Token Card */}
           <Card className="h-fit">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                API Token
+              </CardTitle>
+              <CardDescription className="text-xs">
+                用于 API 调用的身份认证
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showToken ? "text" : "password"}
+                    value={token || ''}
+                    readOnly
+                    className="pr-10 font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={toggleTokenVisibility}
+                  >
+                    {showToken ? (
+                      <EyeOff className="h-3 w-3 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-3 w-3 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyToken}
+                >
+                  <Copy className="h-3 w-3" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                请妥善保管，不要分享给他人
+              </p>
+            </CardContent>
+          </Card>
+          </div>
+
+          {/* Right Column - Translation Settings */}
+          <Card className="h-full">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Languages className="h-4 w-4" />

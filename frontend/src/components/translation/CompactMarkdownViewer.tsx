@@ -4,7 +4,7 @@
  * 特点：极小字号、紧凑间距、保持表格和公式渲染正确性
  */
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import 'katex/dist/katex.min.css';
 import { getStaticFileUrl } from '../../config';
@@ -13,6 +13,37 @@ import rehypeRaw from 'rehype-raw';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import katex from 'katex';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+// Import specific languages for better performance
+import typescript from 'react-syntax-highlighter/dist/cjs/languages/prism/typescript';
+import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
+import python from 'react-syntax-highlighter/dist/cjs/languages/prism/python';
+import bash from 'react-syntax-highlighter/dist/cjs/languages/prism/bash';
+import json from 'react-syntax-highlighter/dist/cjs/languages/prism/json';
+import markdown from 'react-syntax-highlighter/dist/cjs/languages/prism/markdown';
+import css from 'react-syntax-highlighter/dist/cjs/languages/prism/css';
+import sql from 'react-syntax-highlighter/dist/cjs/languages/prism/sql';
+import yaml from 'react-syntax-highlighter/dist/cjs/languages/prism/yaml';
+import { Copy, Check } from 'lucide-react';
+import '../markdown/code-block-styles.css';
+
+// Register languages
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('ts', typescript);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('js', javascript);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('py', python);
+SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('sh', bash);
+SyntaxHighlighter.registerLanguage('json', json);
+SyntaxHighlighter.registerLanguage('markdown', markdown);
+SyntaxHighlighter.registerLanguage('md', markdown);
+SyntaxHighlighter.registerLanguage('css', css);
+SyntaxHighlighter.registerLanguage('sql', sql);
+SyntaxHighlighter.registerLanguage('yaml', yaml);
+SyntaxHighlighter.registerLanguage('yml', yaml);
 
 interface CompactMarkdownViewerProps {
   content: string;
@@ -20,6 +51,71 @@ interface CompactMarkdownViewerProps {
   overlayType?: 'translate' | 'explain';
   useCompactStyle?: boolean; // 是否使用紧凑样式，默认为true
 }
+
+// Code block component with copy functionality
+const CodeBlock: React.FC<{
+  language?: string;
+  value: string;
+  inline?: boolean;
+}> = ({ language, value, inline }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  if (inline) {
+    return (
+      <code className="markdown-inline-code">
+        {value}
+      </code>
+    );
+  }
+
+  return (
+    <div className="markdown-code-block-container">
+      <div className="markdown-code-header">
+        <span className="markdown-code-language">
+          {language || 'plaintext'}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="markdown-code-copy-button"
+          aria-label="Copy code"
+        >
+          {copied ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+          <span className="markdown-code-copy-text">
+            {copied ? 'Copied!' : 'Copy'}
+          </span>
+        </button>
+      </div>
+      <SyntaxHighlighter
+        language={language || 'plaintext'}
+        style={oneDark}
+        customStyle={{
+          margin: 0,
+          borderRadius: '0 0 0.375rem 0.375rem',
+          fontSize: '0.875rem',
+        }}
+        showLineNumbers={true}
+        wrapLines={false}
+        wrapLongLines={false}
+      >
+        {value}
+      </SyntaxHighlighter>
+    </div>
+  );
+};
 
 // 处理数学公式和格式标记 - 与 BlockMarkdownViewer 保持一致
 function processWithMathAndFormatting(text: string): React.ReactNode {
@@ -508,8 +604,30 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
   const processedContent = useMemo(() => {
     if (!content) return '';
 
+    // 首先，保护代码块避免被处理
+    const codeBlockRegex = /```[\s\S]*?```/g;
+    const inlineCodeRegex = /`[^`]+`/g;
+    
+    // 存储代码块并替换为占位符
+    const codeBlocks: string[] = [];
+    let processed = content;
+    
+    // 替换代码块为占位符
+    processed = processed.replace(codeBlockRegex, (match) => {
+      const index = codeBlocks.length;
+      codeBlocks.push(match);
+      return `__CODE_BLOCK_${index}__`;
+    });
+    
+    // 替换内联代码为占位符
+    processed = processed.replace(inlineCodeRegex, (match) => {
+      const index = codeBlocks.length;
+      codeBlocks.push(match);
+      return `__CODE_BLOCK_${index}__`;
+    });
+
     // 处理图片路径
-    let processed = content.replace(
+    processed = processed.replace(
       /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
       (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
     );
@@ -523,6 +641,11 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
       processed = '\n' + processed.trim() + '\n';
       console.log('🔍 检测到HTML表格内容，已处理:', processed.substring(0, 200));
     }
+
+    // 恢复代码块
+    codeBlocks.forEach((block, index) => {
+      processed = processed.replace(`__CODE_BLOCK_${index}__`, block);
+    });
 
     return processed;
   }, [content]);
@@ -628,6 +751,55 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
                 {processChildrenWithLatex(children)}
               </li>
             ),
+            // Custom code block renderer with syntax highlighting
+            pre: ({ children, ...props }: any) => {
+              // Extract the code element from pre
+              if (children?.props?.children) {
+                const className = children.props.className || '';
+                const match = /language-(\w+)/.exec(className);
+                const language = match ? match[1] : undefined;
+                const codeString = String(children.props.children).replace(/\n$/, '');
+                
+                return (
+                  <CodeBlock
+                    language={language}
+                    value={codeString}
+                    inline={false}
+                  />
+                );
+              }
+              
+              // Fallback for non-standard code blocks
+              return (
+                <pre {...props} className="markdown-code-block">
+                  {children}
+                </pre>
+              );
+            },
+            // Custom inline code renderer
+            code: ({ inline, className, children, ...props }: any) => {
+              const match = /language-(\w+)/.exec(className || '');
+              const language = match ? match[1] : undefined;
+              
+              // For inline code, just render as simple code element
+              if (inline !== false) {
+                return (
+                  <code className="markdown-inline-code" {...props}>
+                    {children}
+                  </code>
+                );
+              }
+              
+              // For block code (when used without pre), use CodeBlock
+              const codeString = String(children).replace(/\n$/, '');
+              return (
+                <CodeBlock
+                  language={language}
+                  value={codeString}
+                  inline={false}
+                />
+              );
+            },
           }}
           // 重要：正确的插件顺序
           remarkPlugins={[

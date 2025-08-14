@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Settings, ChevronDown } from 'lucide-react';
+import { LogOut, Settings, ChevronDown, FileText } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { UserSettings } from '@/components/settings/UserSettings';
+import { ApiDocumentation } from '@/components/settings/ApiDocumentation';
 
 interface UserMenuProps {
   user: {
@@ -37,6 +38,7 @@ export function UserMenu({
 }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isApiDocOpen, setIsApiDocOpen] = useState(false);
 
   // Get user initials for avatar fallback
   const getInitials = (username: string) => {
@@ -129,6 +131,16 @@ export function UserMenu({
           <span>设置</span>
         </DropdownMenuItem>
         
+        <DropdownMenuItem
+          onClick={() => {
+            setIsApiDocOpen(true);
+          }}
+          className="cursor-pointer"
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          <span>API 调用文档</span>
+        </DropdownMenuItem>
+        
         <DropdownMenuSeparator />
         
         <DropdownMenuItem
@@ -145,6 +157,12 @@ export function UserMenu({
     <UserSettings 
       isOpen={isSettingsOpen} 
       onClose={() => setIsSettingsOpen(false)} 
+    />
+    
+    {/* API Documentation Dialog */}
+    <ApiDocumentation
+      isOpen={isApiDocOpen}
+      onClose={() => setIsApiDocOpen(false)}
     />
     </>
   );

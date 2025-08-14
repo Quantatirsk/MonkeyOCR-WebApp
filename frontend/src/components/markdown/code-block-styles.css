@@ -1,0 +1,140 @@
+/* Code Block Styles */
+.markdown-code-block-container {
+  position: relative;
+  margin: 1rem 0;
+  border-radius: 0.375rem;
+  background-color: #282c34;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.markdown-code-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: #21252b;
+  border-bottom: 1px solid #181a1f;
+}
+
+.markdown-code-language {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #abb2bf;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.markdown-code-copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #abb2bf;
+  background-color: transparent;
+  border: 1px solid #3e4451;
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.markdown-code-copy-button:hover {
+  color: #e5e7eb;
+  background-color: #3e4451;
+  border-color: #4b5563;
+}
+
+.markdown-code-copy-button:active {
+  transform: scale(0.95);
+}
+
+.markdown-code-copy-text {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .markdown-code-copy-text {
+    display: inline;
+  }
+}
+
+/* Inline code styles */
+.markdown-inline-code {
+  padding: 0.125rem 0.375rem;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 0.875em;
+  font-weight: 500;
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.25rem;
+  color: hsl(var(--primary));
+}
+
+/* Dark mode adjustments */
+.dark .markdown-code-block-container {
+  background-color: #1e1e1e;
+}
+
+.dark .markdown-code-header {
+  background-color: #161616;
+  border-bottom-color: #0d0d0d;
+}
+
+.dark .markdown-code-language {
+  color: #9ca3af;
+}
+
+.dark .markdown-code-copy-button {
+  color: #9ca3af;
+  border-color: #374151;
+}
+
+.dark .markdown-code-copy-button:hover {
+  color: #f3f4f6;
+  background-color: #374151;
+  border-color: #4b5563;
+}
+
+/* Override syntax highlighter line number styles */
+.markdown-code-block-container .linenumber {
+  min-width: 2.5em !important;
+  padding-right: 1em !important;
+  color: #636d83 !important;
+  user-select: none;
+}
+
+/* Ensure code is selectable but line numbers are not */
+.markdown-code-block-container code {
+  user-select: text;
+  white-space: pre;
+}
+
+/* Code block scrolling */
+.markdown-code-block-container pre {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: pre;
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 transparent;
+  max-width: 100%;
+}
+
+.markdown-code-block-container pre::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.markdown-code-block-container pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.markdown-code-block-container pre::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+  border-radius: 3px;
+}
+
+.markdown-code-block-container pre::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
+}

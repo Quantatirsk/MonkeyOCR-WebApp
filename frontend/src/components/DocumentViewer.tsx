@@ -9,6 +9,7 @@ import { FileText, ArrowLeftRight, Eye, RotateCw, Image, Languages } from 'lucid
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
+import { Skeleton } from './ui/skeleton';
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -257,14 +258,40 @@ const BlockSyncMarkdownPanel = React.memo(({
   if (isWaitingForBlockData) {
     return (
       <div className="flex-1 overflow-hidden block-sync-markdown-panel">
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center space-x-2">
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
-            </div>
-            <p className="text-sm text-muted-foreground">正在加载区块数据...</p>
+        <div className="p-3 pr-4 space-y-4">
+          {/* 主标题骨架 */}
+          <Skeleton className="h-8 w-2/3" />
+          
+          {/* 第一个段落骨架 */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-4/5" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+          
+          {/* 副标题骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+          
+          {/* 更多内容骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-5/6" />
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-4/5" />
+          </div>
+          
+          {/* 额外段落骨架 */}
+          <div className="space-y-2 mt-6">
+            <Skeleton className="h-6 w-2/5" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
           </div>
         </div>
       </div>
@@ -342,15 +369,50 @@ const PDFPreviewPanel = (props: any) => {
   return (
     <div className="flex-1 overflow-hidden">
       {!shouldRenderPDF ? (
-        // 等待期间显示轻量级占位符
-        <div className="h-full flex items-center justify-center bg-muted/5">
-          <div className="text-center space-y-2">
-            <div className="inline-flex items-center space-x-2">
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
-              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
+        // 等待期间显示骨架屏
+        <div className="h-full overflow-auto bg-muted/5">
+          <div className="p-8 space-y-4">
+            {/* 标题骨架 */}
+            <Skeleton className="h-8 w-3/4" />
+            
+            {/* 第一段内容骨架 */}
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
             </div>
-            <p className="text-sm text-muted-foreground">正在加载文档...</p>
+            
+            {/* 副标题骨架 */}
+            <div className="space-y-2 mt-6">
+              <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+            
+            {/* 额外段落骨架 */}
+            <div className="space-y-2 mt-6">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            
+            {/* 更多内容骨架 */}
+            <div className="space-y-2 mt-6">
+              <Skeleton className="h-6 w-2/5" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+            
+            {/* 额外段落骨架 */}
+            <div className="space-y-2 mt-6">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
           </div>
         </div>
       ) : (
@@ -375,12 +437,6 @@ const PDFPreviewPanel = (props: any) => {
   );
 };
 
-// Standard preview panel
-const StandardPreviewPanel = React.memo(({ task }: { task: any }) => (
-  <div className="w-full h-full">
-    <FilePreview key={`shared-${task.id}`} task={task} className="w-full h-full" />
-  </div>
-));
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
   // 使用精准选择器，避免订阅不需要的状态
@@ -646,10 +702,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
 
           {/* Content Area */}
           <div className="flex-1 relative overflow-hidden">
-            {/* Preview tab */}
-            <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.PREVIEW ? 'block' : 'hidden'}`}>
-              {currentTask && <StandardPreviewPanel task={currentTask} />}
-            </div>
 
             {/* Compare tab - Split view */}
             <div className={`absolute inset-0 ${activeDocumentTab === TAB_TYPES.COMPARE ? 'block' : 'hidden'} document-viewer-container`}>

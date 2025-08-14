@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Monitor, ArrowLeftRight, Image, Eye, Languages } from 'lucide-react';
+import { ArrowLeftRight, Image, Eye, Languages } from 'lucide-react';
 import { TAB_TYPES, type TabType } from './constants';
 
 interface TabNavigationProps {
@@ -16,7 +16,6 @@ interface TabNavigationProps {
 }
 
 const TAB_ICONS = {
-  [TAB_TYPES.PREVIEW]: Monitor,
   [TAB_TYPES.COMPARE]: ArrowLeftRight,
   [TAB_TYPES.TRANSLATION]: Languages,
   [TAB_TYPES.IMAGES]: Image,
@@ -24,7 +23,6 @@ const TAB_ICONS = {
 };
 
 const TAB_LABELS = {
-  [TAB_TYPES.PREVIEW]: '预览',
   [TAB_TYPES.COMPARE]: '对照',
   [TAB_TYPES.TRANSLATION]: '翻译',
   [TAB_TYPES.IMAGES]: '图片',
@@ -40,14 +38,13 @@ export const TabNavigation: React.FC<TabNavigationProps> = React.memo(({
 }) => {
   const tabs = Object.values(TAB_TYPES);
 
-  const isTabDisabled = (tab: TabType) => {
-    if (tab === TAB_TYPES.PREVIEW) return false;
+  const isTabDisabled = (_tab: TabType) => {
     return !hasResult;
   };
 
   return (
     <div className="border-b flex-shrink-0">
-      <div className="grid w-full grid-cols-5 h-10">
+      <div className="grid w-full grid-cols-4 h-10">
         {tabs.map((tab) => {
           const Icon = TAB_ICONS[tab];
           const label = TAB_LABELS[tab];
@@ -74,7 +71,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = React.memo(({
                 {label}
                 {tab === TAB_TYPES.IMAGES && ` (${imageCount})`}
               </span>
-              {isCompleted && hasResult && tab !== TAB_TYPES.PREVIEW && (
+              {isCompleted && hasResult && (
                 <span className="text-xs text-green-500 ml-1">✓</span>
               )}
             </button>
