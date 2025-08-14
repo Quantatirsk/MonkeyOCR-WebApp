@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { shallow } from 'zustand/shallow';
 import { 
   Clock, 
   AlertCircle, 
@@ -33,6 +34,7 @@ import {
 } from './ui/alert-dialog';
 import { useAppStore } from '../store/appStore';
 import { useAuthStore } from '../store/authStore';
+import { useUIStore } from '../store/uiStore';
 import { ProcessingTask } from '../types';
 import { apiClient } from '../api/client';
 import { toast } from 'sonner';
@@ -47,16 +49,25 @@ export const TaskList: React.FC<TaskListProps> = ({
   className = '',
   showCompleted = true
 }) => {
-  const { 
-    tasks, 
-    currentTaskId, 
-    setCurrentTask, 
-    removeTask, 
-    uploadFiles,
-    results,
-    initializeSync,
-    syncWithServer
-  } = useAppStore();
+  // 使用精准选择器订阅，避免不必要的重渲染
+  const currentTaskId = useAppStore(state => state.currentTaskId);
+  const setCurrentTask = useAppStore(state => state.setCurrentTask);
+  const removeTask = useAppStore(state => state.removeTask);
+  const uploadFiles = useAppStore(state => state.uploadFiles);
+  const initializeSync = useAppStore(state => state.initializeSync);
+  const syncWithServer = useAppStore(state => state.syncWithServer);
+  
+  // 使用 shallow 比较防止引用变化触发重渲染
+  const { tasks, results } = useAppStore(
+    state => ({ 
+      tasks: state.tasks, 
+      results: state.results 
+    }),
+    shallow  // 浅比较：只要内容相同就不触发重渲染
+  );
+  
+  // 使用独立的 UI Store
+  const setTaskListVisible = useUIStore(state => state.setTaskListVisible);
   
   // Get auth state to detect when user logs in
   const { isAuthenticated, token } = useAuthStore();
@@ -519,6 +530,9 @@ export const TaskList: React.FC<TaskListProps> = ({
   // Handle task selection
   const handleTaskSelect = (task: ProcessingTask) => {
     setCurrentTask(task.id);
+    
+    // Auto-collapse task list after selection
+    setTaskListVisible(false);
   };
 
   // Handle task retry

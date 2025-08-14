@@ -15,8 +15,6 @@ export type StreamType = 'translate' | 'explain';
 
 // 区块操作状态
 export interface BlockActionState {
-  /** 当前选中的区块索引 */
-  selectedBlockIndex: number | null;
   /** 当前操作模式 */
   actionMode: ActionMode;
   /** 正在处理中的区块索引集合 */
@@ -75,11 +73,6 @@ export interface UseBlockActionsReturn {
   // 状态
   actionState: BlockActionState;
   streamingState: StreamingState;
-  
-  // 当前选中区块信息
-  selectedBlock: BlockData | null;
-  hasTranslation: boolean;
-  hasExplanation: boolean;
   
   // 操作方法
   translateBlock: (blockIndex: number, force?: boolean) => Promise<void>;

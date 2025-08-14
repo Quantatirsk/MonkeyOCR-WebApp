@@ -44,7 +44,9 @@ export const UploadZone: React.FC<UploadZoneProps> = ({
   className = '', 
   disabled = false 
 }) => {
-  const { isUploading, uploadFiles } = useAppStore();
+  // 使用精准选择器，避免不必要的重渲染
+  const isUploading = useAppStore(state => state.isUploading);
+  const uploadFiles = useAppStore(state => state.uploadFiles);
   const [uploadQueue, setUploadQueue] = useState<FileUploadItem[]>([]);
   // Upload options (only public/private setting now)
   const uploadOptions: UploadOptions = {};

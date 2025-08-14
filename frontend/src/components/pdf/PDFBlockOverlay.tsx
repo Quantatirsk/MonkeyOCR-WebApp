@@ -59,15 +59,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     const blocksForPage = BlockProcessor.getBlocksForPage(blocks, pageNumber);
     // Sort by index (semantic reading order) to match Markdown generation order
     // This ensures consistent mapping between PDF and Markdown content even in complex layouts
-    const sorted = blocksForPage.sort((a, b) => a.index - b.index);
-    
-    // console.log(`📋 PDF Page ${pageNumber} blocks order (by index):`, sorted.map(b => ({
-    //   index: b.index,
-    //   y: b.bbox[1],
-    //   content: b.content.substring(0, 30) + '...'
-    // })));
-    
-    return sorted;
+    return blocksForPage.sort((a, b) => a.index - b.index);
   }, [blocks, pageNumber]);
 
   // Draw blocks on canvas
@@ -89,6 +81,12 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       const isHighlighted = highlightedBlocks.includes(block.index);
       const isHovered = hoveredBlock === block.index;
 
+      // Only draw blocks that are selected, highlighted, or hovered
+      // Skip drawing default blocks to keep PDF clean
+      if (!isSelected && !isHighlighted && !isHovered) {
+        return; // Skip this block - no visual rendering
+      }
+
       // Get color scheme
       const colorScheme = BlockProcessor.getBlockColorScheme(block.type);
 
@@ -102,53 +100,69 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       const normalizedX2 = bboxX2 / pageWidth;  
       const normalizedY2 = bboxY2 / pageHeight;
       
-      // Map to canvas dimensions
-      const x1 = normalizedX1 * canvasWidth;
-      const y1 = normalizedY1 * canvasHeight;
-      const x2 = normalizedX2 * canvasWidth;
-      const y2 = normalizedY2 * canvasHeight;
+      // Map to canvas dimensions - 使用 Math.round 确保像素对齐
+      const x1 = Math.round(normalizedX1 * canvasWidth);
+      const y1 = Math.round(normalizedY1 * canvasHeight);
+      const x2 = Math.round(normalizedX2 * canvasWidth);
+      const y2 = Math.round(normalizedY2 * canvasHeight);
       
-      // 扩展右边和下边边界，避免框线遮挡文字
-      const rightPadding = 4; // 向右扩展4像素
-      const bottomPadding = 4; // 向下扩展4像素
+      // 扩展所有边界，让框线更宽松
+      const leftPadding = 2; // 向左扩展2像素
+      const topPadding = 2; // 向上扩展2像素
+      const rightPadding = 6; // 向右扩展6像素 (原4+2)
+      const bottomPadding = 6; // 向下扩展6像素 (原4+2)
       
+      const adjustedX1 = x1 - leftPadding;
+      const adjustedY1 = y1 - topPadding;
       const adjustedX2 = x2 + rightPadding;
       const adjustedY2 = y2 + bottomPadding;
       
-      const width = adjustedX2 - x1;
-      const height = adjustedY2 - y1;
+      const width = adjustedX2 - adjustedX1;
+      const height = adjustedY2 - adjustedY1;
 
-      // Determine block style based on state
-      let borderColor = colorScheme.border;
-      let backgroundColor = colorScheme.background;
+      // Determine block style based on state - 与 Markdown 保持一致
+      let borderColor = '';
+      let backgroundColor = '';
       let lineWidth = 1;
-      let alpha = 0.6;
+      let alpha = 1; // 使用完全不透明度，颜色已经包含透明度
 
       if (isSelected) {
-        lineWidth = 2; // 调整为正常粗度
-        alpha = 0.8;
-        borderColor = '#EF4444'; // red-500 for selection (原始红色)
-        backgroundColor = 'rgba(239, 68, 68, 0.15)'; // 原始红色背景，稍微加深一点
+        lineWidth = 1; // 与 Markdown 一致：1px 边框
+        borderColor = '#EF4444'; // red-500 与 Markdown 一致
+        backgroundColor = 'rgba(239, 68, 68, 0.15)'; // 与 Markdown 一致
       } else if (isHighlighted) {
-        lineWidth = 2;
-        alpha = 0.7;
+        lineWidth = 1;
+        borderColor = colorScheme.border;
+        backgroundColor = colorScheme.background;
       } else if (isHovered) {
-        lineWidth = 2;
-        alpha = 0.8;
-        borderColor = '#3B82F6'; // blue-500 for hover
-        backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 浅蓝色背景
+        lineWidth = 1; // 与 Markdown 一致：1px 边框
+        borderColor = '#3B82F6'; // blue-500 与 Markdown 一致
+        backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 与 Markdown 一致
       }
 
-      // Draw block background
+      // Draw rounded rectangle with 4px radius (与 Markdown 一致)
+      const borderRadius = 4;
+      
+      // 为 1px 边框进行半像素偏移，确保清晰
+      const drawX = adjustedX1 + 0.5;
+      const drawY = adjustedY1 + 0.5;
+      const drawWidth = width - 1;
+      const drawHeight = height - 1;
+      
+      // Draw block background with rounded corners
       ctx.fillStyle = backgroundColor;
       ctx.globalAlpha = alpha;
-      ctx.fillRect(x1, y1, width, height);
+      ctx.beginPath();
+      ctx.roundRect(adjustedX1, adjustedY1, width, height, borderRadius);
+      ctx.fill();
 
-      // Draw block border
+      // Draw block border with rounded corners - 使用半像素偏移
       ctx.strokeStyle = borderColor;
       ctx.lineWidth = lineWidth;
       ctx.globalAlpha = 1;
-      ctx.strokeRect(x1, y1, width, height);
+      ctx.beginPath();
+      ctx.roundRect(drawX, drawY, drawWidth, drawHeight, borderRadius);
+      ctx.stroke();
 
     });
   }, [
@@ -210,12 +224,14 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
         const blockY2 = (bboxY2 / pageHeight) * canvasHeight;
         
         // 应用与绘制时相同的扩展，确保点击区域与视觉区域一致
-        const adjustedBlockX2 = blockX2 + 4; // 向右扩展4像素
-        const adjustedBlockY2 = blockY2 + 4; // 向下扩展4像素
+        const adjustedBlockX1 = blockX1 - 2; // 向左扩展2像素
+        const adjustedBlockY1 = blockY1 - 2; // 向上扩展2像素
+        const adjustedBlockX2 = blockX2 + 6; // 向右扩展6像素
+        const adjustedBlockY2 = blockY2 + 6; // 向下扩展6像素
         
         // Check if click is inside block
-        if (canvasX >= blockX1 && canvasX <= adjustedBlockX2 && 
-            canvasY >= blockY1 && canvasY <= adjustedBlockY2) {
+        if (canvasX >= adjustedBlockX1 && canvasX <= adjustedBlockX2 && 
+            canvasY >= adjustedBlockY1 && canvasY <= adjustedBlockY2) {
           onBlockClick(block.index, pageNumber);
           return;
         }
@@ -256,12 +272,14 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
         const blockY2 = (bboxY2 / pageHeight) * canvasHeight;
         
         // 应用与绘制时相同的扩展，确保hover区域与视觉区域一致
-        const adjustedBlockX2 = blockX2 + 3; // 向右扩展3像素
-        const adjustedBlockY2 = blockY2 + 3; // 向下扩展3像素
+        const adjustedBlockX1 = blockX1 - 2; // 向左扩展2像素
+        const adjustedBlockY1 = blockY1 - 2; // 向上扩展2像素
+        const adjustedBlockX2 = blockX2 + 6; // 向右扩展6像素
+        const adjustedBlockY2 = blockY2 + 6; // 向下扩展6像素
         
         // Check if mouse is inside block
-        if (canvasX >= blockX1 && canvasX <= adjustedBlockX2 && 
-            canvasY >= blockY1 && canvasY <= adjustedBlockY2) {
+        if (canvasX >= adjustedBlockX1 && canvasX <= adjustedBlockX2 && 
+            canvasY >= adjustedBlockY1 && canvasY <= adjustedBlockY2) {
           foundBlock = block.index;
           break;
         }
@@ -302,10 +320,16 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
     // Set canvas size
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
+    
+    // 设置 Canvas 渲染质量，确保边缘清晰
+    ctx.imageSmoothingEnabled = false;
 
     // Schedule redraw using RAF
     scheduleRedraw();

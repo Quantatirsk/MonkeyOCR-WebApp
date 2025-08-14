@@ -3,8 +3,9 @@
  * 处理区块容器的渲染和翻译覆盖层
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { ContentEnhancementOverlay } from '../translation';
+import { BlockHoverActions } from './BlockHoverActions';
 import { BlockData } from '../../types';
 import { BlockProcessor } from '../../utils/blockProcessor';
 
@@ -21,6 +22,9 @@ interface BlockContainerProps {
   } | undefined;
   onRefreshTranslation?: (blockIndex: number) => void;
   onRefreshExplanation?: (blockIndex: number) => void;
+  onTranslateBlock?: (blockIndex: number) => void;
+  onExplainBlock?: (blockIndex: number) => void;
+  onMarkBlock?: (blockIndex: number) => void;
   children: React.ReactNode;
   [key: string]: any;
 }
@@ -33,9 +37,13 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
   streamingTranslation,
   onRefreshTranslation,
   onRefreshExplanation,
+  onTranslateBlock,
+  onExplainBlock,
+  onMarkBlock,
   children,
   ...props
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
   const currentBlockData = useMemo(() => 
     blockIndex >= 0 ? BlockProcessor.findBlockByIndex(blockData || [], blockIndex) : null,
     [blockIndex, blockData]
@@ -116,10 +124,49 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
     onRefreshExplanation
   ]);
   
+  // Handle hover events
+  const handleMouseEnter = useCallback(() => {
+    setIsHovered(true);
+  }, []);
+  
+  const handleMouseLeave = useCallback(() => {
+    setIsHovered(false);
+  }, []);
+  
+  // Handle translate
+  const handleTranslate = useCallback(() => {
+    onTranslateBlock?.(blockIndex);
+  }, [blockIndex, onTranslateBlock]);
+  
+  // Handle explain
+  const handleExplain = useCallback(() => {
+    onExplainBlock?.(blockIndex);
+  }, [blockIndex, onExplainBlock]);
+  
+  // Handle mark
+  const handleMark = useCallback(() => {
+    onMarkBlock?.(blockIndex);
+  }, [blockIndex, onMarkBlock]);
+  
   return (
-    <div {...props} className="block-container">
-      <div className="block-content-wrapper">
+    <div 
+      {...props} 
+      className="block-container"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className="block-content-wrapper relative">
         {children}
+        
+        {/* Block Hover Actions - positioned relative to content wrapper */}
+        <BlockHoverActions
+          blockIndex={blockIndex}
+          blockContent={currentBlockData?.content || ''}
+          onTranslate={onTranslateBlock ? handleTranslate : undefined}
+          onExplain={onExplainBlock ? handleExplain : undefined}
+          onMark={onMarkBlock ? handleMark : undefined}
+          visible={isHovered && !streamingTranslation?.isStreaming}
+        />
       </div>
       {translationOverlay}
       {explanationOverlay}

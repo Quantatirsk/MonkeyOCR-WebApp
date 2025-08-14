@@ -45,7 +45,7 @@ export const useScrollSync = ({
   blockData,
   markdownContent,
   enabled = true,
-  selectedBlock,
+  selectedBlock: _selectedBlock,
   sensitivity = 0.7,
   debounceDelay = 50
 }: UseScrollSyncOptions): UseScrollSyncReturn => {
@@ -119,7 +119,7 @@ export const useScrollSync = ({
     container.scrollTop = Math.max(0, Math.min(maxScroll, percentage * maxScroll));
   }, []);
 
-  // Scroll to specific block in PDF - 优化版本，减少日志和延迟
+  // Scroll to specific block in PDF - 强制瞬间定位版本
   const scrollToBlockInPdf = useCallback((blockIndex: number) => {
     const pdfContainer = pdfContainerRef.current;
     if (!pdfContainer || !syncEnabledRef.current) return;
@@ -127,47 +127,99 @@ export const useScrollSync = ({
     const block = BlockProcessor.findBlockByIndex(blockData, blockIndex);
     if (!block) return;
 
-    // Find the actual scrollable viewport and target page quickly
-    const scrollableElement = pdfContainer.querySelector('[data-radix-scroll-area-viewport]') || pdfContainer;
-    const targetPageElement = scrollableElement.querySelector(`[data-page-number="${block.page_num}"]`) || 
-                             pdfContainer.querySelector(`[data-page-number="${block.page_num}"]`);
-
-    if (targetPageElement) {
-      // Calculate position quickly without excessive logging
-      const [, bboxY1, ,] = block.bbox;
-      const [, pageHeight] = block.page_size;
-      const relativeY = bboxY1 / pageHeight;
-      
-      const pageRect = targetPageElement.getBoundingClientRect();
-      const scrollableRect = (scrollableElement as HTMLElement).getBoundingClientRect();
-      const pageTopInContainer = (targetPageElement as HTMLElement).offsetTop;
-      const blockPositionInPage = relativeY * pageRect.height;
-      const targetScrollTop = pageTopInContainer + blockPositionInPage - (scrollableRect.height / 3);
-      
-      // 快速滚动动画，保持视觉效果但大幅提升速度
-      (scrollableElement as HTMLElement).scrollTo({
-        top: Math.max(0, targetScrollTop),
-        behavior: 'smooth' // 保持smooth动画，但通过CSS加速
+    // Find the actual viewport element inside ScrollArea or other scrollable container
+    const scrollableElement = pdfContainer.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement ||
+                            pdfContainer.querySelector('.overflow-auto') as HTMLElement || 
+                            pdfContainer as HTMLElement;
+    
+    // Find the target page element
+    const targetPageElement = pdfContainer.querySelector(`[data-page-number="${block.page_num}"]`) as HTMLElement;
+    if (!targetPageElement) return;
+    
+    // Add instant-scroll class to disable transitions
+    scrollableElement.classList.add('instant-scroll');
+    pdfContainer.classList.add('instant-scroll');
+    
+    // Calculate position
+    const [, bboxY1, ,] = block.bbox;
+    const [, pageHeight] = block.page_size;
+    const relativeY = bboxY1 / pageHeight;
+    
+    const pageRect = targetPageElement.getBoundingClientRect();
+    const scrollableRect = scrollableElement.getBoundingClientRect();
+    const pageTopInContainer = targetPageElement.offsetTop;
+    const blockPositionInPage = relativeY * pageRect.height;
+    const targetScrollTop = pageTopInContainer + blockPositionInPage - (scrollableRect.height / 3);
+    const finalScrollTop = Math.max(0, targetScrollTop);
+    
+    // Force instant positioning
+    scrollableElement.scrollTop = finalScrollTop;
+    if (scrollableElement.scrollTo) {
+      scrollableElement.scrollTo({
+        top: finalScrollTop,
+        left: 0,
+        behavior: 'instant' as ScrollBehavior
       });
-      
-      console.log(`⚡ Fast PDF scroll to block ${blockIndex}`);
     }
+    
+    // Remove instant-scroll class after positioning
+    requestAnimationFrame(() => {
+      scrollableElement.scrollTop = finalScrollTop;
+      requestAnimationFrame(() => {
+        scrollableElement.classList.remove('instant-scroll');
+        pdfContainer.classList.remove('instant-scroll');
+      });
+    });
     
     lastSyncSourceRef.current = 'markdown';
   }, [blockData]);
 
-  // Scroll to specific block in Markdown
+  // Scroll to specific block in Markdown - 强制瞬间定位版本
   const scrollToBlockInMarkdown = useCallback((blockIndex: number) => {
     const markdownContainer = markdownContainerRef.current;
     if (!markdownContainer || !syncEnabledRef.current) return;
 
-    const blockElement = markdownContainer.querySelector(`[data-block-index="${blockIndex}"]`);
-    if (blockElement) {
-      blockElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
+    // Find the actual viewport element inside ScrollArea
+    const scrollableElement = markdownContainer.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement ||
+                            (markdownContainer.hasAttribute('data-radix-scroll-area-viewport') ? markdownContainer : markdownContainer) as HTMLElement;
+    
+    // Find the block element within the scrollable area
+    const blockElement = scrollableElement.querySelector(`[data-block-index="${blockIndex}"]`) as HTMLElement;
+    if (!blockElement) return;
+    
+    // Add instant-scroll class to disable transitions
+    scrollableElement.classList.add('instant-scroll');
+    markdownContainer.classList.add('instant-scroll');
+    
+    // Calculate position
+    const elementRect = blockElement.getBoundingClientRect();
+    const containerRect = scrollableElement.getBoundingClientRect();
+    const elementTop = blockElement.offsetTop;
+    const elementHeight = elementRect.height;
+    const containerHeight = containerRect.height;
+    
+    // 计算将元素居中的位置
+    const targetScrollTop = elementTop - (containerHeight / 2) + (elementHeight / 2);
+    const finalScrollTop = Math.max(0, targetScrollTop);
+    
+    // Force instant positioning
+    scrollableElement.scrollTop = finalScrollTop;
+    if (scrollableElement.scrollTo) {
+      scrollableElement.scrollTo({
+        top: finalScrollTop,
+        left: 0,
+        behavior: 'instant' as ScrollBehavior
       });
     }
+    
+    // Remove instant-scroll class after positioning
+    requestAnimationFrame(() => {
+      scrollableElement.scrollTop = finalScrollTop;
+      requestAnimationFrame(() => {
+        scrollableElement.classList.remove('instant-scroll');
+        markdownContainer.classList.remove('instant-scroll');
+      });
+    });
     
     lastSyncSourceRef.current = 'pdf';
   }, []);
@@ -260,23 +312,9 @@ export const useScrollSync = ({
     };
   }, [enabled, handlePdfScroll, handleMarkdownScroll]);
 
-  // Auto-scroll to selected block (仅处理PDF→Markdown方向，Markdown→PDF由DocumentViewer处理)
-  useEffect(() => {
-    if (!selectedBlock?.isActive || selectedBlock.blockIndex === null) return;
-    
-    const blockIndex = selectedBlock.blockIndex;
-    
-    // 使用requestAnimationFrame确保DOM更新完成，比setTimeout更快
-    requestAnimationFrame(() => {
-      if (lastSyncSourceRef.current === 'pdf') {
-        scrollToBlockInMarkdown(blockIndex);
-      }
-      // 注释掉Markdown→PDF滚动，由DocumentViewer统一处理以避免冲突
-      // else if (lastSyncSourceRef.current === 'markdown') {
-      //   scrollToBlockInPdf(blockIndex);
-      // }
-    });
-  }, [selectedBlock, scrollToBlockInMarkdown]); // 移除scrollToBlockInPdf依赖
+  // Removed automatic scrolling on selection change
+  // All scrolling is now handled explicitly through direct function calls
+  // This prevents conflicts and unwanted bidirectional scrolling
 
   // Control function
   const setScrollSyncEnabled = useCallback((enabled: boolean) => {

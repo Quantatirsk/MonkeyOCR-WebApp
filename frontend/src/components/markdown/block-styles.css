@@ -22,6 +22,8 @@
   cursor: pointer;
   background-color: transparent;
   border-left: 0; /* 移除边框，由.block-content-wrapper处理 */
+  /* Add padding-bottom to make space for hover actions */
+  padding-bottom: 8px;
 }
 
 /* Center content for specific block types - Simplified */
@@ -76,6 +78,7 @@
 
 /* Block content wrapper - gives padding around content for better hover/selected area */
 .block-content-wrapper {
+  position: relative; /* For positioning hover actions */
   padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
   margin: 0; /* 移除负边距，让宽度与翻译/分析结果框保持一致 */
   border-radius: 4px;
@@ -796,6 +799,31 @@
   50% {
     opacity: 0.3;
   }
+}
+
+/* Block Hover Actions Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.block-hover-actions {
+  animation: fadeInUp 0.2s ease-out;
+}
+
+/* Ensure hover actions appear above other content */
+.block-container {
+  z-index: 1;
+}
+
+.block-container:hover {
+  z-index: 10;
 }
 
 /* Print styles */

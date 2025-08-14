@@ -1,11 +1,11 @@
 /**
  * FloatingActionBar Component
- * A tiny, elegant floating button group for the compare view
- * Provides quick access to fullscreen, translate, and explain functions
+ * A tiny, elegant floating button for the compare view
+ * Provides quick access to fullscreen mode
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Maximize2, Minimize2, Languages, MessageSquare } from 'lucide-react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   Tooltip,
@@ -17,15 +17,11 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface FloatingActionBarProps {
-  onTranslate?: () => void;
-  onExplain?: () => void;
   visible?: boolean;
   className?: string;
 }
 
 export const FloatingActionBar: React.FC<FloatingActionBarProps> = React.memo(({
-  onTranslate,
-  onExplain,
   visible = true,
   className = ""
 }) => {
@@ -57,21 +53,6 @@ export const FloatingActionBar: React.FC<FloatingActionBarProps> = React.memo(({
     }
   }, []);
 
-  // Handle translate action
-  const handleTranslate = useCallback(() => {
-    if (onTranslate) {
-      onTranslate();
-      toast.info('正在翻译内容...', { duration: 1000 });
-    }
-  }, [onTranslate]);
-
-  // Handle explain action
-  const handleExplain = useCallback(() => {
-    if (onExplain) {
-      onExplain();
-      toast.info('正在生成解释...', { duration: 1000 });
-    }
-  }, [onExplain]);
 
   // Listen for fullscreen changes
   useEffect(() => {
@@ -138,56 +119,17 @@ export const FloatingActionBar: React.FC<FloatingActionBarProps> = React.memo(({
               variant="ghost"
               size="sm"
               onClick={handleFullscreen}
-              className="h-6 w-6 p-0 rounded-lg hover:bg-accent"
+              className="h-8 w-8 p-0 rounded-lg hover:bg-accent"
             >
               {isFullscreen ? (
-                <Minimize2 className="w-3.5 h-3.5" />
+                <Minimize2 className="w-4 h-4" />
               ) : (
-                <Maximize2 className="w-3.5 h-3.5" />
+                <Maximize2 className="w-4 h-4" />
               )}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top" className="text-xs">
             {isFullscreen ? '退出全屏 (F)' : '全屏 (F)'}
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Separator */}
-        <div className="w-px h-4 bg-border mx-0.5" />
-
-        {/* Translate Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleTranslate}
-              className="h-6 w-6 p-0 rounded-lg hover:bg-accent"
-              disabled={!onTranslate}
-            >
-              <Languages className="w-3.5 h-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
-            翻译 (N)
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Explain Button */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleExplain}
-              className="h-6 w-6 p-0 rounded-lg hover:bg-accent"
-              disabled={!onExplain}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
-            解释 (M)
           </TooltipContent>
         </Tooltip>
       </div>

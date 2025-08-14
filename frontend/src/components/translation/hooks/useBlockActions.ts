@@ -64,7 +64,6 @@ export const useBlockActions = ({
   
   // 区块操作状态
   const [actionState, setActionState] = useState<BlockActionState>({
-    selectedBlockIndex: null,
     actionMode: 'idle',
     processingBlocks: new Set(),
     activeOperations: new Map(),
@@ -89,18 +88,6 @@ export const useBlockActions = ({
   const abortControllersRef = useRef<Map<number, AbortController>>(new Map());
   actionStateRef.current = actionState;
   streamingStateRef.current = streamingState;
-
-  // 获取选中的区块
-  const selectedBlock = actionState.selectedBlockIndex !== null 
-    ? blockData.find(block => block.index === actionState.selectedBlockIndex) || null
-    : null;
-
-  // 检查是否有翻译和解释
-  const hasTranslation = actionState.selectedBlockIndex !== null && 
-    actionState.translations.has(actionState.selectedBlockIndex);
-  
-  const hasExplanation = actionState.selectedBlockIndex !== null && 
-    actionState.explanations.has(actionState.selectedBlockIndex);
 
   // 处理流式响应的通用方法
   const handleStreamingResponse = useCallback(async (
@@ -301,7 +288,6 @@ export const useBlockActions = ({
     // 更新状态
     setActionState(prev => ({
       ...prev,
-      selectedBlockIndex: blockIndex,
       actionMode: 'translate',
       processingBlocks: new Set([...prev.processingBlocks, blockIndex]),
       activeOperations: new Map([...prev.activeOperations, [blockIndex, 'translate']])
@@ -585,7 +571,6 @@ export const useBlockActions = ({
     // 更新状态
     setActionState(prev => ({
       ...prev,
-      selectedBlockIndex: blockIndex,
       actionMode: 'explain',
       processingBlocks: new Set([...prev.processingBlocks, blockIndex]),
       activeOperations: new Map([...prev.activeOperations, [blockIndex, 'explain']]),
@@ -727,10 +712,9 @@ export const useBlockActions = ({
   const clearExplanation = useCallback((blockIndex?: number) => {
     setActionState(prev => {
       const newExplanations = new Map(prev.explanations);
+      // Only clear if a specific blockIndex is provided
       if (blockIndex !== undefined) {
         newExplanations.delete(blockIndex);
-      } else if (prev.selectedBlockIndex !== null) {
-        newExplanations.delete(prev.selectedBlockIndex);
       }
       return {
         ...prev,
@@ -965,11 +949,6 @@ export const useBlockActions = ({
     // 状态
     actionState,
     streamingState,
-    
-    // 当前选中区块信息
-    selectedBlock,
-    hasTranslation,
-    hasExplanation,
     
     // 操作方法
     translateBlock,

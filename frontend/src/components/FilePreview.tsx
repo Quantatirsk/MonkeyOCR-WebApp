@@ -66,6 +66,10 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   onBlockHover,
   containerRef: externalContainerRef
 }) => {
+  // Debug: Log when selectedBlock changes
+  React.useEffect(() => {
+    console.log('[FilePreview] selectedBlock changed:', selectedBlock);
+  }, [selectedBlock]);
   const [numPages, setNumPages] = useState<number>(0);
   const [pageRotations, setPageRotations] = useState<{ [pageNumber: number]: number }>({});
   const [internalSelectedPage, setInternalSelectedPage] = useState<number | null>(null);
@@ -640,27 +644,42 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   );
 };
 
-// 修复Bug3: 简化React.memo比较，避免函数引用比较问题
+// 简化 React.memo 策略：只对真正昂贵的操作进行优化
+// 允许 selectedBlock 和 highlightedBlocks 变化触发更新
 export const FilePreview = React.memo(FilePreviewComponent, (prevProps, nextProps) => {
-  // 只比较关键的数据属性，避免函数引用比较
+  // 只在核心属性变化时重新渲染整个 PDF
+  // task 变化、文件变化需要重新加载
+  if (prevProps.task.id !== nextProps.task.id ||
+      prevProps.task.filename !== nextProps.task.filename ||
+      prevProps.task.file_type !== nextProps.task.file_type ||
+      prevProps.task.status !== nextProps.task.status) {
+    return false; // 需要重新渲染
+  }
+  
+  // blockData 变化需要重新计算 overlay
+  if (JSON.stringify(prevProps.blockData) !== JSON.stringify(nextProps.blockData)) {
+    return false; // 需要重新渲染
+  }
+  
+  // 页面旋转变化需要重新渲染
+  if (JSON.stringify(prevProps.externalPageRotations || {}) !== JSON.stringify(nextProps.externalPageRotations || {})) {
+    return false; // 需要重新渲染
+  }
+  
+  // selectedBlock 和 highlightedBlocks 的变化不应该阻止更新
+  // 让这些状态变化能够传递到 PDFBlockOverlay
+  if (JSON.stringify(prevProps.selectedBlock) !== JSON.stringify(nextProps.selectedBlock) ||
+      JSON.stringify(prevProps.highlightedBlocks) !== JSON.stringify(nextProps.highlightedBlocks)) {
+    return false; // 需要重新渲染以更新高亮
+  }
+  
+  // 其他属性变化也允许更新
   return (
-    prevProps.task.id === nextProps.task.id &&
-    prevProps.task.filename === nextProps.task.filename &&
-    prevProps.task.file_type === nextProps.task.file_type &&
-    prevProps.task.status === nextProps.task.status &&
     prevProps.className === nextProps.className &&
     prevProps.hideToolbar === nextProps.hideToolbar &&
     prevProps.selectedPage === nextProps.selectedPage &&
-    // 比较同步功能相关属性
     prevProps.syncEnabled === nextProps.syncEnabled &&
-    JSON.stringify(prevProps.selectedBlock) === JSON.stringify(nextProps.selectedBlock) &&
-    JSON.stringify(prevProps.highlightedBlocks) === JSON.stringify(nextProps.highlightedBlocks) &&
-    JSON.stringify(prevProps.blockData) === JSON.stringify(nextProps.blockData) &&
-    // 比较外部旋转状态对象
-    JSON.stringify(prevProps.externalPageRotations || {}) === JSON.stringify(nextProps.externalPageRotations || {}) &&
-    // 检查是否从外部控制模式切换到内部控制模式，或反之
     (prevProps.onPageSelect !== undefined) === (nextProps.onPageSelect !== undefined) &&
-    // 比较容器引用（对象引用比较）
     prevProps.containerRef === nextProps.containerRef
   );
 });

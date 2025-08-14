@@ -2,9 +2,10 @@
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { LogIn, UserPlus, Moon, Sun } from 'lucide-react';
+import { LogIn, UserPlus, Moon, Sun, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { useAppStore, useUIActions } from '@/store/appStore';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/uiStore';
 import { SyncStatusIndicator } from '../SyncStatusIndicator';
 import { UserMenu } from './UserMenu';
 import { AuthPage } from '../auth/AuthPage';
@@ -15,7 +16,11 @@ export function Header() {
   const isProcessing = useAppStore(state => state.isProcessing);
   const clearUserData = useAppStore(state => state.clearUserData);
   const theme = useAppStore(state => state.theme);
-  const { toggleTaskListVisible, toggleTheme } = useUIActions();
+  const { toggleTheme } = useUIActions();
+  
+  // 使用独立的 UI Store 管理 UI 状态
+  const taskListVisible = useUIStore(state => state.taskListVisible);
+  const toggleTaskListVisible = useUIStore(state => state.toggleTaskListVisible);
   
   // Use real auth state from store
   const { user, isAuthenticated, logout: clearAuthData } = useAuthStore();
@@ -63,6 +68,11 @@ export function Header() {
     // TODO: Navigate to settings page
   };
 
+  // 任务列表切换 - 现在使用 transform 动画，不会触发重布局
+  const handleToggleTaskList = () => {
+    toggleTaskListVisible();
+  };
+
   return (
     <>
       <header className="h-12 border-b bg-background" style={{ height: '48px', minHeight: '48px', maxHeight: '48px' }}>
@@ -72,14 +82,19 @@ export function Header() {
             <Badge variant="default" className="text-xs">
               v1.0
             </Badge>
-            <Badge 
-              variant="secondary" 
-              className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
-              onClick={toggleTaskListVisible}
-              title="点击切换任务列表显示"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleToggleTaskList}
+              className="h-8 w-8 p-0"
+              title={taskListVisible ? '收起任务列表' : '展开任务列表'}
             >
-              {tasks.length} 个任务
-            </Badge>
+              {taskListVisible ? (
+                <PanelLeftClose className="h-4 w-4" />
+              ) : (
+                <PanelLeft className="h-4 w-4" />
+              )}
+            </Button>
           </div>
 
           <div className="flex items-center space-x-2">

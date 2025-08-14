@@ -51,6 +51,12 @@ export interface BlockMarkdownViewerProps {
   onRefreshTranslation?: (blockIndex: number) => void;
   /** Callback to refresh explanation */
   onRefreshExplanation?: (blockIndex: number) => void;
+  /** Callback to translate block */
+  onTranslateBlock?: (blockIndex: number) => void;
+  /** Callback to explain block */
+  onExplainBlock?: (blockIndex: number) => void;
+  /** Callback to mark block */
+  onMarkBlock?: (blockIndex: number) => void;
   /** Use inline translation display instead of overlay */
   useInlineTranslation?: boolean;
 }
@@ -223,6 +229,9 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
   streamingTranslation,
   onRefreshTranslation,
   onRefreshExplanation,
+  onTranslateBlock,
+  onExplainBlock,
+  onMarkBlock,
   useInlineTranslation = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -396,6 +405,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
   // Handle block interactions
   const handleBlockClick = React.useCallback((event: MouseEvent) => {
     const target = event.target as HTMLElement;
+    
+    // Check if click is from hover actions - if so, ignore it
+    if (target.closest('.block-hover-actions')) {
+      return;
+    }
+    
     const blockElement = target.closest('[data-block-index]');
     
     if (blockElement && onBlockClick) {
@@ -429,41 +444,9 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
   
   // Removed hover effect - using CSS :hover for better performance
 
-  // Track previous block index to detect actual changes
-  const prevBlockIndexRef = useRef<number | null>(null);
-  
-  // Scroll to selected block only when block index actually changes
-  useEffect(() => {
-    if (!syncEnabled || !selectedBlock.isActive || selectedBlock.blockIndex === null) return;
-
-    // Only scroll if the block index has actually changed
-    if (prevBlockIndexRef.current === selectedBlock.blockIndex) return;
-    
-    prevBlockIndexRef.current = selectedBlock.blockIndex;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    // First try to find a block container, then fallback to any element with data-block-index
-    let targetElement = container.querySelector(`.block-container[data-block-index="${selectedBlock.blockIndex}"]`);
-    if (!targetElement) {
-      targetElement = container.querySelector(`[data-block-index="${selectedBlock.blockIndex}"]`);
-    }
-    
-    if (targetElement) {
-      // Check if element is already in view
-      const rect = targetElement.getBoundingClientRect();
-      const isInView = rect.top >= 0 && rect.bottom <= window.innerHeight;
-      
-      // Only scroll if element is not already in view
-      if (!isInView) {
-        targetElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-      }
-    }
-  }, [selectedBlock.blockIndex, selectedBlock.isActive, syncEnabled]);
+  // Removed automatic scrolling on selection change
+  // Scrolling is now handled explicitly through scrollToBlockInMarkdown calls
+  // This prevents bidirectional scrolling issues
 
   // Markdown components with custom renderers
   const components = useMemo(() => ({
@@ -486,6 +469,9 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
             streamingTranslation={streamingTranslation}
             onRefreshTranslation={onRefreshTranslation}
             onRefreshExplanation={onRefreshExplanation}
+            onTranslateBlock={onTranslateBlock}
+            onExplainBlock={onExplainBlock}
+            onMarkBlock={onMarkBlock}
           >
             {children}
           </ContainerComponent>

@@ -42,7 +42,7 @@ const initialState: AppState = {
   isUploading: false,
   searchQuery: '',
   theme: 'light',
-  taskListVisible: true,
+  // taskListVisible 已迁移到 uiStore
   activeDocumentTab: 'preview',
   // Sync state (not persisted)
   syncStatus: null,
@@ -190,11 +190,7 @@ export const useAppStore = create<AppStore>()(
         }));
       },
 
-      toggleTaskListVisible: () => {
-        set((state) => ({
-          taskListVisible: !state.taskListVisible
-        }));
-      },
+      // taskListVisible 相关方法已迁移到 uiStore
 
       setActiveDocumentTab: (tab) => {
         set({ activeDocumentTab: tab });
@@ -433,7 +429,7 @@ export const useUIActions = () => useAppStore(state => ({
   setSearchQuery: state.setSearchQuery,
   setUploading: state.setUploading,
   toggleTheme: state.toggleTheme,
-  toggleTaskListVisible: state.toggleTaskListVisible,
+  // taskListVisible 相关方法已迁移到 uiStore
   setActiveDocumentTab: state.setActiveDocumentTab
 }));
 

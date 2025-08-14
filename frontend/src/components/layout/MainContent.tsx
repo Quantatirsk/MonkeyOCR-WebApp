@@ -1,36 +1,38 @@
 
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UploadZone from '@/components/UploadZone';
 import TaskList from '@/components/TaskList';
 import DocumentViewer from '@/components/DocumentViewer';
-import { useAppStore } from '@/store/appStore';
+import { useUIStore } from '@/store/uiStore';
 
 export function MainContent() {
-  const { taskListVisible } = useAppStore();
+  // 使用独立的 UI Store，完全避免业务状态影响
+  const taskListVisible = useUIStore(state => state.taskListVisible);
 
-  // 🔧 修复：使用固定宽度的Grid列，避免百分比导致的溢出问题
   return (
     <div 
-      className="h-full transition-all duration-300 ease-in-out"
+      className="h-full relative overflow-hidden"
       style={{
-        display: 'grid',
-        // 使用固定宽度320px而不是百分比，避免溢出
-        gridTemplateColumns: taskListVisible ? `320px 2px 1fr` : '0px 0px 1fr',
-        gridTemplateRows: '1fr',
-        height: '100%',
-        overflow: 'hidden' // 主容器不滚动
-      }}
+        '--task-list-offset': taskListVisible ? '321px' : '0px'
+      } as React.CSSProperties}
     >
-      {/* 任务列表区域 - 固定宽度320px */}
+      {/* DocumentViewer 始终占满全屏，作为底层 */}
+      <div className="absolute inset-0">
+        <DocumentViewer 
+          key="stable-document-viewer" 
+          className="h-full" 
+        />
+      </div>
+      
+      {/* 任务列表容器 - 使用 transform 移动，覆盖在 DocumentViewer 上 */}
       <div 
-        className={`bg-muted/10 flex flex-col transition-all duration-300 ease-in-out ${
-          taskListVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
+        className="absolute left-0 top-0 h-full bg-background border-r flex flex-col z-20 shadow-lg"
         style={{
-          width: '100%', // 使用grid列的宽度
-          height: '100%',
-          overflowY: 'auto', // 只允许垂直滚动
-          overflowX: 'hidden' // 不允许水平滚动
+          width: '320px',
+          transform: taskListVisible ? 'translateX(0)' : 'translateX(-320px)',
+          transition: 'transform 150ms ease-out',
+          willChange: 'transform'
         }}
       >
         {/* 上传区域 */}
@@ -49,22 +51,6 @@ export function MainContent() {
         <div className="flex-1 px-4 pb-4 min-h-0 overflow-hidden">
           <TaskList className="h-full" />
         </div>
-      </div>
-      
-      {/* 分隔线 */}
-      <div 
-        className={`bg-border transition-all duration-300 ease-in-out ${
-          taskListVisible ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={{
-          width: taskListVisible ? '1px' : '0px',
-          cursor: taskListVisible ? 'col-resize' : 'default'
-        }}
-      />
-      
-      {/* DocumentViewer区域 - 始终在相同的Grid位置，保持组件实例稳定 */}
-      <div>
-        <DocumentViewer key="stable-document-viewer" className="h-full" />
       </div>
     </div>
   );

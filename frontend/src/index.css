@@ -204,4 +204,12 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+  
+  /* Force instant scrolling without animations */
+  .instant-scroll,
+  .instant-scroll * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
 }

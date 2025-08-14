@@ -4,7 +4,7 @@
  * 整合快捷键监听、状态管理和UI组件
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { BlockSelection } from '../../types';
 import { useBlockActions } from './hooks/useBlockActions';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -54,13 +54,8 @@ const BlockActionManager: React.FC<BlockActionManagerProps> = ({
     onActionError
   });
 
-  // 同步选中状态
-  useEffect(() => {
-    if (selectedBlock.isActive && selectedBlock.blockIndex !== null) {
-      // 更新内部选中状态
-      blockActions.actionState.selectedBlockIndex = selectedBlock.blockIndex;
-    }
-  }, [selectedBlock.blockIndex, selectedBlock.isActive]);
+  // Note: Selection state is now managed externally
+  // The translation/explanation actions operate on the blockIndex passed to them
 
   // 处理翻译操作
   const handleTranslate = useCallback(() => {

@@ -75,7 +75,7 @@ export interface AppState {
   isUploading: boolean;
   searchQuery: string;
   theme: 'light' | 'dark';
-  taskListVisible: boolean;
+  // taskListVisible 已迁移到 uiStore
   activeDocumentTab: 'preview' | 'compare' | 'translation' | 'images' | 'metadata';
   
   // Sync state (not persisted)
@@ -102,7 +102,7 @@ export interface AppActions {
   setSearchQuery: (query: string) => void;
   setUploading: (isUploading: boolean) => void;
   toggleTheme: () => void;
-  toggleTaskListVisible: () => void;
+  // toggleTaskListVisible 已迁移到 uiStore
   setActiveDocumentTab: (tab: 'preview' | 'compare' | 'translation' | 'images' | 'metadata') => void;
   
   // File operations

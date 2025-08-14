@@ -28,6 +28,12 @@ interface InlineBlockContainerProps {
     isStreaming: boolean;
     type?: 'translate' | 'explain';
   } | undefined;
+  onTranslateBlock?: (blockIndex: number) => void;
+  onExplainBlock?: (blockIndex: number) => void;
+  onMarkBlock?: (blockIndex: number) => void;
+  onRefreshTranslation?: (blockIndex: number) => void;
+  onRefreshExplanation?: (blockIndex: number) => void;
+  explanations?: Map<number, string> | undefined;
   children: React.ReactNode;
   [key: string]: any;
 }
@@ -170,16 +176,24 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   blockData,
   translations,
   streamingTranslation,
+  onTranslateBlock,
+  onExplainBlock,
+  onMarkBlock,
+  onRefreshTranslation,
+  onRefreshExplanation,
+  explanations,
   children,
   ...props
 }) => {
-  // Filter out non-HTML props that might be passed from parent components
-  const {
-    onRefreshTranslation,
-    onRefreshExplanation,
-    explanations,
-    ...htmlProps
-  } = props;
+  // Create a clean props object without non-HTML attributes
+  const cleanProps = { ...props };
+  // Remove any remaining function props that shouldn't be on DOM elements
+  delete cleanProps.onTranslateBlock;
+  delete cleanProps.onExplainBlock;
+  delete cleanProps.onMarkBlock;
+  delete cleanProps.onRefreshTranslation;
+  delete cleanProps.onRefreshExplanation;
+  delete cleanProps.explanations;
   const [isSelected, setIsSelected] = useState(false);
   
   const currentBlockData = useMemo(() => 
@@ -269,7 +283,7 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   if (shouldShowTranslation) {
     return (
       <div 
-        {...htmlProps} 
+        {...cleanProps} 
         className={`block-container inline-translation-container with-translation ${isSelected ? 'selected' : ''}`}
         onClick={handleBlockClick}
       >
@@ -472,7 +486,7 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
   
   // 没有翻译时，使用普通容器
   return (
-    <div {...htmlProps} className="block-container inline-translation-container">
+    <div {...cleanProps} className="block-container inline-translation-container">
       <div className="block-content-wrapper original-content">
         {children}
       </div>

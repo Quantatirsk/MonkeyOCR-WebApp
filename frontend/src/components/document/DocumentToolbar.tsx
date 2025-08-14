@@ -7,7 +7,6 @@ import React from 'react';
 import { Badge } from '../ui/badge';
 import { DocumentSearch } from './DocumentSearch';
 import { DocumentActions } from './DocumentActions';
-import { BlockActionButtons } from './BlockActionButtons';
 import { TranslationProgress } from './TranslationProgress';
 import type { BlockData } from '../../types';
 
@@ -46,11 +45,11 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = React.memo(({
   title,
   fileType,
   filename,
-  showBlockActions = false,
-  selectedBlockIndex = null,
-  blockData = [],
-  onTranslateBlock,
-  onExplainBlock,
+  showBlockActions: _showBlockActions = false,
+  selectedBlockIndex: _selectedBlockIndex = null,
+  blockData: _blockData = [],
+  onTranslateBlock: _onTranslateBlock,
+  onExplainBlock: _onExplainBlock,
   fontSizeLevel,
   onFontSizeChange,
   onCopy,
@@ -69,16 +68,6 @@ export const DocumentToolbar: React.FC<DocumentToolbarProps> = React.memo(({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {/* Left section */}
         <div className="flex items-center space-x-2 flex-shrink-0 flex-1">
-          {/* Block actions (if enabled) */}
-          {showBlockActions && selectedBlockIndex !== null && onTranslateBlock && onExplainBlock && (
-            <BlockActionButtons
-              blockIndex={selectedBlockIndex}
-              blockData={blockData}
-              onTranslate={onTranslateBlock}
-              onExplain={onExplainBlock}
-            />
-          )}
-          
           {/* Document info badges */}
           {title && (
             <h3 className="text-xs font-medium text-muted-foreground whitespace-nowrap">

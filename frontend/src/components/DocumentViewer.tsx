@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { shallow } from 'zustand/shallow';
 import { FileText, ArrowLeftRight, Eye, RotateCw, Image, Languages } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -68,7 +69,11 @@ const BlockSyncMarkdownPanel = React.memo(({
   onMarkdownGenerated,
   enableTranslationFeatures = true,
   onTranslateAllStatusChange,
-  isWaitingForBlockData = false
+  isWaitingForBlockData = false,
+  containerRef,
+  onTranslateBlock,
+  onExplainBlock,
+  onMarkBlock
 }: { 
   originalMarkdown: string;
   markdownZoom: number;
@@ -83,6 +88,10 @@ const BlockSyncMarkdownPanel = React.memo(({
   enableTranslationFeatures?: boolean;
   onTranslateAllStatusChange?: (isTranslating: boolean, progress?: { completed: number; total: number }) => void;
   isWaitingForBlockData?: boolean;
+  containerRef?: React.RefObject<HTMLElement>;
+  onTranslateBlock?: (blockIndex: number) => void;
+  onExplainBlock?: (blockIndex: number) => void;
+  onMarkBlock?: (blockIndex: number) => void;
 }) => {
   // Translation functionality integration
   const blockActions = useBlockActions({
@@ -96,7 +105,6 @@ const BlockSyncMarkdownPanel = React.memo(({
   useEffect(() => {
     // Only clear if taskId actually changed (not on initial mount or same taskId)
     if (prevTaskIdRef.current !== undefined && prevTaskIdRef.current !== taskId) {
-      console.log('Clearing translations due to file switch:', prevTaskIdRef.current, '->', taskId);
       blockActions.clearAllTranslations();
       blockActions.clearAllExplanations();
     }
@@ -207,7 +215,7 @@ const BlockSyncMarkdownPanel = React.memo(({
         (blockActions.streamingState.streamType === 'translate' || 
          blockActions.streamingState.streamType === 'explain')) {
       return {
-        blockIndex: blockActions.actionState.selectedBlockIndex || -1,
+        blockIndex: blockActions.streamingState.streamingBlockIndex || -1,
         content: blockActions.streamingState.streamContent,
         isStreaming: true,
         type: blockActions.streamingState.streamType
@@ -218,8 +226,29 @@ const BlockSyncMarkdownPanel = React.memo(({
     blockActions.streamingState.isStreaming,
     blockActions.streamingState.streamType,
     blockActions.streamingState.streamContent,
-    blockActions.actionState.selectedBlockIndex
+    blockActions.streamingState.streamingBlockIndex
   ]);
+  
+  // Handle translate block (for passing to child components)
+  const handleTranslateBlockLocal = useCallback((blockIndex: number) => {
+    if (onTranslateBlock) {
+      onTranslateBlock(blockIndex);
+    }
+  }, [onTranslateBlock]);
+  
+  // Handle explain block (for passing to child components)
+  const handleExplainBlockLocal = useCallback((blockIndex: number) => {
+    if (onExplainBlock) {
+      onExplainBlock(blockIndex);
+    }
+  }, [onExplainBlock]);
+  
+  // Handle mark block (for passing to child components)
+  const handleMarkBlockLocal = useCallback((blockIndex: number) => {
+    if (onMarkBlock) {
+      onMarkBlock(blockIndex);
+    }
+  }, [onMarkBlock]);
   
   // Prevent double rendering with stable content
   const markdownContent = useMemo(() => processedMarkdown || '', [processedMarkdown]);
@@ -244,7 +273,7 @@ const BlockSyncMarkdownPanel = React.memo(({
   
   return (
     <div className="flex-1 overflow-hidden block-sync-markdown-panel">
-      <ScrollArea className="h-full w-full">
+      <ScrollArea className="h-full w-full" ref={containerRef as any}>
         <div className="p-3 pr-4 min-w-0 w-full">
           <BlockMarkdownViewer 
             content={markdownContent}
@@ -258,6 +287,9 @@ const BlockSyncMarkdownPanel = React.memo(({
             translations={blockActions.actionState.translations}
             explanations={blockActions.actionState.explanations}
             streamingTranslation={streamingTranslation}
+            onTranslateBlock={handleTranslateBlockLocal}
+            onExplainBlock={handleExplainBlockLocal}
+            onMarkBlock={handleMarkBlockLocal}
             onRefreshTranslation={(blockIndex) => {
               // 防止在处理中重复刷新
               if (blockActions.actionState.processingBlocks.size > 0 || blockActions.streamingState.isStreaming) {
@@ -287,27 +319,61 @@ const BlockSyncMarkdownPanel = React.memo(({
   );
 });
 
-// PDF preview panel
-const PDFPreviewPanel = React.memo((props: any) => (
-  <div className="flex-1 overflow-hidden">
-    <FilePreview 
-      key={`shared-${props.task.id}`}
-      task={props.task} 
-      className="h-full" 
-      hideToolbar={true}
-      selectedPage={props.selectedPage}
-      onPageSelect={props.onPageSelect}
-      onRotate={props.onRotate}
-      externalPageRotations={props.externalPageRotations}
-      blockData={props.blockData}
-      selectedBlock={props.selectedBlock}
-      highlightedBlocks={props.highlightedBlocks}
-      syncEnabled={props.syncEnabled}
-      onBlockClick={props.onBlockClick}
-      containerRef={props.pdfContainerRef}
-    />
-  </div>
-));
+// PDF preview panel with optimized rendering
+const PDFPreviewPanel = (props: any) => {
+  const [shouldRenderPDF, setShouldRenderPDF] = React.useState(false);
+  
+  // 优化PDF加载时机
+  React.useEffect(() => {
+    // 立即开始渲染，除非正在过渡中
+    if (props.isTransitioning) {
+      setShouldRenderPDF(false);
+      // 短暂延迟以避免阻塞动画
+      const timer = setTimeout(() => {
+        setShouldRenderPDF(true);
+      }, 50); // 最小延迟
+      return () => clearTimeout(timer);
+    } else {
+      // 非过渡期间，立即渲染
+      setShouldRenderPDF(true);
+    }
+  }, [props.task.id, props.isTransitioning]);
+  
+  return (
+    <div className="flex-1 overflow-hidden">
+      {!shouldRenderPDF ? (
+        // 等待期间显示轻量级占位符
+        <div className="h-full flex items-center justify-center bg-muted/5">
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center space-x-2">
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-100"></div>
+              <div className="w-1 h-1 bg-primary rounded-full animate-pulse delay-200"></div>
+            </div>
+            <p className="text-sm text-muted-foreground">正在加载文档...</p>
+          </div>
+        </div>
+      ) : (
+        <FilePreview 
+          key={`shared-${props.task.id}`}
+          task={props.task} 
+          className="h-full" 
+          hideToolbar={true}
+          selectedPage={props.selectedPage}
+          onPageSelect={props.onPageSelect}
+          onRotate={props.onRotate}
+          externalPageRotations={props.externalPageRotations}
+          blockData={props.blockData}
+          selectedBlock={props.selectedBlock}
+          highlightedBlocks={props.highlightedBlocks}
+          syncEnabled={props.syncEnabled}
+          onBlockClick={props.onBlockClick}
+          containerRef={props.pdfContainerRef}
+        />
+      )}
+    </div>
+  );
+};
 
 // Standard preview panel
 const StandardPreviewPanel = React.memo(({ task }: { task: any }) => (
@@ -317,16 +383,38 @@ const StandardPreviewPanel = React.memo(({ task }: { task: any }) => (
 ));
 
 export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }) => {
-  const { 
-    searchQuery, 
-    setSearchQuery, 
-    currentTaskId, 
-    results, 
-    tasks, 
-    loadResult, 
-    activeDocumentTab 
-  } = useAppStore();
+  // 使用精准选择器，避免订阅不需要的状态
+  const searchQuery = useAppStore(state => state.searchQuery);
+  const setSearchQuery = useAppStore(state => state.setSearchQuery);
+  const currentTaskId = useAppStore(state => state.currentTaskId);
+  const activeDocumentTab = useAppStore(state => state.activeDocumentTab);
+  const loadResult = useAppStore(state => state.loadResult);
+  
+  // 使用 shallow 比较防止引用变化触发重渲染
+  const { results, tasks } = useAppStore(
+    state => ({ 
+      results: state.results, 
+      tasks: state.tasks 
+    }),
+    shallow  // 浅比较：只要内容相同就不触发重渲染
+  );
   const { setActiveDocumentTab } = useUIActions();
+  
+  // 追踪任务切换状态（用于PDF延迟加载）
+  const [isTransitioningTask, setIsTransitioningTask] = useState(false);
+  const prevTaskIdRef = useRef<string | null>(null);
+  
+  // 检测任务切换
+  useEffect(() => {
+    if (prevTaskIdRef.current !== null && prevTaskIdRef.current !== currentTaskId) {
+      // 任务切换了，标记过渡状态（仅用于PDF延迟加载）
+      setIsTransitioningTask(true);
+      setTimeout(() => {
+        setIsTransitioningTask(false);
+      }, 100); // 短暂延迟后清除状态
+    }
+    prevTaskIdRef.current = currentTaskId;
+  }, [currentTaskId]);
 
   
   // Get current result and task
@@ -362,6 +450,17 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     enabled: blockSyncEnabled
   });
   
+  // 在任务切换时重置区块选中状态
+  const prevTaskIdForBlock = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevTaskIdForBlock.current !== null && prevTaskIdForBlock.current !== currentTaskId) {
+      // 任务切换了，清除选中状态
+      blockSync.clearSelection();
+      blockSync.clearHighlights();
+    }
+    prevTaskIdForBlock.current = currentTaskId;
+  }, [currentTaskId, blockSync.clearSelection, blockSync.clearHighlights]);
+  
   const scrollSync = useScrollSync({
     blockData,
     markdownContent: blockBasedMarkdownForCopy || currentResult?.markdown_content || '',
@@ -372,6 +471,13 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   
   // Track markdown click timestamp for sync
   const lastMarkdownClickRef = useRef<number>(0);
+  
+  // 在任务切换时重置点击时间戳
+  useEffect(() => {
+    if (prevTaskIdForBlock.current !== null && prevTaskIdForBlock.current !== currentTaskId) {
+      lastMarkdownClickRef.current = 0;
+    }
+  }, [currentTaskId]);
   
   // 全文翻译状态
   const [isTranslatingAll, setIsTranslatingAll] = useState(false);
@@ -392,27 +498,14 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
     loadTaskResult();
   }, [currentTask?.id, currentTask?.status, currentResult, loadResult, toast]);
   
-  // Markdown → PDF scroll sync
-  useEffect(() => {
-    if (!blockSyncEnabled || !blockSync.selectedBlock.isActive || !blockSync.selectedBlock.blockIndex) {
-      return;
-    }
-
-    const currentTime = Date.now();
-    const timeSinceLastClick = currentTime - lastMarkdownClickRef.current;
-    
-    if (timeSinceLastClick > 500) {
-      return;
-    }
-    
-    scrollSync.scrollToBlockInPdf(blockSync.selectedBlock.blockIndex);
-  }, [blockSync.selectedBlock.blockIndex, blockSync.selectedBlock.isActive, blockSyncEnabled, scrollSync]);
-
   // Wrapped markdown click handler
   const handleMarkdownBlockClickWithTimestamp = useCallback((blockIndex: number) => {
     lastMarkdownClickRef.current = Date.now();
+    
+    // 立即更新选中状态（确保高亮及时显示）
     blockSync.handleMarkdownBlockClick(blockIndex);
     
+    // 执行 PDF 滚动到对应区块（直接定位，无动画）
     if (blockSyncEnabled) {
       scrollSync.scrollToBlockInPdf(blockIndex);
     }
@@ -530,8 +623,17 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   }
 
   return (
-    <div className={`h-full flex flex-col ${className}`}>
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className={`h-full ${className}`} style={{ position: 'relative', overflow: 'hidden' }}>
+      {/* 使用 CSS 变量获取偏移值，避免重渲染 */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          transform: `translateX(var(--task-list-offset, 0px))`,
+          transition: 'transform 150ms ease-out',
+          willChange: 'transform',
+          width: `calc(100% - var(--task-list-offset, 0px))`,
+        }}
+      >
         <div className="h-full flex flex-col">
           {/* Tab Navigation */}
           <TabNavigation
@@ -604,8 +706,15 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             selectedBlock={blockSync.selectedBlock}
                             highlightedBlocks={blockSync.highlightedBlocks}
                             syncEnabled={blockSync.isSyncEnabled}
-                            onBlockClick={blockSync.handlePdfBlockClick}
+                            onBlockClick={(blockIndex: number, pageNumber: number) => {
+                              blockSync.handlePdfBlockClick(blockIndex, pageNumber);
+                              // PDF 点击时，滚动 Markdown 到对应位置
+                              if (blockIndex >= 0 && blockSyncEnabled) {
+                                scrollSync.scrollToBlockInMarkdown(blockIndex);
+                              }
+                            }}
                             pdfContainerRef={scrollSync.pdfContainerRef}
+                            isTransitioning={isTransitioningTask}
                           />
                         </div>
                       </ResizablePanel>
@@ -645,6 +754,12 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                             onMarkdownGenerated={setBlockBasedMarkdownForCopy}
                             onTranslateAllStatusChange={handleTranslateAllStatusChange}
                             isWaitingForBlockData={isWaitingForBlockData}
+                            containerRef={scrollSync.markdownContainerRef}
+                            onTranslateBlock={handleTranslateBlock}
+                            onExplainBlock={handleExplainBlock}
+                            onMarkBlock={(blockIndex) => {
+                              toast.info(`标记了区块 ${blockIndex}`, { duration: 1000 });
+                            }}
                           />
                         </div>
                       </ResizablePanel>
@@ -654,22 +769,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                   {/* Floating Action Bar - only visible in compare view */}
                   <FloatingActionBar 
                     visible={activeDocumentTab === TAB_TYPES.COMPARE && !!currentResult}
-                    onTranslate={() => {
-                      // Trigger translate for selected block or all blocks
-                      if (blockSync.selectedBlock.blockIndex !== null) {
-                        handleTranslateBlock(blockSync.selectedBlock.blockIndex);
-                      } else {
-                        handleTranslateAll();
-                      }
-                    }}
-                    onExplain={() => {
-                      // Trigger explain for selected block
-                      if (blockSync.selectedBlock.blockIndex !== null) {
-                        handleExplainBlock(blockSync.selectedBlock.blockIndex);
-                      } else {
-                        toast.info('请先选择一个区块');
-                      }
-                    }}
                   />
                 </div>
               ) : (
@@ -754,4 +853,6 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
   );
 };
 
-export default DocumentViewer;
+// 使用 React.memo 优化，防止不必要的重渲染
+// 只在属性真正变化时重渲染
+export default React.memo(DocumentViewer);
