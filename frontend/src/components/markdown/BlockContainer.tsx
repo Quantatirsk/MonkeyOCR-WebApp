@@ -3,7 +3,7 @@
  * 处理区块容器的渲染和翻译覆盖层
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { ContentEnhancementOverlay } from '../translation';
 import { BlockHoverActions } from './BlockHoverActions';
 import { BlockData } from '../../types';
@@ -44,6 +44,9 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
   ...props
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [shouldShowAbove, setShouldShowAbove] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
   const currentBlockData = useMemo(() => 
     blockIndex >= 0 ? BlockProcessor.findBlockByIndex(blockData || [], blockIndex) : null,
     [blockIndex, blockData]
@@ -124,14 +127,53 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
     onRefreshExplanation
   ]);
   
+  // Calculate whether to show hover actions above or below
+  const checkPosition = useCallback(() => {
+    if (!containerRef.current) return;
+    
+    const rect = containerRef.current.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+    const actionsHeight = 40; // Approximate height of hover actions
+    const buffer = 20; // Extra buffer space
+    
+    // If there's not enough space below but enough space above, show above
+    if (spaceBelow < (actionsHeight + buffer) && spaceAbove > (actionsHeight + buffer)) {
+      setShouldShowAbove(true);
+    } else {
+      setShouldShowAbove(false);
+    }
+  }, []);
+  
   // Handle hover events
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true);
-  }, []);
+    checkPosition();
+  }, [checkPosition]);
   
   const handleMouseLeave = useCallback(() => {
     setIsHovered(false);
   }, []);
+  
+  // Update position when scrolling
+  useEffect(() => {
+    if (!isHovered) return;
+    
+    const handleScroll = () => {
+      checkPosition();
+    };
+    
+    // Find the markdown scroll container specifically
+    const scrollContainer = containerRef.current?.closest('[class*="overflow-"], [class*="scroll-area"]');
+    if (scrollContainer) {
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    }
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isHovered, checkPosition]);
   
   // Handle translate
   const handleTranslate = useCallback(() => {
@@ -151,6 +193,7 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
   return (
     <div 
       {...props} 
+      ref={containerRef}
       className="block-container"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -166,6 +209,7 @@ export const BlockContainer: React.FC<BlockContainerProps> = React.memo(({
           onExplain={onExplainBlock ? handleExplain : undefined}
           onMark={onMarkBlock ? handleMark : undefined}
           visible={isHovered && !streamingTranslation?.isStreaming}
+          position={shouldShowAbove ? 'above' : 'below'}
         />
       </div>
       {translationOverlay}

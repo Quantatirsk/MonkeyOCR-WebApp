@@ -123,6 +123,31 @@ class ApiClient {
   }
 
   /**
+   * Upload a PDF from URL for OCR processing
+   */
+  async uploadFromUrl(pdfUrl: string, options: UploadOptions = {}): Promise<UploadResponse> {
+    const formData = new FormData();
+    formData.append('pdf_url', pdfUrl);
+    formData.append('is_public', options.is_public ? 'true' : 'false');
+
+    try {
+      const response = await axiosInstance.post<UploadResponse>('/api/upload-url', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      return response.data;
+    } catch (error: any) {
+      // Extract error message from response
+      if (error.response?.data?.detail) {
+        throw new Error(error.response.data.detail);
+      }
+      throw new Error(error instanceof Error ? error.message : 'URL upload failed');
+    }
+  }
+
+  /**
    * Get the status of a processing task
    */
   async getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
@@ -252,6 +277,7 @@ export const apiClient = new ApiClient();
 export const {
   uploadFile,
   uploadFiles,
+  uploadFromUrl,
   getTaskStatus,
   getTaskResult,
   getTaskList,

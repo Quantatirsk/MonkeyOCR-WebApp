@@ -9,21 +9,23 @@
   width: 100%;
   line-height: 1.4 !important; /* Match content tab line height */
   color: hsl(var(--foreground));
+  /* 全局设置：避免单词内部换行 */
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important; /* 禁用连字符 */
 }
 
 /* Block container wrapper - ensures one block = one DOM element */
 .block-container {
   display: block;
   position: relative;
-  padding: 0; /* 移除padding，由.block-content-wrapper提供内边距 */
-  margin: 0.1em 0 0.15em 0 !important; /* Reduced vertical spacing between blocks */
+  padding: 2px 0; /* 上下各 2px padding，左右 0 */
+  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal vertical spacing between blocks */
   border-radius: 3px;
   /* Remove transition for instant response */
   cursor: pointer;
   background-color: transparent;
   border-left: 0; /* 移除边框，由.block-content-wrapper处理 */
-  /* Add padding-bottom to make space for hover actions */
-  padding-bottom: 8px;
 }
 
 /* Center content for specific block types - Simplified */
@@ -79,7 +81,7 @@
 /* Block content wrapper - gives padding around content for better hover/selected area */
 .block-content-wrapper {
   position: relative; /* For positioning hover actions */
-  padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
+  padding: 2px 8px; /* 上下 2px (py-0.5), 左右 8px (px-2) */
   margin: 0; /* 移除负边距，让宽度与翻译/分析结果框保持一致 */
   border-radius: 4px;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -87,17 +89,17 @@
   background-color: transparent;
 }
 
-/* Pure CSS hover - apply to content wrapper - 蓝色风格 */
+/* Pure CSS hover - apply to content wrapper - 蓝色背景无边框 */
 .block-container:hover .block-content-wrapper {
-  background-color: rgba(59, 130, 246, 0.1) !important; /* 浅蓝色背景 */
-  border: 1px solid #3B82F6 !important; /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
+  border: 1px solid transparent !important; /* 透明边框 */
 }
 
 
-/* Apply background to the content wrapper inside selected containers - 原始红色风格 */
+/* Apply background to the content wrapper inside selected containers - 蓝色风格 */
 .block-container.block-selected .block-content-wrapper {
-  background-color: rgba(239, 68, 68, 0.15) !important; /* 原始红色背景 */
-  border: 1px solid #EF4444 !important; /* red-500 */
+  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
+  border: 1px solid #3B82F6 !important; /* blue-500 */
 }
 
 .block-container.block-highlighted .block-content-wrapper {
@@ -115,8 +117,8 @@
 .block-paragraph {
   display: block;
   position: relative;
-  padding: 4px 8px; /* 上下 4px (py-1), 左右 8px (px-2) */
-  margin: 0.1em 0 0.15em 0 !important; /* Further reduced spacing between blocks */
+  padding: 2px 8px; /* 上下 2px (py-0.5), 左右 8px (px-2) */
+  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal spacing between blocks */
   border-radius: 4px;
   transition: background-color 0.15s ease, border-color 0.15s ease; /* 仅对不影响布局的属性过渡 */
   cursor: pointer;
@@ -130,7 +132,7 @@
 .block-container .simulated-list-item {
   display: block;
   margin-left: 2em !important;
-  margin-bottom: 0.05em !important; /* Add reduced spacing between list items in blocks */
+  margin-bottom: 0.02em !important; /* Ultra-minimal spacing between list items in blocks */
   position: relative;
 }
 
@@ -152,26 +154,26 @@
 
 /* Removed duplicate hover rule - see line 140 for the active hover style */
 
-/* Block type specific styling - 蓝色 hover 风格 */
+/* Block type specific styling - 蓝色背景无边框 hover 风格 */
 .block-paragraph.block-type-text:hover {
-  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
-  border: 1px solid #3B82F6; /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
+  border: 1px solid transparent; /* 透明边框 */
 }
 
 .block-paragraph.block-type-title:hover {
-  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
-  border: 1px solid #3B82F6; /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
+  border: 1px solid transparent; /* 透明边框 */
 }
 
 .block-paragraph.block-type-image:hover {
-  background-color: rgba(59, 130, 246, 0.1); /* 浅蓝色背景 */
-  border: 1px solid #3B82F6; /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
+  border: 1px solid transparent; /* 透明边框 */
 }
 
-/* Block states - 原始红色风格 */
+/* Block states - 蓝色风格 */
 .block-paragraph.block-selected {
-  background-color: rgba(239, 68, 68, 0.15); /* 原始红色背景 */
-  border: 1px solid #EF4444; /* red-500 */
+  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
+  border: 1px solid #3B82F6; /* blue-500 */
   border-radius: 4px;
   /* 移除translateX位移，保持布局稳定 */
 }
@@ -182,10 +184,10 @@
   border-radius: 4px;
 }
 
-/* Use :hover for paragraphs too - 蓝色风格 */
+/* Use :hover for paragraphs too - 蓝色背景无边框 */
 .block-paragraph:hover {
-  background-color: rgba(59, 130, 246, 0.1) !important; /* 浅蓝色背景 */
-  border: 1px solid #3B82F6 !important; /* blue-500 */
+  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
+  border: 1px solid transparent !important; /* 透明边框 */
 }
 
 /* Block marker */
@@ -242,12 +244,20 @@
   line-height: 1.4 !important; /* Match content tab line height */
   text-align: justify; /* 文字两端对齐 */
   text-justify: inter-word; /* 单词间对齐 */
+  /* 确保内容不会在单词中间换行 */
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
 }
 
 /* Ensure all markdown elements have proper block display and spacing */
 .markdown-content > * {
   display: block !important;
   margin-bottom: 0.4rem;
+  /* 应用到所有子元素：避免单词内部换行 */
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
 }
 
 .markdown-content > *:last-child {
@@ -257,10 +267,14 @@
 .markdown-paragraph {
   color: hsl(var(--foreground)) !important;
   line-height: 1.4 !important; /* Match content tab */
-  margin: 0.1em 0 0.15em 0 !important; /* Further reduced spacing between blocks */
+  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal spacing between blocks */
   display: block !important; /* Ensure block-level display */
   text-align: justify !important; /* 段落文字两端对齐 */
   text-justify: inter-word; /* 单词间对齐 */
+  /* 确保段落文本不会在单词中间换行 */
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none !important;
 }
 
 /* Heading styles - match content tab typography */
@@ -273,43 +287,43 @@
 
 .markdown-h1 {
   font-size: 1.5em !important; /* Match content tab - use em for responsive scaling */
-  margin: 0.5em 0 0.2em 0 !important; /* Reduced spacing */
+  margin: 0.3em 0 0.1em 0 !important; /* Further reduced spacing */
   border-bottom: 2px solid hsl(var(--border));
-  padding-bottom: 0.3rem;
+  padding-bottom: 0.2rem;
 }
 
 .markdown-h2 {
   font-size: 1.25em !important; /* Match content tab */
-  margin: 0.5em 0 0.2em 0 !important; /* Reduced spacing */
+  margin: 0.3em 0 0.1em 0 !important; /* Further reduced spacing */
   border-bottom: 1px solid hsl(var(--border));
-  padding-bottom: 0.2rem;
+  padding-bottom: 0.15rem;
   color: hsl(var(--primary)) !important; /* Use primary color (deep blue) */
 }
 
 .markdown-h3 {
   font-size: 1.1em !important; /* Match content tab */
-  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
+  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
 }
 
 .markdown-h4 {
   font-size: 1em !important; /* Match content tab */
-  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
+  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
 }
 
 .markdown-h5 {
   font-size: 1em !important; /* Match content tab */
-  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
+  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
 }
 
 .markdown-h6 {
   font-size: 1em !important; /* Match content tab */
-  margin: 0.4em 0 0.15em 0 !important; /* Reduced spacing */
+  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
   color: hsl(var(--muted-foreground));
 }
 
 /* Image styling */
 .markdown-image-container {
-  margin: 0.25rem 0;
+  margin: 0.1rem 0;
   text-align: center;
 }
 
@@ -352,7 +366,7 @@
   border: 1px solid hsl(var(--border)) !important;
   border-radius: 6px !important; /* Match content tab border radius */
   padding: 12px !important; /* Match content tab padding */
-  margin: 0.3em 0 !important; /* Reduced spacing */
+  margin: 0.15em 0 !important; /* Further reduced spacing */
   overflow-x: auto;
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; /* Match content tab font */
   font-size: 0.85em !important; /* Match content tab font size */
@@ -378,8 +392,8 @@
 .markdown-blockquote {
   border-left: 4px solid hsl(var(--primary));
   background-color: hsl(var(--muted) / 0.3);
-  margin: 0.3em 0;
-  padding: 0.5rem 1rem;
+  margin: 0.15em 0;
+  padding: 0.4rem 0.8rem;
   border-radius: 0.5rem;
   font-style: italic;
   color: hsl(var(--muted-foreground));
@@ -395,7 +409,7 @@
 
 /* List styling - match content tab */
 .markdown-list {
-  margin: 0.2em 0 0.3em 0 !important; /* Reduced spacing */
+  margin: 0.05em 0 0.08em 0 !important; /* Ultra-minimal spacing */
   padding-left: 1.2em !important; /* Match content tab indentation */
 }
 
@@ -403,7 +417,7 @@
   list-style-type: disc !important;
   list-style-position: outside !important;
   padding-left: 1.5em !important; /* Add proper left padding */
-  margin: 0.2em 0 !important; /* Reduced from 0.5em to 0.2em */
+  margin: 0.05em 0 !important; /* Ultra-minimal margins */
 }
 
 /* Ensure list items in unordered lists show bullets */
@@ -416,7 +430,7 @@
   list-style-type: decimal !important;
   list-style-position: outside !important;
   padding-left: 1.5em !important; /* Add proper left padding */
-  margin: 0.2em 0 !important; /* Reduced from 0.5em to 0.2em */
+  margin: 0.05em 0 !important; /* Ultra-minimal margins */
 }
 
 /* Ensure list items in ordered lists show numbers */
@@ -426,7 +440,7 @@
 }
 
 .markdown-list-item {
-  margin-bottom: 0.05em !important; /* Further reduced item spacing from 0.1em to 0.05em */
+  margin-bottom: 0.02em !important; /* Ultra-minimal item spacing */
   line-height: 1.4 !important; /* Match content tab line height */
 }
 
@@ -436,7 +450,7 @@
 
 /* Table styling - clean border implementation */
 .markdown-table-container {
-  margin: 0.3em auto !important; /* Center with auto margins */
+  margin: 0.15em auto !important; /* Further reduced spacing */
   overflow: visible !important; /* Match content tab - force text wrapping */
   overflow-x: visible !important;
   overflow-y: visible !important;
@@ -471,8 +485,8 @@
   color: hsl(var(--foreground));
   font-size: 0.7em !important; /* Even smaller header font */
   /* Enable text wrapping but preserve reasonable table layout */
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
+  word-break: normal !important; /* 改为normal，避免单词内部换行 */
+  overflow-wrap: break-word !important; /* 只在必要时换行整个单词 */
   white-space: normal !important;
 }
 
@@ -491,8 +505,8 @@
   vertical-align: top;
   font-size: 0.7em !important; /* Even smaller font size */
   /* Enable text wrapping but preserve reasonable table layout */
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
+  word-break: normal !important; /* 改为normal，避免单词内部换行 */
+  overflow-wrap: break-word !important; /* 只在必要时换行整个单词 */
   white-space: normal !important;
 }
 
@@ -587,7 +601,8 @@
   text-underline-offset: 2px !important;
   transition: opacity 0.2s ease !important;
   cursor: pointer !important;
-  word-break: break-word !important; /* Ensure long URLs wrap properly */
+  word-break: break-all !important; /* 只对URL使用break-all，允许在任意位置换行 */
+  overflow-wrap: anywhere !important; /* 辅助处理长URL */
 }
 
 .markdown-link:hover {
@@ -617,13 +632,13 @@
   }
   
   .block-paragraph.block-selected {
-    border-color: #EF4444; /* red-500 原始红色 */
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+    border-color: #3B82F6; /* blue-500 蓝色 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
   }
   
   .block-container.block-selected .block-content-wrapper {
-    border-color: #EF4444; /* red-500 原始红色 */
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3);
+    border-color: #3B82F6; /* blue-500 蓝色 */
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
   }
 }
 
@@ -695,12 +710,12 @@
 .inline-translation-container {
   display: block;
   position: relative;
-  margin: 0.1em 0 0.15em 0;
+  margin: 0.05em 0 0.05em 0;
 }
 
 /* 当有翻译时的容器样式 - 增加与其他区块的间距 */
 .block-container.inline-translation-container.with-translation {
-  margin: 0.3em 0 0.4em 0 !important; /* 缩小的间距 */
+  margin: 0.15em 0 0.2em 0 !important; /* 进一步缩小的间距 */
   position: relative;
   padding: 12px;
   border-radius: 6px;
@@ -720,19 +735,19 @@
 
 /* 确保第一个区块的顶部间距正常 */
 .block-container.inline-translation-container.with-translation:first-child {
-  margin-top: 0.3em !important;
+  margin-top: 0.15em !important;
 }
 
 /* 相邻的翻译区块之间的间距 */
 .block-container.inline-translation-container.with-translation + .block-container {
-  margin-top: 0.3em !important;
+  margin-top: 0.15em !important;
 }
 
 /* 原文部分 */
 .inline-translation-container .original-section {
   display: block;
   position: relative;
-  margin-bottom: 0.6em; /* 原文和译文之间的间距 */
+  margin-bottom: 0.3em; /* 缩小原文和译文之间的间距 */
 }
 
 /* 译文部分 */
@@ -740,7 +755,7 @@
   display: block;
   position: relative;
   padding-left: 0;
-  margin-top: 0.4em; /* 译文顶部间距 */
+  margin-top: 0.2em; /* 缩小译文顶部间距 */
 }
 
 /* 译文内容包装器 */
@@ -813,8 +828,24 @@
   }
 }
 
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
 .block-hover-actions {
   animation: fadeInUp 0.2s ease-out;
+}
+
+/* When showing above the block */
+.block-hover-actions.position-above {
+  animation: fadeInDown 0.2s ease-out;
 }
 
 /* Ensure hover actions appear above other content */

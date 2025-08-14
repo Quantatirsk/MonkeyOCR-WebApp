@@ -23,6 +23,7 @@ interface BlockHoverActionsProps {
   onExplain?: () => void;
   onMark?: () => void;
   visible?: boolean;
+  position?: 'above' | 'below';
   className?: string;
 }
 
@@ -34,6 +35,7 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
   onExplain,
   onMark,
   visible = false,
+  position = 'below',
   className = ""
 }) => {
   // Handle copy action
@@ -64,18 +66,33 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
 
   if (!visible) return null;
 
+  // Dynamic positioning based on position prop
+  const positionClasses = position === 'above' 
+    ? "bottom-full mb-0.5" 
+    : "top-full mt-0.5";
+  
+  // Dynamic animation origin
+  const animationOrigin = position === 'above'
+    ? "origin-bottom"
+    : "origin-top";
+  
+  // Tooltip side based on position
+  const tooltipSide = position === 'above' ? 'bottom' : 'top';
+
   return (
     <TooltipProvider delayDuration={300}>
       <div 
         className={cn(
           "block-hover-actions", // Add class for identification
+          position === 'above' && "position-above", // Add position class for CSS animation
           "absolute left-1/2 -translate-x-1/2 z-50",
-          "top-full mt-0.5",
+          positionClasses,
           "flex items-center gap-0",
           "bg-background backdrop-blur-sm",
           "border border-border rounded-md",
           "shadow-lg",
           "transition-all duration-150 ease-out",
+          animationOrigin,
           visible ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none",
           className
         )}
@@ -93,7 +110,7 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
               <span className="ml-1.5 text-xs hidden sm:inline">复制</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
+          <TooltipContent side={tooltipSide} className="text-xs">
             复制区块内容
           </TooltipContent>
         </Tooltip>
@@ -115,7 +132,7 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
               <span className="ml-1.5 text-xs hidden sm:inline">翻译</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
+          <TooltipContent side={tooltipSide} className="text-xs">
             翻译 (快捷键: N)
           </TooltipContent>
         </Tooltip>
@@ -137,7 +154,7 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
               <span className="ml-1.5 text-xs hidden sm:inline">解释</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
+          <TooltipContent side={tooltipSide} className="text-xs">
             解释 (快捷键: M)
           </TooltipContent>
         </Tooltip>
@@ -159,7 +176,7 @@ export const BlockHoverActions: React.FC<BlockHoverActionsProps> = React.memo(({
               <span className="ml-1.5 text-xs hidden sm:inline">标记</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="top" className="text-xs">
+          <TooltipContent side={tooltipSide} className="text-xs">
             标记区块
           </TooltipContent>
         </Tooltip>

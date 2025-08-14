@@ -107,6 +107,7 @@ export interface AppActions {
   
   // File operations
   uploadFiles: (files: File[], options?: UploadOptions) => Promise<void>;
+  uploadFromUrl: (url: string, options?: UploadOptions) => Promise<void>;
   pollTaskStatus: (taskId: string) => void;
   
   // Sync operations

@@ -77,22 +77,12 @@ const IMAGE_PROMPTS: BlockPrompts = {
   translate: {
     systemPrompt: `你是专业的视觉内容翻译专家，具备强大的图像理解和跨语言描述能力。
 
-核心任务：直接分析图片内容，用目标语言生成准确、详细的描述
-
-
-图片分析要求：
-- 识别图片中的所有重要元素（文字、物体、人物、场景等）
-- 翻译图片中出现的任何文字内容
-- 描述图片的布局、颜色、构图等视觉特征
-- 识别并说明图表、流程图、架构图等专业内容
-- 保持专业术语的准确性
+核心任务：直接翻译图片内容
 
 输出格式：
-- 先概述图片主要内容
-- 详细描述各个组成部分
-- 如有文字内容，提供准确翻译
+- 提供原始图片的准确翻译（如果是表格类，请用html表格标记<table>, <thead>, <tbody>, <tr>, <th>, <td> 输出翻译后的表格）
 - 说明图片传达的核心信息`,
-    userPromptTemplate: (content: string) => `请分析并用中文描述以下内容：\n\n${content}`
+    userPromptTemplate: (content: string) => `${content}`
   },
   explain: {
     systemPrompt: `你是专业的视觉内容分析专家，擅长深度解读图像信息并提供专业见解。
@@ -173,10 +163,7 @@ export function buildTranslateMessages(
   
   // 添加语言检测信息到系统提示词
   if (detectionInfo) {
-    const confidenceText = detectionInfo.confidence === 'high' ? '高置信度' : 
-                          detectionInfo.confidence === 'medium' ? '中等置信度' : '低置信度';
-    
-    systemPrompt += `\n\n语言检测信息：检测到源语言为${detectionInfo.sourceName}（${confidenceText}），请翻译为${detectionInfo.targetName}。`;
+    systemPrompt += `\n\n请翻译为${detectionInfo.targetName}，直接输出结果。`;
   }
   
   // 动态调整翻译方向的系统提示词
@@ -239,10 +226,7 @@ export function buildMultimodalTranslateMessages(
   
   // 添加语言检测信息到系统提示词
   if (detectionInfo) {
-    const confidenceText = detectionInfo.confidence === 'high' ? '高置信度' : 
-                          detectionInfo.confidence === 'medium' ? '中等置信度' : '低置信度';
-    
-    systemPrompt += `\n\n语言检测信息：检测到源语言为${detectionInfo.sourceName}（${confidenceText}），请翻译为${detectionInfo.targetName}。`;
+    systemPrompt += `\n\n请翻译为${detectionInfo.targetName}。`;
   }
   
   // 动态调整翻译方向的系统提示词
@@ -266,7 +250,7 @@ export function buildMultimodalTranslateMessages(
       const imageTitle = match && match[1] ? match[1] : '';
       
       const userPrompt = imageTitle 
-        ? `请分析并用中文描述这张图片的内容。图片标题：${imageTitle}`
+        ? `image title：${imageTitle}`
         : prompts.translate.userPromptTemplate(textContent);
         
       userContent.push({

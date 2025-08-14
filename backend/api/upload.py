@@ -40,6 +40,216 @@ SUPPORTED_FILE_TYPES = {
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
+@router.post("/upload-url", response_model=APIResponse[ProcessingTask])
+async def upload_from_url(
+    background_tasks: BackgroundTasks,
+    pdf_url: str = Form(...),
+    is_public: str = Form("false"),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+):
+    """
+    Download and process a PDF from a URL
+    
+    Args:
+        pdf_url: URL of the PDF to download
+        is_public: Make task publicly accessible (requires auth)
+        current_user: Current authenticated user (optional)
+    """
+    import httpx
+    import re
+    
+    try:
+        # Extract filename from URL
+        filename = "document.pdf"
+        url_parts = pdf_url.split('/')
+        last_part = url_parts[-1] if url_parts else ""
+        
+        # Check if it's an ArXiv ID in the URL
+        if 'arxiv.org' in pdf_url and last_part:
+            # Extract ArXiv ID and create filename
+            arxiv_match = re.search(r'(\d{4}\.\d{4,5}(?:v\d+)?)', last_part)
+            if arxiv_match:
+                filename = f"arxiv_{arxiv_match.group(1)}.pdf"
+            elif last_part.endswith('.pdf'):
+                filename = last_part
+        elif last_part and (last_part.endswith('.pdf') or '.' in last_part):
+            # Use the last part if it looks like a filename
+            filename = last_part.split('?')[0]  # Remove query parameters
+        
+        logger.info(f"Downloading PDF from URL: {pdf_url}")
+        
+        # Download the PDF file
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(pdf_url)
+            response.raise_for_status()
+            
+            # Check content type
+            content_type = response.headers.get('content-type', '')
+            if not ('pdf' in content_type.lower() or 'octet-stream' in content_type.lower()):
+                logger.warning(f"Unexpected content-type: {content_type}, proceeding anyway")
+            
+            file_content = response.content
+        
+        # Validate file size
+        if len(file_content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB"
+            )
+        
+        # Generate task ID
+        task_id = str(uuid.uuid4())
+        
+        # Extract PDF page count
+        total_pages = file_handler.get_pdf_page_count(file_content)
+        
+        # Get user ID if authenticated
+        user_id = current_user.get("user_id") if current_user else None
+        
+        # Parse is_public from string to boolean
+        is_public_bool = is_public.lower() in ['true', '1', 'yes']
+        
+        # Only authenticated users can make tasks public
+        if is_public_bool and not current_user:
+            is_public_bool = False
+        
+        # Create task record
+        task = ProcessingTask(
+            id=task_id,
+            filename=filename,
+            file_type="pdf",
+            status="pending",
+            progress=0,
+            created_at=datetime.now().isoformat(),
+            completed_at=None,
+            error_message=None,
+            result_url=None,
+            total_pages=total_pages,
+            file_hash=None,
+            file_size=len(file_content),
+            last_modified=datetime.now().isoformat(),
+            processing_duration=None,
+            from_cache=False,
+            updated_at=datetime.now().isoformat(),
+            user_id=user_id,
+            is_public=is_public_bool
+        )
+        
+        # Store task with user context
+        persistence_manager = get_persistence_manager()
+        await persistence_manager.add_task(task, user_id=user_id)
+        
+        # Save original file for later access
+        try:
+            await file_handler.save_original_file(task_id, file_content, task.filename)
+        except Exception as e:
+            logger.warning(f"Failed to save original file for task {task_id}: {e}")
+        
+        # Check OCR cache
+        cache_hit = False
+        if settings.redis_enabled:
+            try:
+                cached_result = await ocr_cache.get_cached_result(file_content)
+                
+                if cached_result:
+                    # Cache hit! Process immediately
+                    logger.info(f"OCR cache hit for task {task_id}, processing immediately")
+                    
+                    copied_successfully = False
+                    if cached_result.get("local_result_path"):
+                        try:
+                            cached_files = {
+                                "local_result_path": cached_result["local_result_path"]
+                            }
+                            copied_successfully = await file_handler.copy_cached_files(task_id, cached_files)
+                        except Exception as e:
+                            logger.warning(f"Failed to copy cached files: {e}")
+                    
+                    if copied_successfully:
+                        # Process the ZIP to extract static files
+                        result_file_path = await file_handler.get_result_file(task_id)
+                        if result_file_path and os.path.exists(result_file_path):
+                            try:
+                                document_result = await file_handler.process_result_zip(result_file_path, task_id)
+                                logger.info(f"Processed cached ZIP: {len(document_result.images)} images")
+                            except Exception as e:
+                                logger.warning(f"Failed to process cached ZIP: {e}")
+                        
+                        # Mark task as completed with cache flag
+                        updated_task = await persistence_manager.update_task(task_id, {
+                            "status": "completed",
+                            "progress": 100,
+                            "result_url": f"/api/download/{task_id}",
+                            "completed_at": datetime.now().isoformat(),
+                            "from_cache": True,
+                            "processing_duration": 0.1,
+                            "updated_at": datetime.now().isoformat()
+                        })
+                        
+                        if updated_task:
+                            logger.info(f"Task {task_id} updated in DB - status: {updated_task.status}")
+                        
+                        cache_hit = True
+                        
+                        # Update the task object to reflect the new status
+                        task.status = "completed"
+                        task.progress = 100
+                        task.result_url = f"/api/download/{task_id}"
+                        task.completed_at = datetime.now().isoformat()
+                        task.from_cache = True
+                        task.processing_duration = 0.1
+                    else:
+                        # Cache files unavailable, invalidate and proceed normally
+                        logger.warning(f"Cached files unavailable, invalidating cache")
+                        try:
+                            await ocr_cache.invalidate_cache(file_content)
+                        except:
+                            pass
+            except Exception as e:
+                logger.warning(f"Cache check failed: {e}")
+        
+        # Only start background processing if cache miss
+        if not cache_hit:
+            background_tasks.add_task(
+                process_file_async,
+                task_id,
+                file_content,
+                filename,
+                "application/pdf"
+            )
+            
+            return APIResponse(
+                success=True,
+                data=task,
+                message="PDF downloaded and processing started",
+                error=None
+            )
+        else:
+            # Cache hit, task already completed
+            return APIResponse(
+                success=True,
+                data=task,
+                message="PDF processed from cache",
+                error=None
+            )
+        
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to download PDF: HTTP {e.response.status_code}"
+        )
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=400,
+            detail="Download timeout - the file may be too large or the server is slow"
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"URL upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process URL: {str(e)}")
+
+
 @router.post("/upload", response_model=APIResponse[ProcessingTask])
 async def upload_file(
     background_tasks: BackgroundTasks,

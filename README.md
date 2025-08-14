@@ -245,9 +245,7 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 🙏 致谢
 
-- [MonkeyOCR](https://ocr.teea.cn) - 提供 OCR 识别服务
-- [shadcn/ui](https://ui.shadcn.com) - 精美的 UI 组件库
-- [FastAPI](https://fastapi.tiangolo.com) - 高性能 Python Web 框架
+- [MonkeyOCR](https://github.com/Yuliang-Liu/MonkeyOCR) - 提供 OCR 识别服务
 
 ---
 

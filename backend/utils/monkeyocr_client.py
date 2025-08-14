@@ -267,13 +267,15 @@ class MonkeyOCRClient:
     
     def _resolve_base_url(self) -> str:
         """
-        Resolve the base URL by querying DNS for home.teea.cn
+        Resolve the base URL by querying DNS for diamond.vect.one
         
         Returns:
-            The resolved base URL or fallback URL
+            The resolved base URL
+            
+        Raises:
+            MonkeyOCRNetworkError: If DNS resolution fails
         """
-        hostname = "home.teea.cn"
-        fallback_url = "https://ocr.teea.cn"  # Original hardcoded URL as fallback
+        hostname = "diamond.vect.one"
         port = 18001
         
         try:
@@ -284,12 +286,12 @@ class MonkeyOCRClient:
                 print(f"Resolved MonkeyOCR base URL: {resolved_url} (from {hostname})")
                 return resolved_url
             else:
-                print(f"Failed to resolve {hostname}, using fallback: {fallback_url}")
-                return fallback_url
+                raise MonkeyOCRNetworkError(f"Failed to resolve DNS for {hostname}")
                 
+        except MonkeyOCRNetworkError:
+            raise
         except Exception as e:
-            print(f"Error resolving base URL: {e}, using fallback: {fallback_url}")
-            return fallback_url
+            raise MonkeyOCRNetworkError(f"Error resolving base URL for {hostname}: {e}")
     
     def refresh_base_url(self) -> str:
         """
@@ -299,7 +301,7 @@ class MonkeyOCRClient:
             The new base URL
         """
         # Clear DNS cache for the hostname
-        hostname = "home.teea.cn"
+        hostname = "diamond.vect.one"
         if hostname in self.dns_cache:
             del self.dns_cache[hostname]
         
@@ -332,13 +334,17 @@ class MonkeyOCRClient:
         # If initial health check failed and retry is enabled, try refreshing URL
         if retry_with_refresh:
             print("Attempting to refresh base URL and retry health check...")
-            old_url = self.base_url
-            new_url = self.refresh_base_url()
-            
-            if new_url != old_url:
-                print(f"Base URL changed from {old_url} to {new_url}, retrying health check...")
-                return await self.health_check(retry_with_refresh=False)  # Prevent infinite recursion
-            else:
-                print("Base URL unchanged after refresh")
+            try:
+                old_url = self.base_url
+                new_url = self.refresh_base_url()
+                
+                if new_url != old_url:
+                    print(f"Base URL changed from {old_url} to {new_url}, retrying health check...")
+                    return await self.health_check(retry_with_refresh=False)  # Prevent infinite recursion
+                else:
+                    print("Base URL unchanged after refresh")
+            except MonkeyOCRNetworkError as e:
+                print(f"Failed to refresh base URL: {e}")
+                # Can't refresh, return the original failure
         
         return False

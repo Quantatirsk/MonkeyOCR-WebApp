@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { shallow } from 'zustand/shallow';
-import { FileText, ArrowLeftRight, Eye, RotateCw, Image, Languages } from 'lucide-react';
+import { FileText, Eye, RotateCw, Image, Languages } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { ScrollArea } from './ui/scroll-area';
@@ -824,12 +824,20 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({ className = '' }
                   />
                 </div>
               ) : (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center space-y-2">
-                    <ArrowLeftRight className="w-8 h-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">
-                      等待OCR处理完成以查看对照视图
-                    </p>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative w-16 h-16">
+                      <div className="absolute inset-0 border-4 border-primary/20 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                    <div className="flex flex-col items-center space-y-2">
+                      <p className="text-sm font-medium text-foreground">
+                        正在处理文档
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        请稍候，OCR识别中...
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

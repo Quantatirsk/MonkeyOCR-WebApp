@@ -321,8 +321,22 @@ class ZipProcessor:
                 self._current_task_id = None
                 
                 return result
-        except (json.JSONDecodeError, FileNotFoundError, Exception) as e:
-            print(f"Error reading middle.json file {middle_json_path}: {e}")
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error in file {middle_json_path}: {e}")
+            print(f"Error at line {e.lineno}, column {e.colno}")
+            return None
+        except FileNotFoundError as e:
+            print(f"File not found: {middle_json_path}")
+            return None
+        except IndexError as e:
+            print(f"IndexError while processing {middle_json_path}: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+        except Exception as e:
+            print(f"Unexpected error reading middle.json file {middle_json_path}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _transform_block_data(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -362,19 +376,29 @@ class ZipProcessor:
                 # Skip table blocks from preproc_blocks to avoid duplication with tables array
                 # Process text, title, and interline_equation blocks
                 if block.get('type') not in ['image', 'table']:
+                    # Ensure bbox is valid
+                    bbox = block.get('bbox', [0, 0, 0, 0])
+                    if not isinstance(bbox, list) or len(bbox) < 4:
+                        bbox = [0, 0, 0, 0]
+                    
                     all_raw_blocks.append({
                         'source_type': 'preproc',
                         'data': block,
                         'page_num': page_num,
                         'page_size': page_size,
                         'original_index': block.get('index', 0),
-                        'bbox': block.get('bbox', [0, 0, 0, 0])
+                        'bbox': bbox
                     })
             
             # Collect image blocks with processing metadata and deduplication  
             for image_block in images:
+                # Ensure bbox is valid
+                bbox = image_block.get('bbox', [0, 0, 0, 0])
+                if not isinstance(bbox, list) or len(bbox) < 4:
+                    bbox = [0, 0, 0, 0]
+                    
                 # Create unique identifier for image based on bbox and page
-                image_id = f"{page_num}_{image_block.get('bbox', [0,0,0,0])}"
+                image_id = f"{page_num}_{bbox}"
                 if image_id not in processed_images:
                     processed_images.add(image_id)
                     all_raw_blocks.append({
@@ -383,18 +407,23 @@ class ZipProcessor:
                         'page_num': page_num,
                         'page_size': page_size,
                         'original_index': image_block.get('index', 0),
-                        'bbox': image_block.get('bbox', [0, 0, 0, 0])
+                        'bbox': bbox
                     })
             
             # Collect table blocks with processing metadata
             for table_block in tables:
+                # Ensure bbox is valid
+                bbox = table_block.get('bbox', [0, 0, 0, 0])
+                if not isinstance(bbox, list) or len(bbox) < 4:
+                    bbox = [0, 0, 0, 0]
+                    
                 all_raw_blocks.append({
                     'source_type': 'table',
                     'data': table_block,
                     'page_num': page_num,
                     'page_size': page_size,
                     'original_index': table_block.get('index', 0),
-                    'bbox': table_block.get('bbox', [0, 0, 0, 0])
+                    'bbox': bbox
                 })
         
         # Sort all blocks by page first, then by original reading order (Y position, then X position)
@@ -403,11 +432,17 @@ class ZipProcessor:
             bbox = raw_block['bbox']
             original_index = raw_block['original_index']
             
+            # Ensure bbox has at least 4 elements, fill with zeros if needed
+            if not isinstance(bbox, list):
+                bbox = [0, 0, 0, 0]
+            elif len(bbox) < 4:
+                bbox = list(bbox) + [0] * (4 - len(bbox))
+            
             # Primary: page number
             # Secondary: original index from MonkeyOCR (semantic reading order)
             # Tertiary: Y position (top to bottom)
             # Quaternary: X position (left to right) 
-            return (page_num, original_index, bbox[1], bbox[0])
+            return (page_num, original_index, bbox[1] if len(bbox) > 1 else 0, bbox[0] if len(bbox) > 0 else 0)
         
         sorted_raw_blocks = sorted(all_raw_blocks, key=get_sort_key)
         

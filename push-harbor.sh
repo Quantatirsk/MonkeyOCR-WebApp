@@ -15,13 +15,10 @@ else
     docker buildx use $BUILDER_NAME
 fi
 
-# 构建并推送到 Harbor
+# 构建并推送到 Harbor（无缓存版本）
 docker buildx build \
     --platform linux/amd64,linux/arm64 \
-    --cache-from type=registry,ref=$DOCKERHUB_IMAGE:latest \
-    --cache-from type=registry,ref=$HARBOR_IMAGE:latest \
-    --cache-from type=registry,ref=$HARBOR_IMAGE:buildcache \
-    --cache-to type=registry,ref=$HARBOR_IMAGE:buildcache,mode=max \
+    --no-cache \
     -t $HARBOR_IMAGE:latest \
     --push .
 

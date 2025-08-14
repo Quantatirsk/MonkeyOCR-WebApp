@@ -46,7 +46,9 @@ export class BlockMarkdownGenerator {
       const formattedContent = this.formatBlockContent(block, taskId);
       if (formattedContent.trim()) {
         // Check if this is a list item that needs special handling
-        const isListItem = this.isListItem(formattedContent) || this.isListItem(block.content);
+        // Only check the formatted content, not the original content
+        // because title blocks will have ## prefix in formatted content
+        const isListItem = this.isListItem(formattedContent);
         
         // Debug logging disabled for performance
         
@@ -132,10 +134,55 @@ export class BlockMarkdownGenerator {
    */
   private static isListItem(content: string): boolean {
     const trimmed = content.trim();
-    return trimmed.startsWith('- ') || 
-           trimmed.startsWith('* ') ||
-           trimmed.startsWith('+ ') ||
-           !!trimmed.match(/^\d+\.\s/);
+    
+    // If it starts with #, it's already a markdown header, not a list item
+    if (trimmed.startsWith('#')) {
+      return false;
+    }
+    
+    // Check for unordered list markers
+    if (trimmed.startsWith('- ') || 
+        trimmed.startsWith('* ') ||
+        trimmed.startsWith('+ ')) {
+      return true;
+    }
+    
+    // For numbered items, need to be more careful
+    // Check if it matches pattern like "1. " or "10. "
+    const numberMatch = trimmed.match(/^(\d+)\.\s(.+)/);
+    if (numberMatch) {
+      const restOfContent = numberMatch[2];
+      // If the rest of the content looks like a title (starts with capital letters or contains keywords),
+      // it's probably not a list item
+      // Common title patterns: "Broader Impacts", "Related Work", "Introduction", etc.
+      // Also check for patterns like "Institutional Review Board", "IRB", etc.
+      if (restOfContent.match(/^[A-Z][A-Za-z\s]+$/) || // Title case words
+          restOfContent.match(/^[A-Z]{2,}/) || // Starts with multiple caps (e.g., "BROADER", "IRB")
+          restOfContent.toLowerCase().includes('introduction') ||
+          restOfContent.toLowerCase().includes('conclusion') ||
+          restOfContent.toLowerCase().includes('abstract') ||
+          restOfContent.toLowerCase().includes('impacts') ||
+          restOfContent.toLowerCase().includes('related') ||
+          restOfContent.toLowerCase().includes('background') ||
+          restOfContent.toLowerCase().includes('methods') ||
+          restOfContent.toLowerCase().includes('results') ||
+          restOfContent.toLowerCase().includes('discussion') ||
+          restOfContent.toLowerCase().includes('references') ||
+          restOfContent.toLowerCase().includes('appendix') ||
+          restOfContent.toLowerCase().includes('institutional') ||
+          restOfContent.toLowerCase().includes('review') ||
+          restOfContent.toLowerCase().includes('board') ||
+          restOfContent.toLowerCase().includes('approval') ||
+          restOfContent.toLowerCase().includes('research') ||
+          restOfContent.toLowerCase().includes('subjects') ||
+          restOfContent.toLowerCase().includes('irb') ||
+          restOfContent.toLowerCase().includes('ethics')) {
+        return false; // This is likely a numbered section title, not a list item
+      }
+      return true; // It's a list item
+    }
+    
+    return false;
   }
 
   /**
@@ -144,13 +191,8 @@ export class BlockMarkdownGenerator {
   private static formatText(content: string): string {
     const trimmed = content.trim();
     
-    // Check if this is a list item
-    const isListItem = trimmed.startsWith('- ') || 
-                       trimmed.startsWith('* ') ||
-                       trimmed.startsWith('+ ') ||
-                       !!trimmed.match(/^\d+\.\s/);
-    
-    if (isListItem) {
+    // Check if this is a list item using our improved logic
+    if (this.isListItem(trimmed)) {
       // For list items, return as-is to preserve the list marker (including the number)
       return trimmed;
     }

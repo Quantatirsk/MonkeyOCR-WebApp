@@ -240,6 +240,48 @@ export const useAppStore = create<AppStore>()(
         }
       },
 
+      uploadFromUrl: async (url, options = {}) => {
+        const { setUploading, pollTaskStatus, loadResult } = get();
+        
+        setUploading(true);
+        
+        try {
+          console.log(`Uploading PDF URL to backend: ${url}`);
+          
+          // Call the backend API to download and process the PDF
+          const response: APIResponse<ProcessingTask> = await apiClient.uploadFromUrl(url, options);
+          
+          if (response.success && response.data) {
+            // Add the task returned from server
+            const serverTask: ProcessingTask = {
+              ...response.data
+            };
+            
+            set((state) => ({
+              tasks: [...state.tasks, serverTask],
+              currentTaskId: serverTask.id
+            }));
+            
+            // If task is already completed (cache hit), load result immediately
+            if (serverTask.status === 'completed') {
+              console.log(`Task ${serverTask.id} completed from cache, loading result...`);
+              await loadResult(serverTask.id);
+            } else {
+              // Start polling for status updates
+              console.log(`Task ${serverTask.id} status: ${serverTask.status}, starting polling...`);
+              pollTaskStatus(serverTask.id);
+            }
+          } else {
+            throw new Error(response.error || 'Upload failed');
+          }
+        } catch (error) {
+          console.error('URL upload error:', error);
+          throw error;
+        } finally {
+          setUploading(false);
+        }
+      },
+
       pollTaskStatus: async (taskId) => {
         const { updateTask, loadResult } = get();
         const task = get().tasks.find(t => t.id === taskId);

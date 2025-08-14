@@ -11,7 +11,7 @@ MonkeyOCR WebApp is a full-stack application for OCR content extraction and visu
 - **Frontend**: React 18 + Vite + TypeScript + TailwindCSS + shadcn/ui + Zustand
 - **Backend**: FastAPI + Python 3.12+ with SQLite persistence, Redis caching, and OpenAI-compatible LLM
 - **Storage**: SQLite (tasks/users), Redis (caching only), Static files (extracted content)
-- **External Services**: MonkeyOCR API (https://ocr.teea.cn), configurable LLM API
+- **External Services**: MonkeyOCR API (http://diamond.vect.one:18001), configurable LLM API
 
 ## Development Commands
 

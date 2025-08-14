@@ -128,16 +128,16 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
 
       if (isSelected) {
         lineWidth = 1; // 与 Markdown 一致：1px 边框
-        borderColor = '#EF4444'; // red-500 与 Markdown 一致
-        backgroundColor = 'rgba(239, 68, 68, 0.15)'; // 与 Markdown 一致
+        borderColor = '#3B82F6'; // blue-500 与 Markdown 一致
+        backgroundColor = 'rgba(59, 130, 246, 0.15)'; // 与 Markdown 一致
       } else if (isHighlighted) {
         lineWidth = 1;
         borderColor = colorScheme.border;
         backgroundColor = colorScheme.background;
       } else if (isHovered) {
-        lineWidth = 1; // 与 Markdown 一致：1px 边框
-        borderColor = '#3B82F6'; // blue-500 与 Markdown 一致
-        backgroundColor = 'rgba(59, 130, 246, 0.1)'; // 与 Markdown 一致
+        lineWidth = 0; // 无边框
+        borderColor = 'transparent'; // 透明边框
+        backgroundColor = 'rgba(59, 130, 246, 0.15)'; // 蓝色背景 与 Markdown 一致
       }
 
       // Draw rounded rectangle with 4px radius (与 Markdown 一致)

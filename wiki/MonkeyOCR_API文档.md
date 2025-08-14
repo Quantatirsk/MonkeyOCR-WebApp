@@ -4,9 +4,9 @@
 
 MonkeyOCR 是一个强大的 OCR（光学字符识别）和文档解析 API 服务，支持从图像和 PDF 文件中提取文本、公式和表格。本文档详细介绍了如何使用 Python 调用 MonkeyOCR API。
 
-**服务器地址**: [https://ocr.teea.cn](https://ocr.teea.cn)
+**服务器地址**: [http://diamond.vect.one:18001](http://diamond.vect.one:18001)
 
-**API测试地址**: [https://ocr.teea.cn/docs](https://ocr.teea.cn/docs)
+**API测试地址**: [http://diamond.vect.one:18001/docs](http://diamond.vect.one:18001/docs)
 
 ## 功能特性
 
@@ -27,7 +27,7 @@ import json
 from pathlib import Path
 
 # API 基础配置
-BASE_URL = "https://ocr.teea.cn"
+BASE_URL = "http://diamond.vect.one:18001"
 ```
 
 ## 1. 基础 OCR 功能

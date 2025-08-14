@@ -159,8 +159,13 @@ export const useBlockSync = ({
       return;
     }
 
-    selectBlock(blockIndex, pageNumber);
-  }, [selectBlock, clearSelection]);
+    // Toggle selection: if clicking the same block, unselect it
+    if (syncState.selectedBlock.isActive && syncState.selectedBlock.blockIndex === blockIndex) {
+      clearSelection();
+    } else {
+      selectBlock(blockIndex, pageNumber);
+    }
+  }, [selectBlock, clearSelection, syncState.selectedBlock]);
 
   const handlePdfBlockHover = useCallback((blockIndex: number | null, _pageNumber: number) => {
     setHoveredBlock(blockIndex);
@@ -174,8 +179,13 @@ export const useBlockSync = ({
 
   // Markdown interaction handlers
   const handleMarkdownBlockClick = useCallback((blockIndex: number) => {
-    selectBlock(blockIndex);
-  }, [selectBlock]);
+    // Toggle selection: if clicking the same block, unselect it
+    if (syncState.selectedBlock.isActive && syncState.selectedBlock.blockIndex === blockIndex) {
+      clearSelection();
+    } else {
+      selectBlock(blockIndex);
+    }
+  }, [selectBlock, clearSelection, syncState.selectedBlock]);
 
   const handleMarkdownBlockHover = useCallback((blockIndex: number | null) => {
     setHoveredBlock(blockIndex);
