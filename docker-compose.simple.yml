@@ -1,7 +1,6 @@
 services:
   monkeyocr-webapp:
     image: quantatrisk/monkeyocr-webapp:latest
-    platform: linux/amd64
     ports:
       - "${API_PORT:-8001}:8001"
     env_file:
@@ -12,8 +11,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     volumes:
-      - data:/app/data
-      - static:/app/static
+      - ocr_data:/app/data      # 改为 ocr_data
+      - ocr_static:/app/static  # 改为 ocr_static
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -42,11 +41,9 @@ services:
       retries: 3
       start_period: 10s
 
-
 volumes:
   ocr_data:
   ocr_static:
-
 
 networks:
   api-network:
