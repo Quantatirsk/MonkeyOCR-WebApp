@@ -5,8 +5,14 @@
  */
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { Languages, Sparkles, Copy, Download, Loader2 } from 'lucide-react';
+import { Languages, Sparkles, Copy, Download, Loader2, ChevronDown } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { Progress } from '../ui/progress';
 import { ScrollArea } from '../ui/scroll-area';
 import { BlockMarkdownViewer } from '../markdown/BlockMarkdownViewer';
@@ -268,6 +274,62 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = ({
     toast.success('译文已下载');
   }, [blockData, blockActions, taskId, processImagePath]);
   
+  // 下载原文+译文对照为 Markdown 文件
+  const handleDownloadBilingual = useCallback(() => {
+    const bilingualBlocks: string[] = [];
+    
+    blockData.forEach((block) => {
+      const translation = blockActions.getTranslation(block.index);
+      
+      if (block.type === 'image') {
+        // 对于图片区块，保留原始图片，并转换为完整URL
+        const imageWithFullUrl = processImagePath(block.content);
+        bilingualBlocks.push(imageWithFullUrl);
+        
+        // 如果有译文（图像识别结果），以引用块格式添加
+        if (translation) {
+          bilingualBlocks.push(`> ${translation}`);
+        }
+      } else if (block.type === 'title') {
+        // 对于标题类型，先添加原文标题
+        const hasHeadingMarker = /^#{1,6}\s/.test(block.content.trim());
+        const originalTitle = hasHeadingMarker ? block.content : `## ${block.content.trim()}`;
+        bilingualBlocks.push(originalTitle);
+        
+        // 如果有译文，以引用块格式添加
+        if (translation) {
+          const translationHasHeading = /^#{1,6}\s/.test(translation.trim());
+          const cleanTranslation = translationHasHeading ? translation.replace(/^#{1,6}\s/, '') : translation;
+          bilingualBlocks.push(`> ${cleanTranslation.trim()}`);
+        }
+      } else {
+        // 其他区块类型：先添加原文
+        bilingualBlocks.push(block.content);
+        
+        // 如果有译文，以引用块格式添加
+        if (translation) {
+          bilingualBlocks.push(`> ${translation}`);
+        }
+      }
+    });
+    
+    // 拼接内容，使用双换行符分隔
+    const bilingualText = bilingualBlocks.join('\n\n');
+    
+    // 创建 Blob 并下载
+    const blob = new Blob([bilingualText], { type: 'text/markdown;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bilingual_${taskId}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    toast.success('原文+译文已下载');
+  }, [blockData, blockActions, taskId, processImagePath]);
+  
   // 字体大小控制
   const handleFontSizeChange = useCallback(() => {
     setFontSizeLevel(prev => (prev + 1) % 3);
@@ -406,16 +468,30 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = ({
               <Copy className="w-3.5 h-3.5" />
             </Button>
             
-            {/* 下载译文按钮 */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownloadTranslations}
-              disabled={blockActions.actionState.translations.size === 0}
-              title="下载译文"
-            >
-              <Download className="w-3.5 h-3.5" />
-            </Button>
+            {/* 下载选项下拉菜单 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={blockActions.actionState.translations.size === 0}
+                  title="下载选项"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1" />
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownloadTranslations}>
+                  <Download className="w-4 h-4 mr-2" />
+                  下载译文
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadBilingual}>
+                  <Download className="w-4 h-4 mr-2" />
+                  下载原文+译文
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </div>

@@ -24,6 +24,7 @@ import { Badge } from './ui/badge';
 import { ProcessingTask, BlockData, BlockSelection } from '../types';
 import { syncManager } from '../utils/syncManager';
 import { PDFBlockOverlay } from './pdf/PDFBlockOverlay';
+import { ImageBlockOverlay } from './image/ImageBlockOverlay';
 import { getAccessToken } from '../utils/auth';
 
 // Set up PDF.js worker for Vite
@@ -103,6 +104,11 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
   // 拖拽状态管理 - 用于优化渲染性能
   const [isDragging, setIsDragging] = useState(false);
   const dragTimeoutRef = useRef<NodeJS.Timeout>();
+  
+  // 图片尺寸状态管理 - 用于区块定位
+  const [imageDimensions, setImageDimensions] = useState<[number, number]>([0, 0]);
+  const [displayDimensions, setDisplayDimensions] = useState<[number, number]>([0, 0]);
+  const imageRef = useRef<HTMLImageElement>(null);
   
   // 从服务器获取文件预览URL和信息
   React.useEffect(() => {
@@ -342,6 +348,63 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     setShowBlockOverlays(syncEnabled);
   }, [syncEnabled]);
 
+  // 处理图片尺寸获取和响应式更新
+  React.useEffect(() => {
+    if (task.file_type !== 'image' || !fileUrl) return;
+
+    const updateImageDimensions = () => {
+      const img = imageRef.current;
+      if (!img) return;
+
+      // 获取图片的原始尺寸
+      const naturalWidth = img.naturalWidth;
+      const naturalHeight = img.naturalHeight;
+      
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        setImageDimensions([naturalWidth, naturalHeight]);
+      }
+
+      // 获取图片的显示尺寸
+      const displayWidth = img.clientWidth;
+      const displayHeight = img.clientHeight;
+      
+      if (displayWidth > 0 && displayHeight > 0) {
+        setDisplayDimensions([displayWidth, displayHeight]);
+      }
+    };
+
+    // 图片加载完成后更新尺寸
+    const img = imageRef.current;
+    if (img) {
+      if (img.complete) {
+        updateImageDimensions();
+      } else {
+        img.addEventListener('load', updateImageDimensions);
+        return () => img.removeEventListener('load', updateImageDimensions);
+      }
+    }
+  }, [task.file_type, fileUrl]);
+
+  // 监听图片显示尺寸变化（响应式布局）
+  React.useEffect(() => {
+    if (task.file_type !== 'image') return;
+
+    const img = imageRef.current;
+    if (!img) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      const displayWidth = img.clientWidth;
+      const displayHeight = img.clientHeight;
+      
+      if (displayWidth > 0 && displayHeight > 0) {
+        setDisplayDimensions([displayWidth, displayHeight]);
+      }
+    });
+
+    resizeObserver.observe(img);
+    return () => resizeObserver.disconnect();
+  }, [task.file_type, fileUrl]);
+
   // PDF文档加载成功回调
   const onDocumentLoadSuccess = React.useCallback(async (pdf: any) => {
     setNumPages(pdf.numPages);
@@ -481,6 +544,18 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
               
               {/* 右侧：操作按钮 */}
               <div className="flex items-center space-x-1 flex-shrink-0">
+                {/* Block overlay toggle - only show if sync is available */}
+                {syncEnabled && blockData.length > 0 && (
+                  <Button 
+                    variant={showBlockOverlays ? "default" : "outline"} 
+                    size="sm" 
+                    onClick={() => setShowBlockOverlays(!showBlockOverlays)}
+                    title={showBlockOverlays ? "隐藏区块标记" : "显示区块标记"}
+                  >
+                    {showBlockOverlays ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  </Button>
+                )}
+                
                 <Button 
                   variant="outline" 
                   size="sm" 
@@ -498,17 +573,37 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         <div className="flex-1 overflow-hidden" ref={task.file_type === 'image' ? containerRef as React.RefObject<HTMLDivElement> : undefined}>
           <ScrollArea className="h-full w-full">
             <div className="flex items-center justify-center min-h-full p-4">
-              <img
-                src={fileUrl}
-                alt={task.filename}
-                className="max-w-full h-auto shadow-lg rounded-lg transition-all duration-200"
-                style={{
-                  transform: `rotate(${currentPageRotations[1] || 0}deg)`,
-                  transformOrigin: 'center'
-                }}
-                onError={() => setError('无法加载图片文件')}
-                onClick={() => setSelectedPage(1)}
-              />
+              <div className="relative">
+                <img
+                  ref={imageRef}
+                  src={fileUrl}
+                  alt={task.filename}
+                  className="max-w-full h-auto shadow-lg rounded-lg transition-all duration-200"
+                  style={{
+                    transform: `rotate(${currentPageRotations[1] || 0}deg)`,
+                    transformOrigin: 'center'
+                  }}
+                  onError={() => setError('无法加载图片文件')}
+                  onClick={() => setSelectedPage(1)}
+                />
+                
+                {/* Image Block Overlay */}
+                {syncEnabled && blockData.length > 0 && showBlockOverlays && imageDimensions[0] > 0 && displayDimensions[0] > 0 && (
+                  <ImageBlockOverlay
+                    blocks={blockData}
+                    imageDimensions={imageDimensions}
+                    displayDimensions={displayDimensions}
+                    rotation={currentPageRotations[1] || 0}
+                    selectedBlock={selectedBlock}
+                    highlightedBlocks={highlightedBlocks}
+                    syncEnabled={showBlockOverlays}
+                    onBlockClick={onBlockClick}
+                    onBlockHover={onBlockHover}
+                    className="z-10"
+                    isDragging={isDragging}
+                  />
+                )}
+              </div>
             </div>
           </ScrollArea>
         </div>
