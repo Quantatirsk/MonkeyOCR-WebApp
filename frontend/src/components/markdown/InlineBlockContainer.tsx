@@ -27,7 +27,7 @@ import yaml from 'react-syntax-highlighter/dist/cjs/languages/prism/yaml';
 import { Copy, Check } from 'lucide-react';
 import { BlockData } from '../../types';
 import { BlockProcessor } from '../../utils/blockProcessor';
-import { getStaticFileUrl } from '../../config';
+import { getMediaFileUrl } from '../../config';
 import { toast } from 'sonner';
 import './code-block-styles.css';
 
@@ -335,8 +335,8 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
     
     // 处理图片路径
     processed = processed.replace(
-      /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
-      (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
+      /!\[([^\]]*)\]\(\/media\/([^)]+)\)/g,
+      (_, alt, path) => `![${alt}](${getMediaFileUrl(path)})`
     );
     
     return processed;
@@ -455,7 +455,7 @@ export const InlineBlockContainer: React.FC<InlineBlockContainerProps> = React.m
                 ),
                 // 图片
                 img: ({ src, alt, ...props }: any) => {
-                  const imageSrc = src?.startsWith('/static/') ? getStaticFileUrl(src.slice(8)) : src;
+                  const imageSrc = src?.startsWith('/media/') ? getMediaFileUrl(src.slice(7)) : src;
                   return (
                     <>
                       <img 

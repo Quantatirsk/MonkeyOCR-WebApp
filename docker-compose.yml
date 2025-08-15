@@ -15,7 +15,7 @@ services:
     volumes:
       # Persistent data storage  
       - ./data:/app/data
-      # Note: ./static removed to avoid overriding built-in frontend files
+      - ./media:/app/media
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]

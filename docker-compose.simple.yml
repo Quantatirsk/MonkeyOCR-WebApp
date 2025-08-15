@@ -1,6 +1,6 @@
 services:
   monkeyocr-webapp:
-    image: quantatrisk/monkeyocr-webapp:latest
+    image: harbor.vect.one/quantatrisk/monkeyocr-webapp:latest
     ports:
       - "${API_PORT:-8001}:8001"
     env_file:
@@ -11,8 +11,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
     volumes:
-      - ocr_data:/app/data      # 改为 ocr_data
-      - ocr_static:/app/static  # 改为 ocr_static
+      - ./data:/app/data
+      - ./media:/app/media
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -40,10 +40,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  ocr_data:
-  ocr_static:
 
 networks:
   api-network:

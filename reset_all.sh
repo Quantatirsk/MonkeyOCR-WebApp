@@ -37,15 +37,15 @@ echo "   ✅ 数据库已删除"
 # 清理上传和结果文件
 rm -rf uploads/* 2>/dev/null
 rm -rf results/* 2>/dev/null
-rm -rf static/* 2>/dev/null
+rm -rf media/* 2>/dev/null
 rm -rf data/* 2>/dev/null
 echo "   ✅ 文件已清理"
 
 # 保持目录结构
-mkdir -p uploads results static data 2>/dev/null
+mkdir -p uploads results media data 2>/dev/null
 
 # 创建.gitkeep文件保持目录
-touch uploads/.gitkeep results/.gitkeep static/.gitkeep data/.gitkeep 2>/dev/null
+touch uploads/.gitkeep results/.gitkeep media/.gitkeep data/.gitkeep 2>/dev/null
 
 echo ""
 echo "3. 清理Redis缓存..."

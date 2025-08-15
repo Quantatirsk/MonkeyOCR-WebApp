@@ -7,7 +7,7 @@
 import React, { useRef, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import 'katex/dist/katex.min.css';
-import { getStaticFileUrl } from '../../config';
+import { getMediaFileUrl } from '../../config';
 import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import remarkMath from 'remark-math';
@@ -628,8 +628,8 @@ export function CompactMarkdownViewer({ content, className = '', overlayType = '
 
     // 处理图片路径
     processed = processed.replace(
-      /!\[([^\]]*)\]\(\/static\/([^)]+)\)/g,
-      (_, alt, path) => `![${alt}](${getStaticFileUrl(path)})`
+      /!\[([^\]]*)\]\(\/media\/([^)]+)\)/g,
+      (_, alt, path) => `![${alt}](${getMediaFileUrl(path)})`
     );
 
     // 检测是否是纯HTML表格内容（不包含其他markdown语法）

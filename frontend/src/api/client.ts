@@ -14,7 +14,7 @@ import {
   BlockDataResponse
 } from '../types';
 
-import { APP_CONFIG, getStaticFileUrl } from '../config';
+import { APP_CONFIG, getMediaFileUrl } from '../config';
 import { useAuthStore } from '../store/authStore';
 
 // API Configuration
@@ -236,8 +236,8 @@ class ApiClient {
   /**
    * Get static file URL for images
    */
-  getStaticFileUrl(filePath: string): string {
-    return getStaticFileUrl(filePath);
+  getMediaFileUrl(filePath: string): string {
+    return getMediaFileUrl(filePath);
   }
 
   /**

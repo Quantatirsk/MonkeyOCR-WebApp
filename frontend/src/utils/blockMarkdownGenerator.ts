@@ -365,7 +365,7 @@ export class BlockMarkdownGenerator {
   }
   
   /**
-   * Process image paths to construct proper static URLs
+   * Process image paths to construct proper media URLs
    */
   private static processImagePath(markdownContent: string, taskId?: string): string {
     // Try to get task ID from parameter or URL
@@ -383,12 +383,12 @@ export class BlockMarkdownGenerator {
       return markdownContent;
     }
     
-    // Replace image paths with proper static URLs
+    // Replace image paths with proper media URLs
     return markdownContent.replace(
       /!\[([^\]]*)\]\(([^)]+)\)/g,
       (match, altText, imagePath) => {
         // Skip if it's already a full URL
-        if (imagePath.startsWith('http') || imagePath.startsWith('/static/')) {
+        if (imagePath.startsWith('http') || imagePath.startsWith('/media/')) {
           return match;
         }
         
@@ -396,10 +396,10 @@ export class BlockMarkdownGenerator {
         let staticPath;
         if (imagePath.includes('/')) {
           // Path with directory structure (e.g., "images/filename.jpg")
-          staticPath = `/static/${taskId}/${imagePath}`;
+          staticPath = `/media/${taskId}/${imagePath}`;
         } else {
           // Just filename, assume it's in images directory
-          staticPath = `/static/${taskId}/images/${imagePath}`;
+          staticPath = `/media/${taskId}/images/${imagePath}`;
         }
         
         return `![${altText}](${staticPath})`;

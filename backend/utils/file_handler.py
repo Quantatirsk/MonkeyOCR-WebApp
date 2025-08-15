@@ -29,11 +29,11 @@ class FileHandler:
     def __init__(self):
         self.temp_dir = Path("temp")
         self.results_dir = Path("results") 
-        self.static_dir = Path("static")
+        self.media_dir = Path("media")
         self.uploads_dir = Path("uploads")
         
         # Create directories if they don't exist
-        for directory in [self.temp_dir, self.results_dir, self.static_dir, self.uploads_dir]:
+        for directory in [self.temp_dir, self.results_dir, self.media_dir, self.uploads_dir]:
             directory.mkdir(exist_ok=True)
     
     async def save_temp_file(self, file_content: bytes, filename: str) -> str:
@@ -136,18 +136,18 @@ class FileHandler:
             DocumentResult with processed content and images
         """
         
-        # Create task-specific directory in static folder
-        task_static_dir = self.static_dir / task_id
-        task_static_dir.mkdir(exist_ok=True)
+        # Create task-specific directory in media folder
+        task_media_dir = self.media_dir / task_id
+        task_media_dir.mkdir(exist_ok=True)
         
         try:
             # Extract ZIP file
             with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(task_static_dir)
+                zip_ref.extractall(task_media_dir)
             
             # Find markdown files and images
-            markdown_files = list(task_static_dir.glob("*.md"))
-            images_dir = task_static_dir / "images"
+            markdown_files = list(task_media_dir.glob("*.md"))
+            images_dir = task_media_dir / "images"
             
             if not markdown_files:
                 raise ValueError("No markdown files found in the result ZIP")
@@ -163,18 +163,18 @@ class FileHandler:
             if images_dir.exists():
                 for image_file in images_dir.iterdir():
                     if image_file.is_file() and self._is_image_file(image_file):
-                        # Create static URL for the image
+                        # Create media URL for the image
                         relative_path = f"{task_id}/images/{image_file.name}"
-                        static_url = f"/static/{relative_path}"
+                        media_url = f"/media/{relative_path}"
                         
                         images.append(ImageResource(
                             filename=image_file.name,
                             path=str(image_file),
-                            url=static_url,
+                            url=media_url,
                             alt=f"Image from {main_md_file.stem}"
                         ))
             
-            # Fix image paths in markdown to point to our static URLs
+            # Fix image paths in markdown to point to our media URLs
             markdown_content = self._fix_markdown_image_paths(markdown_content, task_id)
             
             # Generate metadata
@@ -198,17 +198,17 @@ class FileHandler:
             
         except Exception as e:
             # Clean up on failure
-            if task_static_dir.exists():
-                shutil.rmtree(task_static_dir)
+            if task_media_dir.exists():
+                shutil.rmtree(task_media_dir)
             raise Exception(f"Failed to process result ZIP: {str(e)}")
     
     def _fix_markdown_image_paths(self, markdown_content: str, task_id: str) -> str:
         """
-        Fix image paths in markdown to point to static URLs
+        Fix image paths in markdown to point to media URLs
         
         Args:
             markdown_content: Original markdown content
-            task_id: Task ID for constructing static URLs
+            task_id: Task ID for constructing media URLs
             
         Returns:
             Modified markdown content with corrected image paths
@@ -225,7 +225,7 @@ class FileHandler:
             filename = Path(original_path).name
             
             # Create new static URL
-            new_url = f"/static/{task_id}/images/{filename}"
+            new_url = f"/media/{task_id}/images/{filename}"
             
             return f"![{alt_text}]({new_url})"
         
@@ -305,10 +305,10 @@ class FileHandler:
             logger.info(f"Removed result file: {result_file}")
         
         # Remove static files directory
-        task_static_dir = self.static_dir / task_id
-        if task_static_dir.exists():
-            shutil.rmtree(task_static_dir)
-            logger.info(f"Removed static directory: {task_static_dir}")
+        task_media_dir = self.media_dir / task_id
+        if task_media_dir.exists():
+            shutil.rmtree(task_media_dir)
+            logger.info(f"Removed static directory: {task_media_dir}")
         
         # Remove uploads directory for the task
         task_uploads_dir = self.uploads_dir / task_id
@@ -322,20 +322,6 @@ class FileHandler:
             if temp_file.is_file():
                 temp_file.unlink()
                 logger.debug(f"Removed temp file: {temp_file}")
-    
-    def get_static_url(self, task_id: str, filename: str) -> str:
-        """
-        Generate a static URL for a file
-        
-        Args:
-            task_id: Task ID
-            filename: File name
-            
-        Returns:
-            Static URL for the file
-        """
-        
-        return f"/static/{task_id}/{filename}"
     
     def get_pdf_page_count(self, file_content: bytes) -> Optional[int]:
         """
@@ -376,8 +362,8 @@ class FileHandler:
         try:
             # Create target directories
             task_result_dir = self.results_dir 
-            task_static_dir = self.static_dir / task_id
-            task_static_dir.mkdir(exist_ok=True)
+            task_media_dir = self.media_dir / task_id
+            task_media_dir.mkdir(exist_ok=True)
             
             files_copied = 0
             
@@ -397,16 +383,16 @@ class FileHandler:
                         original_task_id = source_filename[:-11]  # Remove "_result.zip"
                         
                         # Copy static files from original task directory
-                        original_static_dir = self.static_dir / original_task_id
-                        if original_static_dir.exists():
-                            logger.info(f"Copying static files from {original_static_dir} to {task_static_dir}")
+                        original_media_dir = self.media_dir / original_task_id
+                        if original_media_dir.exists():
+                            logger.info(f"Copying static files from {original_media_dir} to {task_media_dir}")
                             
                             # Copy all files and subdirectories
-                            for item in original_static_dir.rglob("*"):
+                            for item in original_media_dir.rglob("*"):
                                 if item.is_file():
                                     # Calculate relative path from original static dir
-                                    rel_path = item.relative_to(original_static_dir)
-                                    target_path = task_static_dir / rel_path
+                                    rel_path = item.relative_to(original_media_dir)
+                                    target_path = task_media_dir / rel_path
                                     
                                     # Create parent directories if needed
                                     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -416,7 +402,7 @@ class FileHandler:
                                     logger.debug(f"Copied static file: {item} -> {target_path}")
                                     files_copied += 1
                         else:
-                            logger.warning(f"Original static directory not found: {original_static_dir}")
+                            logger.warning(f"Original static directory not found: {original_media_dir}")
                 else:
                     logger.warning(f"Cached result file not found: {source_file}")
             
@@ -425,7 +411,7 @@ class FileHandler:
                 for static_file_info in cached_files["static_files"]:
                     source_path = Path(static_file_info["path"])
                     if source_path.exists():
-                        target_path = task_static_dir / static_file_info["filename"]
+                        target_path = task_media_dir / static_file_info["filename"]
                         target_path.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(source_path, target_path)
                         logger.debug(f"Copied explicit static file: {source_path} -> {target_path}")

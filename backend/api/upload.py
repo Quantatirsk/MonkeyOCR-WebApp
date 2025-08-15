@@ -166,7 +166,7 @@ async def upload_from_url(
                             logger.warning(f"Failed to copy cached files: {e}")
                     
                     if copied_successfully:
-                        # Process the ZIP to extract static files
+                        # Process the ZIP to extract media files
                         result_file_path = await file_handler.get_result_file(task_id)
                         if result_file_path and os.path.exists(result_file_path):
                             try:
@@ -359,7 +359,7 @@ async def upload_file(
                             logger.warning(f"Failed to copy cached files: {e}")
                     
                     if copied_successfully:
-                        # Process the ZIP to extract static files
+                        # Process the ZIP to extract media files
                         result_file_path = await file_handler.get_result_file(task_id)
                         if result_file_path and os.path.exists(result_file_path):
                             try:
@@ -603,7 +603,7 @@ async def process_file_async(
                     task_id
                 )
                 
-                # Process the result ZIP to extract static files
+                # Process the result ZIP to extract media files
                 if result_path:
                     try:
                         document_result = await file_handler.process_result_zip(result_path, task_id)

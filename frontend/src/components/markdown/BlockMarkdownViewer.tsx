@@ -26,7 +26,7 @@ import yaml from 'react-syntax-highlighter/dist/cjs/languages/prism/yaml';
 import { Copy, Check } from 'lucide-react';
 import { BlockData, BlockSelection } from '../../types';
 import { ContentMatcher, BlockProcessor } from '../../utils/blockProcessor';
-import { getStaticFileUrl } from '../../config';
+import { getMediaFileUrl } from '../../config';
 import { TooltipProvider } from '../ui/tooltip';
 import { BlockContainer } from './BlockContainer';
 import { InlineBlockContainer } from './InlineBlockContainer';
@@ -665,7 +665,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     // Custom image renderer - returns just the img element, no wrapper
     img: ({ src, alt, ...props }: any) => {
       // Convert relative static paths to full URLs
-      const imageSrc = src?.startsWith('/static/') ? getStaticFileUrl(src.slice(8)) : src;
+      const imageSrc = src?.startsWith('/media/') ? getMediaFileUrl(src.slice(7)) : src;
       
       // Return image with optional caption as a fragment
       // The parent component will handle proper wrapping

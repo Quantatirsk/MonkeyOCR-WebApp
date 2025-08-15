@@ -78,10 +78,10 @@ async def reset_database():
     # Clean up task result directories
     print("\n8. Cleaning up task result directories...")
     results_dir = Path("results")
-    static_dir = Path("static")
+    media_dir = Path("media")
     uploads_dir = Path("uploads")
     
-    dirs_to_clean = [results_dir, static_dir, uploads_dir]
+    dirs_to_clean = [results_dir, media_dir, uploads_dir]
     
     for dir_path in dirs_to_clean:
         if dir_path.exists() and dir_path.is_dir():

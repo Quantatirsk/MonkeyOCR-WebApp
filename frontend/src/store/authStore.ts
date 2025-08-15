@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface User {
@@ -30,7 +30,7 @@ interface AuthState {
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
+export const useAuthStore = createWithEqualityFn<AuthState>()(
   persist(
     (set, get) => ({
       // Initial state

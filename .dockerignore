@@ -42,6 +42,7 @@ backend/.mypy_cache/
 # Runtime data
 data/
 static/
+media/
 uploads/
 temp/
 results/

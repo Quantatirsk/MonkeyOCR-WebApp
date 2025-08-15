@@ -8,7 +8,7 @@ import { Image, Maximize2, X } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { getStaticFileUrl } from '../../config';
+import { getMediaFileUrl } from '../../config';
 import type { ImageResource } from '../../types';
 
 interface ImageGalleryProps {
@@ -29,7 +29,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = React.memo(({
   const getImageUrl = (url: string) => {
     return url.startsWith('http') 
       ? url 
-      : getStaticFileUrl(url.replace('/static/', ''));
+      : getMediaFileUrl(url.replace('/media/', ''));
   };
 
   if (images.length === 0) {

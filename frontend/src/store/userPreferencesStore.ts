@@ -3,7 +3,7 @@
  * Manages user translation preferences and settings
  */
 
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 export type TranslationEngine = 'mt' | 'llm';
@@ -28,7 +28,7 @@ const defaultState = {
   preferredLanguage: 'auto' as PreferredLanguage,
 };
 
-export const useUserPreferencesStore = create<UserPreferencesState>()(
+export const useUserPreferencesStore = createWithEqualityFn<UserPreferencesState>()(
   persist(
     (set) => ({
       // Initial state

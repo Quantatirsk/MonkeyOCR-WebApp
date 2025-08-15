@@ -12,12 +12,10 @@
  */
 
 // API Configuration
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+// Default to '/' for production (same domain), can be overridden with VITE_API_BASE_URL
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/';
 export const API_TIMEOUT = 30000; // 30 seconds
 
-// Development settings
-export const isDevelopment = import.meta.env.DEV;
-export const isProduction = import.meta.env.PROD;
 
 // App Configuration
 export const APP_CONFIG = {
@@ -42,18 +40,27 @@ export const APP_CONFIG = {
 } as const;
 
 // Helper functions
-export const getStaticFileUrl = (filePath: string): string => {
-  return `${API_BASE_URL}/static/${filePath}`;
+export const getMediaFileUrl = (filePath: string): string => {
+  const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+  // Handle relative path case
+  if (API_BASE_URL === '/') {
+    return `/media/${cleanPath}`;
+  }
+  return `${API_BASE_URL}/media/${cleanPath}`;
 };
 
 export const getApiUrl = (path: string): string => {
   const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  // Handle relative path case
+  if (API_BASE_URL === '/') {
+    return `/${cleanPath}`;
+  }
   return `${API_BASE_URL}/${cleanPath}`;
 };
 
 // Environment validation
-if (!API_BASE_URL) {
-  console.warn('VITE_API_BASE_URL not set, using default localhost:8001');
+if (import.meta.env.DEV && !import.meta.env.VITE_API_BASE_URL) {
+  console.info('VITE_API_BASE_URL not set, using default "/" - you may need to set it to "http://localhost:8001" for development');
 }
 
 export default APP_CONFIG;

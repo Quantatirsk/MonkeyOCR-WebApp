@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.types import Scope, Receive, Send
 from middleware.auth import AuthMiddleware
 from middleware.security import SecurityMiddleware
 from middleware.rate_limit import RateLimitMiddleware
@@ -148,7 +149,7 @@ app.add_middleware(RateLimitMiddleware)
 
 # Configure CORS middleware last so it executes first
 # This ensures all responses (including error responses) get CORS headers
-cors_origins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
+cors_origins = ["http://localhost:5173"]
 logger.info(f"CORS origins configured: {cors_origins}")
 
 app.add_middleware(
@@ -168,10 +169,7 @@ app.add_middleware(
 )
 
 # Static file serving for extracted images with CORS support
-from fastapi.staticfiles import StaticFiles
-from starlette.types import Scope, Receive, Send
-
-class StaticFilesWithCORS(StaticFiles):
+class MediaFilesWithCORS(StaticFiles):
     """Custom StaticFiles class that adds CORS headers"""
     
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -179,7 +177,7 @@ class StaticFilesWithCORS(StaticFiles):
         The ASGI application interface.
         """
         # Handle the request normally first
-        if scope["type"] == "http" and scope["path"].startswith("/static"):
+        if scope["type"] == "http" and scope["path"].startswith("/media"):
             # Create a wrapper for send to inject CORS headers
             async def send_wrapper(message):
                 if message["type"] == "http.response.start":
@@ -195,12 +193,12 @@ class StaticFilesWithCORS(StaticFiles):
         else:
             await super().__call__(scope, receive, send)
 
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if not os.path.exists(static_dir):
-    print(f"Creating static directory at {static_dir}")
-    os.makedirs(static_dir, exist_ok=True)
+media_dir = os.path.join(os.path.dirname(__file__), "media")
+if not os.path.exists(media_dir):
+    print(f"Creating media directory at {media_dir}")
+    os.makedirs(media_dir, exist_ok=True)
 
-app.mount("/static", StaticFilesWithCORS(directory=static_dir), name="static")
+app.mount("/media", MediaFilesWithCORS(directory=media_dir), name="media")
 
 # Frontend directory path
 frontend_dir = os.path.join(os.path.dirname(__file__), "static", "frontend")

@@ -7,7 +7,7 @@ import re
 import secrets
 import logging
 from typing import Optional
-from passlib.context import CryptContext
+import bcrypt
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,8 @@ class PasswordService:
     """
     
     def __init__(self):
-        # Configure password hashing
-        self.pwd_context = CryptContext(
-            schemes=["bcrypt"],
-            deprecated="auto",
-            bcrypt__rounds=12  # Adjust rounds for security/performance balance
-        )
+        # Configure bcrypt rounds for security/performance balance
+        self.bcrypt_rounds = 12
         
         # Password requirements (simplified for better UX)
         self.min_length = int(os.getenv("PASSWORD_MIN_LENGTH", "6"))
@@ -51,8 +47,12 @@ class PasswordService:
             Password hash with salt included
         """
         # bcrypt automatically handles salting
-        password_hash = self.pwd_context.hash(password)
-        return password_hash
+        # Encode password to bytes and generate salt
+        password_bytes = password.encode('utf-8')
+        salt = bcrypt.gensalt(rounds=self.bcrypt_rounds)
+        password_hash = bcrypt.hashpw(password_bytes, salt)
+        # Return as string for storage
+        return password_hash.decode('utf-8')
     
     def verify_password(
         self,
@@ -70,7 +70,11 @@ class PasswordService:
             True if password matches, False otherwise
         """
         try:
-            return self.pwd_context.verify(plain_password, password_hash)
+            # Convert strings to bytes for bcrypt
+            password_bytes = plain_password.encode('utf-8')
+            hash_bytes = password_hash.encode('utf-8')
+            # Use bcrypt's checkpw function
+            return bcrypt.checkpw(password_bytes, hash_bytes)
         except Exception as e:
             logger.error(f"Password verification error: {str(e)}")
             return False

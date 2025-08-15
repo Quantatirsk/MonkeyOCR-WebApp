@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { llmWrapper, LLMWrapper } from '../../../lib/llmwrapper';
-import { getStaticFileUrl } from '../../../config';
+import { getMediaFileUrl } from '../../../config';
 import { 
   buildTranslateMessages, 
   buildExplainMessages,
@@ -45,7 +45,7 @@ function extractImageInfo(content: string): { url: string; title: string } | nul
     const title = match[1] || '';
     const url = match[2];
     // 如果是相对路径，转换为完整URL
-    const fullUrl = url.startsWith('/static/') ? getStaticFileUrl(url.slice(8)) : url;
+    const fullUrl = url.startsWith('/media/') ? getMediaFileUrl(url.slice(7)) : url;
     return { url: fullUrl, title };
   }
   return null;
@@ -568,6 +568,9 @@ export const useBlockActions = ({
     const abortController = new AbortController();
     abortControllersRef.current.set(blockIndex, abortController);
 
+    // 获取用户的LLM模型偏好
+    const userLLMModel = useUserPreferencesStore.getState().llmModel;
+
     // 更新状态
     setActionState(prev => ({
       ...prev,
@@ -635,7 +638,8 @@ export const useBlockActions = ({
       const stream = await llmWrapper.streamChat({
         messages,
         temperature: 0.7,
-        maxTokens: 4000
+        maxTokens: 4000,
+        model: userLLMModel || undefined
       });
 
       // 处理流式响应

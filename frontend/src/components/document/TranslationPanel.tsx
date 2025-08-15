@@ -22,7 +22,7 @@ import { BlockData } from '../../types';
 import { BlockMarkdownGenerator } from '../../utils/blockMarkdownGenerator';
 import { toast } from 'sonner';
 import { FONT_SIZES, FONT_LABELS } from './constants';
-import { getStaticFileUrl } from '../../config';
+import { getMediaFileUrl } from '../../config';
 
 interface TranslationPanelProps {
   blockData: BlockData[];
@@ -140,9 +140,9 @@ export const TranslationPanel: React.FC<TranslationPanelProps> = ({
     return content.replace(
       /!\[([^\]]*)\]\(([^)]+)\)/g,
       (match, alt, src) => {
-        // 如果是 /static/ 开头的路径，转换为完整URL
-        if (src.startsWith('/static/')) {
-          const fullUrl = getStaticFileUrl(src.slice(8)); // 移除 /static/ 前缀
+        // 如果是 /media/ 开头的路径，转换为完整URL
+        if (src.startsWith('/media/')) {
+          const fullUrl = getMediaFileUrl(src.slice(7)); // 移除 /media/ 前缀
           return `![${alt}](${fullUrl})`;
         }
         // 其他路径保持不变

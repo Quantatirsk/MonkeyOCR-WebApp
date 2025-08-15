@@ -4,7 +4,8 @@
  * 专门管理 UI 相关状态，避免触发业务组件重渲染
  */
 
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
+import { shallow } from 'zustand/shallow';
 
 interface UIState {
   // UI 状态
@@ -16,7 +17,7 @@ interface UIState {
 }
 
 // 创建独立的 UI Store - 不使用 persist，轻量级
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = createWithEqualityFn<UIState>((set) => ({
   // 初始状态
   taskListVisible: true,
   
@@ -28,4 +29,4 @@ export const useUIStore = create<UIState>((set) => ({
   setTaskListVisible: (visible: boolean) => set({ 
     taskListVisible: visible 
   }),
-}));
+}), shallow);

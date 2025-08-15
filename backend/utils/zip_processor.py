@@ -17,8 +17,8 @@ class ZipProcessor:
     """Processes ZIP files returned by MonkeyOCR API"""
     
     def __init__(self):
-        self.static_dir = Path("static")
-        self.static_dir.mkdir(exist_ok=True)
+        self.media_dir = Path("media")
+        self.media_dir.mkdir(exist_ok=True)
     
     async def process_zip_file(self, zip_path: str, task_id: str) -> DocumentResult:
         """
@@ -33,7 +33,7 @@ class ZipProcessor:
         """
         
         # Create task-specific directory
-        task_dir = self.static_dir / task_id
+        task_dir = self.media_dir / task_id
         task_dir.mkdir(exist_ok=True)
         
         try:
@@ -133,12 +133,12 @@ class ZipProcessor:
                 relative_path = image_file.relative_to(task_dir)
                 
                 # Create static URL
-                static_url = f"/static/{task_id}/{relative_path}"
+                media_url = f"/media/{task_id}/{relative_path}"
                 
                 images.append(ImageResource(
                     filename=image_file.name,
                     path=str(relative_path),
-                    url=static_url,
+                    url=media_url,
                     alt=f"Image: {image_file.stem}"
                 ))
         
@@ -146,7 +146,7 @@ class ZipProcessor:
     
     def _fix_image_paths(self, markdown_content: str, task_id: str) -> str:
         """
-        Fix image paths in markdown to use our static URLs
+        Fix image paths in markdown to use our media URLs
         
         Args:
             markdown_content: Original markdown content
@@ -164,7 +164,7 @@ class ZipProcessor:
             original_path = match.group(2)
             
             # Skip if it's already a full URL
-            if original_path.startswith(('http://', 'https://', '/static/')):
+            if original_path.startswith(('http://', 'https://', '/media/')):
                 return match.group(0)
             
             # Extract filename from path
@@ -177,12 +177,12 @@ class ZipProcessor:
                 directory = '/'.join(path_parts[:-1])  # e.g., "images"
                 
                 # First try exact match
-                exact_path = f"static/{task_id}/{directory}/{filename}"
+                exact_path = f"media/{task_id}/{directory}/{filename}"
                 if Path(exact_path).exists():
-                    new_url = f"/static/{task_id}/{directory}/{filename}"
+                    new_url = f"/media/{task_id}/{directory}/{filename}"
                 else:
                     # Look for files with the same suffix (handle prefix mismatch)
-                    directory_path = Path(f"static/{task_id}/{directory}")
+                    directory_path = Path(f"media/{task_id}/{directory}")
                     if directory_path.exists():
                         matching_files = list(directory_path.glob(f"*_{filename}"))
                         if not matching_files:
@@ -192,29 +192,29 @@ class ZipProcessor:
                         if matching_files:
                             # Use the first match
                             actual_filename = matching_files[0].name
-                            new_url = f"/static/{task_id}/{directory}/{actual_filename}"
+                            new_url = f"/media/{task_id}/{directory}/{actual_filename}"
                         else:
                             # Fallback to original path
-                            new_url = f"/static/{task_id}/{directory}/{filename}"
+                            new_url = f"/media/{task_id}/{directory}/{filename}"
                     else:
-                        new_url = f"/static/{task_id}/{directory}/{filename}"
+                        new_url = f"/media/{task_id}/{directory}/{filename}"
             else:
                 # Just the filename - look in common directories
-                new_url = f"/static/{task_id}/{filename}"
+                new_url = f"/media/{task_id}/{filename}"
                 
                 # Check if it might be in an images subdirectory
-                if not Path(f"static/{task_id}/{filename}").exists():
+                if not Path(f"media/{task_id}/{filename}").exists():
                     potential_dirs = ["images", "img", "assets"]
                     
                     for dir_name in potential_dirs:
                         # First try exact filename match
-                        exact_path = Path(f"static/{task_id}/{dir_name}/{filename}")
+                        exact_path = Path(f"media/{task_id}/{dir_name}/{filename}")
                         if exact_path.exists():
-                            new_url = f"/static/{task_id}/{dir_name}/{filename}"
+                            new_url = f"/media/{task_id}/{dir_name}/{filename}"
                             break
                         
                         # Then try prefix-suffixed filename match
-                        directory_path = Path(f"static/{task_id}/{dir_name}")
+                        directory_path = Path(f"media/{task_id}/{dir_name}")
                         if directory_path.exists():
                             matching_files = list(directory_path.glob(f"*_{filename}"))
                             if not matching_files:
@@ -222,7 +222,7 @@ class ZipProcessor:
                             
                             if matching_files:
                                 actual_filename = matching_files[0].name
-                                new_url = f"/static/{task_id}/{dir_name}/{actual_filename}"
+                                new_url = f"/media/{task_id}/{dir_name}/{actual_filename}"
                                 break
             
             return f"![{alt_text}]({new_url})"
@@ -281,7 +281,7 @@ class ZipProcessor:
             task_id: Task ID
         """
         
-        task_dir = self.static_dir / task_id
+        task_dir = self.media_dir / task_id
         if task_dir.exists():
             shutil.rmtree(task_dir)
     
@@ -295,7 +295,7 @@ class ZipProcessor:
         Returns:
             Dictionary containing block data or None if not found
         """
-        task_dir = self.static_dir / task_id
+        task_dir = self.media_dir / task_id
         
         # Look for middle.json files with pattern tmpXXX_middle.json
         middle_json_files = list(task_dir.rglob("*_middle.json"))
@@ -1052,9 +1052,9 @@ class ZipProcessor:
         task_id = getattr(self, '_current_task_id', None)
         if not task_id:
             # If no task_id context, just return as-is with absolute path
-            return f"/static/{task_id or 'unknown'}/images/{image_path}"
+            return f"/media/{task_id or 'unknown'}/images/{image_path}"
         
-        task_dir = self.static_dir / task_id
+        task_dir = self.media_dir / task_id
         
         # Try common image directories
         potential_dirs = ['images', 'img', 'assets', '']
@@ -1072,18 +1072,18 @@ class ZipProcessor:
             exact_file = search_dir / image_path
             if exact_file.exists():
                 if dir_name:
-                    return f"/static/{task_id}/{dir_name}/{image_path}"
+                    return f"/media/{task_id}/{dir_name}/{image_path}"
                 else:
-                    return f"/static/{task_id}/{image_path}"
+                    return f"/media/{task_id}/{image_path}"
             
             # Try files that end with the given filename (handle prefix mismatch)
             for existing_file in search_dir.glob("*"):
                 if existing_file.is_file() and existing_file.name.endswith(image_path):
                     if dir_name:
-                        return f"/static/{task_id}/{dir_name}/{existing_file.name}"
+                        return f"/media/{task_id}/{dir_name}/{existing_file.name}"
                     else:
-                        return f"/static/{task_id}/{existing_file.name}"
+                        return f"/media/{task_id}/{existing_file.name}"
         
         # Fallback: return the path as-is with images directory and absolute path
         print(f"⚠️ Could not find matching image file for: {image_path}")
-        return f"/static/{task_id}/images/{image_path}"
+        return f"/media/{task_id}/images/{image_path}"

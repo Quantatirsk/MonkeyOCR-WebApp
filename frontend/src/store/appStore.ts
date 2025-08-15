@@ -3,7 +3,7 @@
  * Implements all state and actions defined in types/index.ts
  */
 
-import { create } from 'zustand';
+import { createWithEqualityFn } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
   AppStore, 
@@ -50,7 +50,7 @@ const initialState: AppState = {
 };
 
 // Create the Zustand store
-export const useAppStore = create<AppStore>()(
+export const useAppStore = createWithEqualityFn<AppStore>()(
   persist(
     (set, get) => ({
       // State
