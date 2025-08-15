@@ -36,7 +36,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
   blocks,
   imageDimensions,
   displayDimensions,
-  rotation,
+  rotation: _rotation, // Rotation handled by container CSS transform
   selectedBlock,
   highlightedBlocks,
   syncEnabled,
@@ -61,68 +61,28 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
 
   /**
    * Convert block coordinates from original image space to display canvas space
-   * Handles rotation transformation
+   * Simplified version - no rotation transformation (handled by container CSS transform)
    */
   const convertBlockCoordinates = useCallback((
     bbox: [number, number, number, number],
     originalDims: [number, number],
-    displayDims: [number, number],
-    rotation: number
+    displayDims: [number, number]
   ): [number, number, number, number] => {
     const [origWidth, origHeight] = originalDims;
     const [dispWidth, dispHeight] = displayDims;
     const [x1, y1, x2, y2] = bbox;
 
-    // First, normalize coordinates to [0,1] range based on original dimensions
-    let normX1 = x1 / origWidth;
-    let normY1 = y1 / origHeight;
-    let normX2 = x2 / origWidth;
-    let normY2 = y2 / origHeight;
-
-    // Apply rotation transformation
-    let rotatedX1, rotatedY1, rotatedX2, rotatedY2;
-    
-    switch (rotation) {
-      case 90:
-        // 90° clockwise: (x,y) -> (1-y,x)
-        rotatedX1 = 1 - normY2;
-        rotatedY1 = normX1;
-        rotatedX2 = 1 - normY1;
-        rotatedY2 = normX2;
-        break;
-      case 180:
-        // 180°: (x,y) -> (1-x,1-y)
-        rotatedX1 = 1 - normX2;
-        rotatedY1 = 1 - normY2;
-        rotatedX2 = 1 - normX1;
-        rotatedY2 = 1 - normY1;
-        break;
-      case 270:
-        // 270° clockwise: (x,y) -> (y,1-x)
-        rotatedX1 = normY1;
-        rotatedY1 = 1 - normX2;
-        rotatedX2 = normY2;
-        rotatedY2 = 1 - normX1;
-        break;
-      default: // 0°
-        rotatedX1 = normX1;
-        rotatedY1 = normY1;
-        rotatedX2 = normX2;
-        rotatedY2 = normY2;
-        break;
-    }
-
-    // Ensure coordinates are in correct order (min, max)
-    const minX = Math.min(rotatedX1, rotatedX2);
-    const minY = Math.min(rotatedY1, rotatedY2);
-    const maxX = Math.max(rotatedX1, rotatedX2);
-    const maxY = Math.max(rotatedY1, rotatedY2);
+    // Normalize coordinates to [0,1] range based on original dimensions
+    const normX1 = x1 / origWidth;
+    const normY1 = y1 / origHeight;
+    const normX2 = x2 / origWidth;
+    const normY2 = y2 / origHeight;
 
     // Convert to display dimensions
-    const displayX1 = Math.round(minX * dispWidth);
-    const displayY1 = Math.round(minY * dispHeight);
-    const displayX2 = Math.round(maxX * dispWidth);
-    const displayY2 = Math.round(maxY * dispHeight);
+    const displayX1 = Math.round(normX1 * dispWidth);
+    const displayY1 = Math.round(normY1 * dispHeight);
+    const displayX2 = Math.round(normX2 * dispWidth);
+    const displayY2 = Math.round(normY2 * dispHeight);
 
     return [displayX1, displayY1, displayX2, displayY2];
   }, []);
@@ -159,8 +119,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
       const [displayX1, displayY1, displayX2, displayY2] = convertBlockCoordinates(
         block.bbox,
         imageDimensions,
-        [canvasWidth, canvasHeight],
-        rotation
+        [canvasWidth, canvasHeight]
       );
       
       // Apply padding for better visual appearance
@@ -226,7 +185,6 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
     imageDimensions,
     canvasWidth,
     canvasHeight,
-    rotation,
     selectedBlock,
     highlightedBlocks,
     hoveredBlock,
@@ -275,8 +233,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
         const [displayX1, displayY1, displayX2, displayY2] = convertBlockCoordinates(
           block.bbox,
           imageDimensions,
-          [canvasWidth, canvasHeight],
-          rotation
+          [canvasWidth, canvasHeight]
         );
         
         // Apply same padding as drawing
@@ -296,7 +253,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
       // Click outside blocks - clear selection
       onBlockClick(-1, 1);
     },
-    [syncEnabled, onBlockClick, imageBlocks, imageDimensions, canvasWidth, canvasHeight, rotation, convertBlockCoordinates]
+    [syncEnabled, onBlockClick, imageBlocks, imageDimensions, canvasWidth, canvasHeight, convertBlockCoordinates]
   );
 
   // Handle canvas mouse move
@@ -321,8 +278,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
         const [displayX1, displayY1, displayX2, displayY2] = convertBlockCoordinates(
           block.bbox,
           imageDimensions,
-          [canvasWidth, canvasHeight],
-          rotation
+          [canvasWidth, canvasHeight]
         );
         
         // Apply same padding as drawing
@@ -349,7 +305,7 @@ export const ImageBlockOverlay: React.FC<ImageBlockOverlayProps> = ({
       // Update cursor
       canvas.style.cursor = foundBlock !== null ? 'pointer' : 'default';
     },
-    [syncEnabled, imageBlocks, imageDimensions, canvasWidth, canvasHeight, rotation, hoveredBlock, onBlockHover, convertBlockCoordinates]
+    [syncEnabled, imageBlocks, imageDimensions, canvasWidth, canvasHeight, hoveredBlock, onBlockHover, convertBlockCoordinates]
   );
 
   // Handle canvas mouse leave

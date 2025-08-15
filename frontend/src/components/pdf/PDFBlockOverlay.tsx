@@ -16,6 +16,8 @@ export interface PDFBlockOverlayProps {
   pageSize: [number, number];
   /** Display scale factor */
   scale: number;
+  /** Current rotation angle (0, 90, 180, 270) - handled by container CSS transform */
+  rotation?: number;
   /** Currently selected block */
   selectedBlock: BlockSelection;
   /** Highlighted blocks */
@@ -37,6 +39,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   pageNumber,
   pageSize,
   scale: _scale, // Keep for interface compatibility but unused
+  rotation: _rotation = 0, // Rotation is handled by container CSS transform
   selectedBlock,
   highlightedBlocks,
   syncEnabled,

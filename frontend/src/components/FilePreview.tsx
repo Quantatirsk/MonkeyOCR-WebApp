@@ -264,6 +264,29 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     }
   };
 
+  // 计算PDF页面旋转后的自适应尺寸
+  const calculatePageDimensions = React.useCallback((
+    pageNum: number,
+    rotation: number,
+    containerWidth: number
+  ) => {
+    const originalSize = pdfPageSizes[pageNum] || [595, 842];
+    const [pageWidth, pageHeight] = originalSize;
+    
+    // 根据旋转角度确定实际显示的宽度
+    const isRotated = rotation === 90 || rotation === 270;
+    const displayWidth = isRotated ? pageHeight : pageWidth;
+    
+    // 计算适应容器的宽度（留出padding）
+    const maxWidth = containerWidth - 32; // 16px padding on each side
+    
+    if (displayWidth > maxWidth && maxWidth > 0) {
+      return { width: maxWidth };
+    }
+    
+    return { width: displayWidth };
+  }, [pdfPageSizes]);
+
   // 添加CSS样式实现响应式PDF渲染
   React.useLayoutEffect(() => {
     const styleId = 'pdf-responsive-style';
@@ -280,7 +303,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       /* PDF页面容器响应式 */
       .react-pdf__Page {
         max-width: 100% !important;
-        margin: 0 auto 24px auto !important;
+        margin: 0 auto 8px auto !important;
         display: block !important;
         position: relative !important;
       }
@@ -364,12 +387,18 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         setImageDimensions([naturalWidth, naturalHeight]);
       }
 
-      // 获取图片的显示尺寸
-      const displayWidth = img.clientWidth;
-      const displayHeight = img.clientHeight;
+      // 获取图片的显示尺寸，考虑旋转
+      const imgWidth = img.clientWidth;
+      const imgHeight = img.clientHeight;
+      const rotation = currentPageRotations[1] || 0;
       
-      if (displayWidth > 0 && displayHeight > 0) {
-        setDisplayDimensions([displayWidth, displayHeight]);
+      if (imgWidth > 0 && imgHeight > 0) {
+        // 90度和270度旋转时，视觉上宽高互换
+        if (rotation === 90 || rotation === 270) {
+          setDisplayDimensions([imgHeight, imgWidth]);
+        } else {
+          setDisplayDimensions([imgWidth, imgHeight]);
+        }
       }
     };
 
@@ -383,7 +412,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         return () => img.removeEventListener('load', updateImageDimensions);
       }
     }
-  }, [task.file_type, fileUrl]);
+  }, [task.file_type, fileUrl, currentPageRotations]);
 
   // 监听图片显示尺寸变化（响应式布局）
   React.useEffect(() => {
@@ -393,17 +422,23 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
     if (!img) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      const displayWidth = img.clientWidth;
-      const displayHeight = img.clientHeight;
+      const imgWidth = img.clientWidth;
+      const imgHeight = img.clientHeight;
+      const rotation = currentPageRotations[1] || 0;
       
-      if (displayWidth > 0 && displayHeight > 0) {
-        setDisplayDimensions([displayWidth, displayHeight]);
+      if (imgWidth > 0 && imgHeight > 0) {
+        // 90度和270度旋转时，视觉上宽高互换
+        if (rotation === 90 || rotation === 270) {
+          setDisplayDimensions([imgHeight, imgWidth]);
+        } else {
+          setDisplayDimensions([imgWidth, imgHeight]);
+        }
       }
     });
 
     resizeObserver.observe(img);
     return () => resizeObserver.disconnect();
-  }, [task.file_type, fileUrl]);
+  }, [task.file_type, fileUrl, currentPageRotations]);
 
   // PDF文档加载成功回调
   const onDocumentLoadSuccess = React.useCallback(async (pdf: any) => {
@@ -573,16 +608,19 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
         <div className="flex-1 overflow-hidden" ref={task.file_type === 'image' ? containerRef as React.RefObject<HTMLDivElement> : undefined}>
           <ScrollArea className="h-full w-full">
             <div className="flex items-center justify-center min-h-full p-4">
-              <div className="relative">
+              <div 
+                className="relative"
+                style={{
+                  transform: `rotate(${currentPageRotations[1] || 0}deg)`,
+                  transformOrigin: 'center',
+                  transition: 'transform 200ms ease-in-out'
+                }}
+              >
                 <img
                   ref={imageRef}
                   src={fileUrl}
                   alt={task.filename}
                   className="max-w-full h-auto shadow-lg rounded-lg transition-all duration-200"
-                  style={{
-                    transform: `rotate(${currentPageRotations[1] || 0}deg)`,
-                    transformOrigin: 'center'
-                  }}
                   onError={() => setError('无法加载图片文件')}
                   onClick={() => setSelectedPage(1)}
                 />
@@ -593,7 +631,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                     blocks={blockData}
                     imageDimensions={imageDimensions}
                     displayDimensions={displayDimensions}
-                    rotation={currentPageRotations[1] || 0}
+                    rotation={0} // 容器旋转，覆盖层不需要内部旋转处理
                     selectedBlock={selectedBlock}
                     highlightedBlocks={highlightedBlocks}
                     syncEnabled={showBlockOverlays}
@@ -680,7 +718,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
       {/* PDF Content - 高级响应式版本 */}
       <div className="flex-1 overflow-hidden">
         <ScrollArea ref={containerRef as any} className="h-full w-full">
-          <div className="flex flex-col items-center p-4 space-y-4 min-h-full">
+          <div className="flex flex-col items-center p-2 space-y-1 min-h-full">
             <Document
               key={`${task.id}-${fileUrl}`}
               file={fileUrl}
@@ -725,9 +763,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                 return (
                   <div 
                     key={pageNum} 
-                    className={`relative cursor-pointer transition-all duration-200 mb-6 ${
-                      isSelected ? 'ring-2 ring-primary ring-offset-2' : ''
-                    }`}
+                    className="relative cursor-pointer transition-all duration-200 mb-1"
                     data-page-number={pageNum}
                     onClick={() => setSelectedPage(pageNum)}
                   >
@@ -752,10 +788,11 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                     >
                       <Page
                         pageNumber={pageNum}
-                        rotate={pageRotation}
                         className="shadow-lg transition-all duration-300"
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
+                        rotate={pageRotation}
+                        {...calculatePageDimensions(pageNum, pageRotation, containerWidth)}
                       />
                       
                       {/* Block Overlay */}
@@ -765,6 +802,7 @@ const FilePreviewComponent: React.FC<FilePreviewProps> = ({
                           pageNumber={pageNum}
                           pageSize={pdfPageSizes[pageNum] || [595, 842]} // Use dynamic page size
                           scale={1} // Fixed scale - CSS handles responsive scaling
+                          rotation={0} // Page组件自己处理旋转，overlay不需要旋转
                           selectedBlock={selectedBlock}
                           highlightedBlocks={highlightedBlocks}
                           syncEnabled={showBlockOverlays}
