@@ -1,0 +1,298 @@
+{
+  "project": "MonkeyOCR WebApp Backend Async Optimization",
+  "created_at": "2024-12-17",
+  "priority": "high",
+  "estimated_effort": "2-3 days",
+  "optimizations": [
+    {
+      "id": 1,
+      "endpoint": "/api/upload",
+      "title": "实现异步流式上传",
+      "current_issues": [
+        "使用同步 open() 读取文件",
+        "文件内容完全加载到内存",
+        "MonkeyOCR client 中的同步文件操作"
+      ],
+      "implementation_steps": [
+        {
+          "step": 1,
+          "description": "修改 upload.py 中的文件保存操作",
+          "changes": [
+            "替换 open() 为 aiofiles.open()",
+            "实现分块读取和写入",
+            "添加进度回调机制"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "优化 MonkeyOCRClient 的文件处理",
+          "changes": [
+            "使用异步文件读取",
+            "实现流式上传到 MonkeyOCR API",
+            "添加内存使用限制"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "添加文件上传进度跟踪",
+          "changes": [
+            "实现上传进度计算",
+            "通过 WebSocket 或 SSE 推送进度",
+            "存储进度到 Redis/SQLite"
+          ]
+        }
+      ],
+      "expected_improvement": "30-50%",
+      "risk_level": "low",
+      "testing_required": [
+        "大文件上传测试 (>100MB)",
+        "并发上传测试",
+        "内存使用监控"
+      ]
+    },
+    {
+      "id": 2,
+      "endpoint": "/api/translate/batch",
+      "title": "实现并行批量翻译",
+      "current_issues": [
+        "循环串行处理每个文本",
+        "没有利用异步并发优势",
+        "长文本批量翻译响应缓慢"
+      ],
+      "implementation_steps": [
+        {
+          "step": 1,
+          "description": "重构批量翻译逻辑",
+          "changes": [
+            "使用 asyncio.gather() 并行处理",
+            "实现智能批次分组（每批10个）",
+            "添加并发限制（Semaphore）"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "优化翻译缓存策略",
+          "changes": [
+            "批量检查缓存",
+            "并行缓存写入",
+            "实现缓存预热机制"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "添加错误恢复机制",
+          "changes": [
+            "单个翻译失败不影响整批",
+            "实现重试逻辑",
+            "返回部分成功结果"
+          ]
+        }
+      ],
+      "expected_improvement": "60-80%",
+      "risk_level": "medium",
+      "testing_required": [
+        "100+ 文本块并发翻译",
+        "API 限流测试",
+        "错误恢复测试"
+      ]
+    },
+    {
+      "id": 3,
+      "endpoint": "/api/tasks/{task_id}/result",
+      "title": "异步ZIP解压处理",
+      "current_issues": [
+        "使用同步 zipfile 库",
+        "解压大文件阻塞事件循环",
+        "没有进度反馈"
+      ],
+      "implementation_steps": [
+        {
+          "step": 1,
+          "description": "重构 ZIP 处理模块",
+          "changes": [
+            "使用 asyncio.to_thread() 包装 zipfile 操作",
+            "或迁移到 aiozip 库",
+            "实现分块解压"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "优化文件提取流程",
+          "changes": [
+            "并行处理多个文件提取",
+            "实现流式解压到目标目录",
+            "添加解压进度跟踪"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "实现预解压策略",
+          "changes": [
+            "OCR 完成后立即异步解压",
+            "缓存解压结果",
+            "定期清理旧的解压文件"
+          ]
+        }
+      ],
+      "expected_improvement": "40-60%",
+      "risk_level": "medium",
+      "testing_required": [
+        "大型 ZIP 文件处理",
+        "并发解压测试",
+        "磁盘空间管理"
+      ]
+    },
+    {
+      "id": 4,
+      "endpoint": "/api/sync",
+      "title": "数据库批量查询优化",
+      "current_issues": [
+        "多次独立数据库查询",
+        "N+1 查询问题",
+        "没有使用数据库索引"
+      ],
+      "implementation_steps": [
+        {
+          "step": 1,
+          "description": "优化查询逻辑",
+          "changes": [
+            "合并多个查询为单个 JOIN 查询",
+            "使用 IN 子句批量查询",
+            "实现查询结果缓存"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "添加数据库索引",
+          "changes": [
+            "为 user_id 添加索引",
+            "为 created_at 添加索引",
+            "为 status 添加索引"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "实现增量同步",
+          "changes": [
+            "只返回变更的数据",
+            "使用 ETag 机制",
+            "实现数据版本控制"
+          ]
+        }
+      ],
+      "expected_improvement": "20-30%",
+      "risk_level": "low",
+      "testing_required": [
+        "大量任务同步测试",
+        "并发同步请求",
+        "索引性能验证"
+      ]
+    },
+    {
+      "id": 5,
+      "endpoint": "/api/download/{task_id}",
+      "title": "实现流式下载",
+      "current_issues": [
+        "完整文件加载到内存",
+        "大文件下载占用大量内存",
+        "没有断点续传支持"
+      ],
+      "implementation_steps": [
+        {
+          "step": 1,
+          "description": "实现流式响应",
+          "changes": [
+            "使用 StreamingResponse",
+            "实现分块读取文件",
+            "设置合适的 chunk_size"
+          ]
+        },
+        {
+          "step": 2,
+          "description": "添加 Range 请求支持",
+          "changes": [
+            "解析 Range 请求头",
+            "实现部分内容响应 (206)",
+            "支持断点续传"
+          ]
+        },
+        {
+          "step": 3,
+          "description": "优化下载性能",
+          "changes": [
+            "添加 ETag 和缓存控制",
+            "实现并发下载限制",
+            "添加带宽限制选项"
+          ]
+        }
+      ],
+      "expected_improvement": "20-30%",
+      "risk_level": "low",
+      "testing_required": [
+        "大文件下载测试",
+        "断点续传测试",
+        "并发下载测试"
+      ]
+    }
+  ],
+  "implementation_order": [
+    {
+      "phase": 1,
+      "description": "低风险快速收益",
+      "tasks": [5, 4],
+      "duration": "1 day"
+    },
+    {
+      "phase": 2,
+      "description": "核心性能优化",
+      "tasks": [2, 1],
+      "duration": "1-2 days"
+    },
+    {
+      "phase": 3,
+      "description": "复杂优化",
+      "tasks": [3],
+      "duration": "1 day"
+    }
+  ],
+  "dependencies": {
+    "new_packages": [
+      "aiofiles (already installed)",
+      "aiozip (optional)",
+      "asyncio (built-in)"
+    ],
+    "breaking_changes": "none",
+    "api_compatibility": "fully maintained"
+  },
+  "monitoring": {
+    "metrics_to_track": [
+      "response_time_p95",
+      "memory_usage",
+      "concurrent_requests",
+      "cache_hit_rate",
+      "error_rate"
+    ],
+    "benchmarks": {
+      "before_optimization": {
+        "upload_50mb": "~10s",
+        "batch_translate_100": "~30s",
+        "download_100mb": "~5s",
+        "sync_1000_tasks": "~2s"
+      },
+      "after_optimization": {
+        "upload_50mb": "~5s",
+        "batch_translate_100": "~8s",
+        "download_100mb": "~3s",
+        "sync_1000_tasks": "~1s"
+      }
+    }
+  },
+  "rollback_plan": {
+    "strategy": "feature_flag",
+    "steps": [
+      "使用环境变量控制优化开关",
+      "保留原始代码路径",
+      "逐步迁移用户流量"
+    ]
+  }
+}

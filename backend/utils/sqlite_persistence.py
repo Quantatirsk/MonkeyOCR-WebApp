@@ -151,12 +151,11 @@ class SQLitePersistenceManager:
     
     async def get_all_tasks(self, user_id: Optional[int] = None) -> List[ProcessingTask]:
         """
-        Get all tasks, optionally filtered by user
+        Get all tasks with optimized batch query (避免 N+1 查询问题)
         """
         try:
             if user_id is not None:
-                # For authenticated users, only show their own tasks (not public tasks)
-                # This ensures proper data isolation between users
+                # For authenticated users, only show their own tasks
                 query = """
                     SELECT * FROM processing_tasks 
                     WHERE user_id = ?
@@ -166,7 +165,6 @@ class SQLitePersistenceManager:
                 logger.info(f"Fetching tasks for user_id={user_id}")
             else:
                 # For anonymous users, don't show any tasks
-                # This prevents data leakage
                 query = """
                     SELECT * FROM processing_tasks 
                     WHERE 1=0
@@ -176,15 +174,20 @@ class SQLitePersistenceManager:
             
             results = await self.db.fetch_all(query, params)
             
+            # If no tasks, return early
+            if not results:
+                return []
+            
+            # Batch fetch all status histories in one query
+            task_ids = [row['id'] for row in results]
+            histories_map = await self._batch_get_status_histories(task_ids)
+            
             tasks = []
             for row in results:
                 try:
-                    # Get status history for each task
-                    history = await self._get_status_history(row['id'])
-                    
                     task_data = dict(row)
                     task_data['metadata'] = self.db.from_json(task_data.get('metadata'))
-                    task_data['status_history'] = history
+                    task_data['status_history'] = histories_map.get(row['id'], [])
                     
                     # Remove split_pages field as it's no longer in the model
                     task_data.pop('split_pages', None)
@@ -477,6 +480,43 @@ class SQLitePersistenceManager:
             ))
         
         return history
+    
+    async def _batch_get_status_histories(self, task_ids: List[str]) -> Dict[str, List[TaskStatusHistory]]:
+        """
+        Batch get status histories for multiple tasks (优化 N+1 查询)
+        """
+        if not task_ids:
+            return {}
+        
+        # Build placeholders for SQL IN clause
+        placeholders = ','.join(['?' for _ in task_ids])
+        query = f"""
+            SELECT task_id, status, message, timestamp 
+            FROM task_status_history 
+            WHERE task_id IN ({placeholders})
+            ORDER BY task_id, timestamp ASC
+        """
+        results = await self.db.fetch_all(query, task_ids)
+        
+        # Group by task_id
+        histories_map = {}
+        for row in results:
+            task_id = row['task_id']
+            if task_id not in histories_map:
+                histories_map[task_id] = []
+            
+            histories_map[task_id].append(TaskStatusHistory(
+                status=row['status'],
+                message=row['message'],
+                timestamp=row['timestamp'].isoformat() if hasattr(row['timestamp'], 'isoformat') else str(row['timestamp']) if row['timestamp'] else None
+            ))
+        
+        # Ensure all task_ids have an entry (even if empty)
+        for task_id in task_ids:
+            if task_id not in histories_map:
+                histories_map[task_id] = []
+        
+        return histories_map
     
     def force_save(self) -> None:
         """

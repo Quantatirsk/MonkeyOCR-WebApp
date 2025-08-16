@@ -8,7 +8,7 @@ import uuid
 import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends, Request, Header, Response
 import aiofiles
 
 logger = logging.getLogger(__name__)
@@ -663,9 +663,14 @@ async def process_file_async(
 
 @router.get("/download/{task_id}")
 @router.head("/download/{task_id}")
-async def download_result(task_id: str):
+async def download_result(
+    task_id: str,
+    request: Request = None,
+    range: Optional[str] = Header(None)
+):
     """
-    Download the result file for a task (supports GET and HEAD methods)
+    Download the result file for a task with streaming and Range support
+    Supports GET and HEAD methods, partial content requests (206)
     """
     try:
         persistence_manager = get_persistence_manager()
@@ -681,17 +686,90 @@ async def download_result(task_id: str):
         if not result_file or not os.path.exists(result_file):
             raise HTTPException(status_code=404, detail="Result file not found")
         
-        # Return file response (FastAPI handles HEAD method automatically)
-        from fastapi.responses import FileResponse
-        return FileResponse(
-            path=result_file,
-            filename=f"{task.filename}_result.zip",
+        # Get file size and metadata
+        file_stat = os.stat(result_file)
+        file_size = file_stat.st_size
+        
+        # Generate ETag for caching
+        etag = f'"{task_id}-{file_stat.st_mtime}-{file_size}"'
+        
+        # Check if client has cached version
+        if_none_match = request.headers.get("if-none-match") if request else None
+        if if_none_match == etag:
+            return Response(status_code=304)  # Not Modified
+        
+        # Parse Range header if present
+        start = 0
+        end = file_size - 1
+        status_code = 200
+        headers = {
+            "accept-ranges": "bytes",
+            "etag": etag,
+            "cache-control": "public, max-age=3600",
+        }
+        
+        if range:
+            try:
+                # Parse range header (e.g., "bytes=0-1023")
+                range_spec = range.replace("bytes=", "")
+                range_parts = range_spec.split("-")
+                
+                if len(range_parts) == 2:
+                    if range_parts[0]:
+                        start = int(range_parts[0])
+                    if range_parts[1]:
+                        end = int(range_parts[1])
+                    else:
+                        end = file_size - 1
+                
+                # Validate range
+                if start < 0 or start >= file_size or end >= file_size or start > end:
+                    return Response(
+                        status_code=416,
+                        headers={"content-range": f"bytes */{file_size}"}
+                    )
+                
+                status_code = 206  # Partial Content
+                headers["content-range"] = f"bytes {start}-{end}/{file_size}"
+                
+            except (ValueError, IndexError):
+                pass  # Invalid range, serve full file
+        
+        # Calculate content length
+        content_length = end - start + 1
+        headers["content-length"] = str(content_length)
+        
+        # Stream file content
+        async def stream_file():
+            chunk_size = 1024 * 1024  # 1MB chunks
+            async with aiofiles.open(result_file, 'rb') as f:
+                await f.seek(start)
+                current = start
+                
+                while current <= end:
+                    remaining = end - current + 1
+                    read_size = min(chunk_size, remaining)
+                    
+                    data = await f.read(read_size)
+                    if not data:
+                        break
+                    
+                    current += len(data)
+                    yield data
+        
+        # Use StreamingResponse for efficient memory usage
+        from fastapi.responses import StreamingResponse
+        return StreamingResponse(
+            stream_file(),
+            status_code=status_code,
+            headers=headers,
             media_type="application/zip"
         )
         
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Download failed for task {task_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 

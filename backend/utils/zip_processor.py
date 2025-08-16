@@ -22,7 +22,8 @@ class ZipProcessor:
     
     async def process_zip_file(self, zip_path: str, task_id: str) -> DocumentResult:
         """
-        Process a ZIP file from MonkeyOCR and extract content
+        Process a ZIP file from MonkeyOCR with async optimization
+        优化：使用 asyncio.to_thread 避免阻塞事件循环
         
         Args:
             zip_path: Path to the ZIP file
@@ -31,15 +32,15 @@ class ZipProcessor:
         Returns:
             DocumentResult with processed content
         """
+        import asyncio
         
         # Create task-specific directory
         task_dir = self.media_dir / task_id
         task_dir.mkdir(exist_ok=True)
         
         try:
-            # Extract ZIP file
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(task_dir)
+            # Extract ZIP file in thread pool (避免阻塞事件循环)
+            await asyncio.to_thread(self._extract_zip, zip_path, task_dir)
             
             # Find markdown files
             markdown_files = list(task_dir.rglob("*.md"))
@@ -86,6 +87,17 @@ class ZipProcessor:
             if task_dir.exists():
                 shutil.rmtree(task_dir)
             raise Exception(f"Failed to process ZIP file: {str(e)}")
+    
+    def _extract_zip(self, zip_path: str, task_dir: Path) -> None:
+        """
+        Extract ZIP file (同步方法，将在线程池中运行)
+        
+        Args:
+            zip_path: Path to the ZIP file
+            task_dir: Directory to extract to
+        """
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(task_dir)
     
     def _select_main_markdown_file(self, markdown_files: List[Path]) -> Path:
         """

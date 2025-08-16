@@ -81,10 +81,16 @@ class MonkeyOCRClient:
         if not file_path_obj.exists():
             raise FileNotFoundError(f"File not found: {file_path_obj}")
             
-        # Prepare form data - using context manager to ensure file is closed
-        file_handle = open(file_path_obj, "rb")
+        # Use aiofiles for async file reading (优化：避免阻塞 I/O)
+        import aiofiles
+        
+        # Read file content asynchronously
+        async with aiofiles.open(file_path_obj, "rb") as f:
+            file_content = await f.read()
+        
+        # Prepare form data with content
         files = {
-            "file": (file_path_obj.name, file_handle, self._get_content_type(file_path_obj))
+            "file": (file_path_obj.name, file_content, self._get_content_type(file_path_obj))
         }
         
         # No additional data needed for standard mode
@@ -141,9 +147,8 @@ class MonkeyOCRClient:
                             raise MonkeyOCRNetworkError("MonkeyOCR API request timed out")
                             
         finally:
-            # Clean up file handle
-            if 'file_handle' in locals():
-                file_handle.close()
+            # No need to clean up file handle as we're using file content directly
+            pass
                     
         raise MonkeyOCRAPIError("Failed to process file after all retry attempts")
     
