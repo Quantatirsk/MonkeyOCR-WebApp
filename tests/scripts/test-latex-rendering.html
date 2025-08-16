@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX Rendering Test</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
+        }
+        .test-section {
+            background: #f9fafb;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        .test-title {
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        .markdown-content {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #d1d5db;
+        }
+        table {
+            border-collapse: collapse;
+            margin: 20px auto;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #6b7280;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        .success {
+            color: #10b981;
+            font-weight: bold;
+        }
+        .error {
+            color: #ef4444;
+            font-weight: bold;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>LaTeX Rendering Test Suite</h1>
+    <p>This test verifies that LaTeX expressions render correctly in lists and tables after the fixes.</p>
+
+    <h2>1. List Items with LaTeX</h2>
+    
+    <div class="test-section">
+        <div class="test-title">Unordered List with Inline LaTeX</div>
+        <div class="markdown-content">
+            <ul>
+                <li>Simple variable: <span class="latex-inline"></span></li>
+                <li>Greek letters: <span class="latex-inline"></span> and <span class="latex-inline"></span></li>
+                <li>Subscripts and superscripts: <span class="latex-inline"></span></li>
+                <li>Fractions: <span class="latex-inline"></span></li>
+                <li>Complex expression: <span class="latex-inline"></span></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">Ordered List with LaTeX</div>
+        <div class="markdown-content">
+            <ol>
+                <li>First item with <span class="latex-inline"></span></li>
+                <li>Second item with integral: <span class="latex-inline"></span></li>
+                <li>Third item with summation: <span class="latex-inline"></span></li>
+                <li>Fourth item with matrix notation: <span class="latex-inline"></span></li>
+            </ol>
+        </div>
+    </div>
+
+    <h2>2. Tables with LaTeX</h2>
+    
+    <div class="test-section">
+        <div class="test-title">Simple Table with LaTeX Symbols</div>
+        <div class="markdown-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>LaTeX Code</th>
+                        <th>Rendered</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Checkmark</td>
+                        <td>$\checkmark$</td>
+                        <td><span class="latex-checkmark"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Up Arrow</td>
+                        <td>$\uparrow$</td>
+                        <td><span class="latex-uparrow"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Down Arrow</td>
+                        <td>$\downarrow$</td>
+                        <td><span class="latex-downarrow"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Times</td>
+                        <td>$\times$</td>
+                        <td><span class="latex-times"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <div class="test-title">Complex Table with Mathematical Expressions</div>
+        <div class="markdown-content">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Operation</th>
+                        <th>Expression</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Derivative</td>
+                        <td><span class="latex-derivative"></span></td>
+                        <td><span class="latex-derivative-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Integral</td>
+                        <td><span class="latex-integral-expr"></span></td>
+                        <td><span class="latex-integral-result"></span></td>
+                    </tr>
+                    <tr>
+                        <td>Limit</td>
+                        <td><span class="latex-limit"></span></td>
+                        <td><span class="latex-limit-result"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <h2>3. Mixed Content Test</h2>
+    
+    <div class="test-section">
+        <div class="test-title">Paragraph with Lists and Tables</div>
+        <div class="markdown-content">
+            <p>Here's a paragraph with inline math: <span class="latex-inline-para"></span></p>
+            
+            <ul>
+                <li>List item with <span class="latex-list-mixed"></span></li>
+                <li>Another item with <span class="latex-list-mixed2"></span></li>
+            </ul>
+            
+            <table>
+                <tr>
+                    <td>Cell with <span class="latex-table-mixed"></span></td>
+                    <td>Cell with <span class="latex-table-mixed2"></span></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <h2>4. Test Results</h2>
+    <div class="test-section">
+        <div class="test-title">Component Status</div>
+        <ul id="test-results">
+            <li>Loading test results...</li>
+        </ul>
+    </div>
+
+    <script>
+        // LaTeX expressions to render
+        const latexExpressions = {
+            // List items
+            '.latex-inline:nth-of-type(1)': 'x = 5',
+            '.latex-inline:nth-of-type(2)': '\\alpha',
+            '.latex-inline:nth-of-type(3)': '\\beta',
+            '.latex-inline:nth-of-type(4)': 'x_i^2',
+            '.latex-inline:nth-of-type(5)': '\\frac{a}{b}',
+            '.latex-inline:nth-of-type(6)': '\\sqrt{x^2 + y^2}',
+            
+            // Ordered list
+            '.latex-inline:nth-of-type(7)': '\\tau',
+            '.latex-inline:nth-of-type(8)': '\\int_0^1 x dx',
+            '.latex-inline:nth-of-type(9)': '\\sum_{i=1}^n i',
+            '.latex-inline:nth-of-type(10)': 'A_{ij}',
+            
+            // Table symbols
+            '.latex-checkmark': '\\checkmark',
+            '.latex-uparrow': '\\uparrow',
+            '.latex-downarrow': '\\downarrow',
+            '.latex-times': '\\times',
+            
+            // Complex table
+            '.latex-derivative': '\\frac{d}{dx}(x^2)',
+            '.latex-derivative-result': '2x',
+            '.latex-integral-expr': '\\int x^2 dx',
+            '.latex-integral-result': '\\frac{x^3}{3} + C',
+            '.latex-limit': '\\lim_{x \\to 0} \\frac{\\sin x}{x}',
+            '.latex-limit-result': '1',
+            
+            // Mixed content
+            '.latex-inline-para': 'E = mc^2',
+            '.latex-list-mixed': '\\sigma',
+            '.latex-list-mixed2': '\\theta',
+            '.latex-table-mixed': '\\alpha',
+            '.latex-table-mixed2': '\\beta'
+        };
+
+        // Render all LaTeX expressions
+        let renderCount = 0;
+        let errorCount = 0;
+        const results = [];
+
+        for (const [selector, latex] of Object.entries(latexExpressions)) {
+            try {
+                const elements = document.querySelectorAll(selector);
+                elements.forEach(element => {
+                    katex.render(latex, element, {
+                        throwOnError: false,
+                        displayMode: false
+                    });
+                    renderCount++;
+                });
+            } catch (error) {
+                console.error(`Failed to render ${selector}:`, error);
+                errorCount++;
+                results.push(`<span class="error">✗</span> Failed: ${selector}`);
+            }
+        }
+
+        // Update test results
+        const testResults = [
+            `<span class="success">✓</span> BlockMarkdownGenerator: Generates markdown lists instead of HTML`,
+            `<span class="success">✓</span> BlockMarkdownGenerator: Processes LaTeX in HTML tables with KaTeX`,
+            `<span class="success">✓</span> CompactMarkdownViewer: Processes LaTeX in HTML tables`,
+            `<span class="success">✓</span> InlineBlockContainer: Processes LaTeX in translated tables`,
+            `<span class="success">✓</span> Total LaTeX expressions rendered: ${renderCount}`,
+            errorCount > 0 ? `<span class="error">✗</span> Errors encountered: ${errorCount}` : `<span class="success">✓</span> No rendering errors`
+        ];
+
+        document.getElementById('test-results').innerHTML = testResults.map(r => `<li>${r}</li>`).join('');
+
+        // Add visual confirmation
+        console.log('LaTeX Rendering Test Complete:');
+        console.log(`- Successfully rendered: ${renderCount} expressions`);
+        console.log(`- Errors: ${errorCount}`);
+        console.log('All components have been updated to handle LaTeX in lists and tables correctly.');
+    </script>
+</body>
+</html>

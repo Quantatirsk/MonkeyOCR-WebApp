@@ -43,6 +43,7 @@ tmp/
 temp/
 uploads/
 results/
+media/
 backend/static
 
 # Package files

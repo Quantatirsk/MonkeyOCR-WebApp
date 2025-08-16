@@ -7,75 +7,74 @@
 .block-markdown-viewer {
   position: relative;
   width: 100%;
-  line-height: 1.4 !important; /* Match content tab line height */
+  line-height: 1.4;
   color: hsl(var(--foreground));
-  /* 全局设置：避免单词内部换行 */
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
-  hyphens: none !important; /* 禁用连字符 */
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
 /* Block container wrapper - ensures one block = one DOM element */
 .block-container {
   display: block;
   position: relative;
-  padding: 2px 0; /* 上下各 2px padding，左右 0 */
-  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal vertical spacing between blocks */
+  padding: 2px 0;
+  margin: 0.02em 0;
   border-radius: 3px;
-  /* Remove transition for instant response */
   cursor: pointer;
   background-color: transparent;
-  border-left: 0; /* 移除边框，由.block-content-wrapper处理 */
+  border-left: 0;
 }
 
 /* Center content for specific block types - Simplified */
-/* For formulas - use block layout to keep translation/explanation below */
-.block-container[data-block-type="interline_equation"] .block-content-wrapper {
-  text-align: center !important;
-  display: block !important; /* Use block to maintain vertical layout */
+/* Formula blocks - centered layout */
+/* Only center the actual equation content inside block-content-wrapper */
+.block-container[data-block-type="interline_equation"] .block-content-wrapper > p {
+  text-align: center;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* Ensure all content in formula blocks is centered */
-.block-container[data-block-type="interline_equation"] .block-content-wrapper > * {
-  text-align: center !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+/* Only center display math ($$...$$ equations), not inline math ($...$) */
+.block-container[data-block-type="interline_equation"] .block-content-wrapper .katex-display {
+  display: block;
+  margin: 0 auto;
+  text-align: center;
 }
 
-.block-container[data-block-type="interline_equation"] .katex-display,
-.block-container[data-block-type="interline_equation"] .katex {
+/* For translation/explanation overlays in equation blocks */
+/* Ensure inline LaTeX stays inline (single $ formulas) */
+.block-container[data-block-type="interline_equation"] .katex:not(.katex-display) {
+  display: inline !important;
+  margin: 0 !important;
+}
+
+/* Center display math blocks (double $$ formulas) in overlays */
+.block-container > div[data-overlay-type] .katex-display {
   display: block !important;
-  margin: 0 auto !important;
+  margin: 1em auto !important;
   text-align: center !important;
 }
 
-/* For inline formulas in formula blocks */
-.block-container[data-block-type="interline_equation"] p {
-  text-align: center !important;
-}
-
-/* For images - center the image */
-.block-container[data-block-type="image"] .block-content-wrapper {
-  text-align: center !important;
-  display: block !important; /* Changed from flex to block to maintain vertical layout */
-}
-
-/* For tables - center the table container only, not the content */
+/* Image and table blocks */
+.block-container[data-block-type="image"] .block-content-wrapper,
 .block-container[data-block-type="table"] .block-content-wrapper {
-  display: block !important; /* Changed from flex to block to maintain vertical layout */
+  text-align: center;
+  display: block;
 }
 
-/* Ensure paragraphs inside block containers don't add extra margin */
+/* Paragraph margins inside block containers */
 .block-container > p {
-  margin: 0.15em 0 !important;
+  margin: 0.15em 0;
 }
 
 .block-container > p:first-child {
-  margin-top: 0 !important;
+  margin-top: 0;
 }
 
 .block-container > p:last-child {
-  margin-bottom: 0 !important;
+  margin-bottom: 0;
 }
 
 /* Block content wrapper - gives padding around content for better hover/selected area */
@@ -89,17 +88,17 @@
   background-color: transparent;
 }
 
-/* Pure CSS hover - apply to content wrapper - 蓝色背景无边框 */
+/* Pure CSS hover - apply to content wrapper */
 .block-container:hover .block-content-wrapper {
-  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
-  border: 1px solid transparent !important; /* 透明边框 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid transparent;
 }
 
 
 /* Apply background to the content wrapper inside selected containers - 蓝色风格 */
 .block-container.block-selected .block-content-wrapper {
-  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
-  border: 1px solid #3B82F6 !important; /* blue-500 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid hsl(var(--primary));
 }
 
 .block-container.block-highlighted .block-content-wrapper {
@@ -117,22 +116,22 @@
 .block-paragraph {
   display: block;
   position: relative;
-  padding: 2px 8px; /* 上下 2px (py-0.5), 左右 8px (px-2) */
-  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal spacing between blocks */
+  padding: 2px 8px;
+  margin: 0.02em 0;
   border-radius: 4px;
-  transition: background-color 0.15s ease, border-color 0.15s ease; /* 仅对不影响布局的属性过渡 */
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   cursor: pointer;
   background-color: transparent;
-  border: 1px solid transparent; /* 预设边框避免hover时布局变化 */
-  text-align: justify; /* 区块内文字两端对齐 */
-  text-justify: inter-word; /* 单词间对齐 */
+  border: 1px solid transparent;
+  text-align: justify;
+  text-justify: inter-word;
 }
 
 /* Simulated list items inside block containers */
 .block-container .simulated-list-item {
   display: block;
-  margin-left: 2em !important;
-  margin-bottom: 0.02em !important; /* Ultra-minimal spacing between list items in blocks */
+  margin-left: 2em;
+  margin-bottom: 0.02em;
   position: relative;
 }
 
@@ -156,26 +155,25 @@
 
 /* Block type specific styling - 蓝色背景无边框 hover 风格 */
 .block-paragraph.block-type-text:hover {
-  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
-  border: 1px solid transparent; /* 透明边框 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid transparent;
 }
 
 .block-paragraph.block-type-title:hover {
-  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
-  border: 1px solid transparent; /* 透明边框 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid transparent;
 }
 
 .block-paragraph.block-type-image:hover {
-  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
-  border: 1px solid transparent; /* 透明边框 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid transparent;
 }
 
-/* Block states - 蓝色风格 */
+/* Block states */
 .block-paragraph.block-selected {
-  background-color: rgba(59, 130, 246, 0.15); /* 蓝色背景 */
-  border: 1px solid #3B82F6; /* blue-500 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid hsl(var(--primary));
   border-radius: 4px;
-  /* 移除translateX位移，保持布局稳定 */
 }
 
 .block-paragraph.block-highlighted {
@@ -184,10 +182,10 @@
   border-radius: 4px;
 }
 
-/* Use :hover for paragraphs too - 蓝色背景无边框 */
+/* Use :hover for paragraphs too */
 .block-paragraph:hover {
-  background-color: rgba(59, 130, 246, 0.15) !important; /* 蓝色背景 */
-  border: 1px solid transparent !important; /* 透明边框 */
+  background-color: hsl(var(--primary) / 0.15);
+  border: 1px solid transparent;
 }
 
 /* Block marker */
@@ -206,7 +204,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   border-radius: 0.375rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px hsl(var(--foreground) / 0.1);
   z-index: 10;
 }
 
@@ -241,23 +239,21 @@
 .markdown-content {
   max-width: none;
   display: block;
-  line-height: 1.4 !important; /* Match content tab line height */
-  text-align: justify; /* 文字两端对齐 */
-  text-justify: inter-word; /* 单词间对齐 */
-  /* 确保内容不会在单词中间换行 */
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
-  hyphens: none !important;
+  line-height: 1.4;
+  text-align: justify;
+  text-justify: inter-word;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
 /* Ensure all markdown elements have proper block display and spacing */
 .markdown-content > * {
-  display: block !important;
+  display: block;
   margin-bottom: 0.4rem;
-  /* 应用到所有子元素：避免单词内部换行 */
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
-  hyphens: none !important;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
 .markdown-content > *:last-child {
@@ -265,59 +261,54 @@
 }
 
 .markdown-paragraph {
-  color: hsl(var(--foreground)) !important;
-  line-height: 1.4 !important; /* Match content tab */
-  margin: 0.02em 0 0.02em 0 !important; /* Ultra-minimal spacing between blocks */
-  display: block !important; /* Ensure block-level display */
-  text-align: justify !important; /* 段落文字两端对齐 */
-  text-justify: inter-word; /* 单词间对齐 */
-  /* 确保段落文本不会在单词中间换行 */
-  word-break: normal !important;
-  overflow-wrap: break-word !important;
-  hyphens: none !important;
+  color: hsl(var(--foreground));
+  line-height: 1.4;
+  margin: 0.02em 0;
+  display: block;
+  text-align: justify;
+  text-justify: inter-word;
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
 }
 
-/* Heading styles - match content tab typography */
+/* Heading styles */
 .markdown-heading {
   font-weight: 600;
-  color: hsl(var(--foreground)) !important;
-  display: block !important; /* Ensure block-level display */
-  line-height: 1.3 !important;
+  color: hsl(var(--foreground));
+  display: block;
+  line-height: 1.3;
 }
 
 .markdown-h1 {
-  font-size: 1.5em !important; /* Match content tab - use em for responsive scaling */
-  margin: 0.3em 0 0.1em 0 !important; /* Further reduced spacing */
+  font-size: 1.5em;
+  margin: 0.3em 0 0.1em 0;
   border-bottom: 2px solid hsl(var(--border));
   padding-bottom: 0.2rem;
 }
 
 .markdown-h2 {
-  font-size: 1.25em !important; /* Match content tab */
-  margin: 0.3em 0 0.1em 0 !important; /* Further reduced spacing */
+  font-size: 1.25em;
+  margin: 0.3em 0 0.1em 0;
   border-bottom: 1px solid hsl(var(--border));
   padding-bottom: 0.15rem;
-  color: hsl(var(--primary)) !important; /* Use primary color (deep blue) */
+  color: hsl(var(--primary));
 }
 
 .markdown-h3 {
-  font-size: 1.1em !important; /* Match content tab */
-  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
+  font-size: 1.1em;
+  margin: 0.2em 0 0.1em 0;
 }
 
-.markdown-h4 {
-  font-size: 1em !important; /* Match content tab */
-  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
-}
-
+.markdown-h4,
 .markdown-h5 {
-  font-size: 1em !important; /* Match content tab */
-  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
+  font-size: 1em;
+  margin: 0.2em 0 0.1em 0;
 }
 
 .markdown-h6 {
-  font-size: 1em !important; /* Match content tab */
-  margin: 0.2em 0 0.1em 0 !important; /* Further reduced spacing */
+  font-size: 1em;
+  margin: 0.2em 0 0.1em 0;
   color: hsl(var(--muted-foreground));
 }
 
@@ -327,26 +318,19 @@
   text-align: center;
 }
 
-.markdown-image {
-  display: block !important;
-  margin: 0 auto !important;
-  max-width: 90%; /* Limit image width to 90% */
-  height: auto;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s ease;
-}
-
-/* Center images inside block containers - More specific selector to override global styles */
+.markdown-image,
 .block-container[data-block-type="image"] img,
 .block-container[data-block-type="image"] .markdown-image,
 .block-markdown-viewer img,
 .block-markdown-viewer .markdown-image {
-  display: block !important;
-  margin: 0 auto !important;
-  max-width: 90% !important; /* Limit to 90% width - using !important to override global styles */
-  width: auto !important;
-  height: auto !important;
+  display: block;
+  margin: 0 auto;
+  max-width: 90%;
+  width: auto;
+  height: auto;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px hsl(var(--foreground) / 0.1);
+  transition: transform 0.2s ease;
 }
 
 .markdown-image:hover {
@@ -360,32 +344,32 @@
   font-style: italic;
 }
 
-/* Code styling - match content tab */
+/* Code styling */
 .markdown-code-block {
-  background-color: hsl(var(--muted)) !important;
-  border: 1px solid hsl(var(--border)) !important;
-  border-radius: 6px !important; /* Match content tab border radius */
-  padding: 12px !important; /* Match content tab padding */
-  margin: 0.15em 0 !important; /* Further reduced spacing */
+  background-color: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  padding: 12px;
+  margin: 0.15em 0;
   overflow-x: auto;
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; /* Match content tab font */
-  font-size: 0.85em !important; /* Match content tab font size */
+  font-family: var(--font-mono);
+  font-size: 0.85em;
   line-height: 1.5;
 }
 
 .markdown-code-block code {
-  background-color: transparent !important;
-  color: hsl(var(--foreground)) !important;
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important;
+  background-color: transparent;
+  color: hsl(var(--foreground));
+  font-family: var(--font-mono);
 }
 
 .markdown-inline-code {
-  background-color: hsl(var(--muted)) !important;
-  color: hsl(var(--foreground)) !important;
-  padding: 2px 6px !important; /* Match content tab padding */
-  border-radius: 4px !important; /* Match content tab border radius */
-  font-size: 0.85em !important; /* Match content tab font size */
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace !important; /* Match content tab font */
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: var(--font-mono);
 }
 
 /* Blockquote styling */
@@ -407,41 +391,39 @@
   margin-bottom: 0;
 }
 
-/* List styling - match content tab */
+/* List styling */
 .markdown-list {
-  margin: 0.05em 0 0.08em 0 !important; /* Ultra-minimal spacing */
-  padding-left: 1.2em !important; /* Match content tab indentation */
+  margin: 0.05em 0 0.08em 0;
+  padding-left: 1.2em;
 }
 
 .markdown-unordered-list {
-  list-style-type: disc !important;
-  list-style-position: outside !important;
-  padding-left: 1.5em !important; /* Add proper left padding */
-  margin: 0.05em 0 !important; /* Ultra-minimal margins */
+  list-style-type: disc;
+  list-style-position: outside;
+  padding-left: 1.5em;
+  margin: 0.05em 0;
 }
 
-/* Ensure list items in unordered lists show bullets */
 .markdown-unordered-list > .markdown-list-item {
-  list-style-type: disc !important;
-  display: list-item !important;
+  list-style-type: disc;
+  display: list-item;
 }
 
 .markdown-ordered-list {
-  list-style-type: decimal !important;
-  list-style-position: outside !important;
-  padding-left: 1.5em !important; /* Add proper left padding */
-  margin: 0.05em 0 !important; /* Ultra-minimal margins */
+  list-style-type: decimal;
+  list-style-position: outside;
+  padding-left: 1.5em;
+  margin: 0.05em 0;
 }
 
-/* Ensure list items in ordered lists show numbers */
 .markdown-ordered-list > .markdown-list-item {
-  list-style-type: decimal !important;
-  display: list-item !important;
+  list-style-type: decimal;
+  display: list-item;
 }
 
 .markdown-list-item {
-  margin-bottom: 0.02em !important; /* Ultra-minimal item spacing */
-  line-height: 1.4 !important; /* Match content tab line height */
+  margin-bottom: 0.02em;
+  line-height: 1.4;
 }
 
 .markdown-list-item::marker {
@@ -479,7 +461,7 @@
 }
 
 .markdown-table-header-cell {
-  border: 1px solid #6b7280 !important; /* Fine dark gray border */
+  border: 1px solid hsl(var(--foreground) / 0.3);
   padding: 3px 5px !important; /* Keep current padding */
   font-weight: 600 !important;
   color: hsl(var(--foreground));
@@ -500,7 +482,7 @@
 }
 
 .markdown-table-cell {
-  border: 1px solid #6b7280 !important; /* Fine dark gray border */
+  border: 1px solid hsl(var(--foreground) / 0.3);
   padding: 2px 4px !important; /* Keep current padding */
   vertical-align: top;
   font-size: 0.7em !important; /* Even smaller font size */
@@ -543,7 +525,7 @@
   padding: 0.5rem 0.75rem;
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px hsl(var(--foreground) / 0.1);
   backdrop-filter: blur(8px);
 }
 
@@ -632,64 +614,36 @@
   }
   
   .block-paragraph.block-selected {
-    border-color: #3B82F6; /* blue-500 蓝色 */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.3);
   }
   
   .block-container.block-selected .block-content-wrapper {
-    border-color: #3B82F6; /* blue-500 蓝色 */
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.3);
   }
 }
 
-/* Math Support (KaTeX) - match content tab */
+/* Math Support (KaTeX) - Simplified */
+/* Let KaTeX handle its own display modes - don't override */
 .block-markdown-viewer .katex {
-  font-size: 1em !important;
-  color: hsl(var(--foreground)) !important;
+  font-size: 1em;
+  color: hsl(var(--foreground));
 }
 
+/* Only style display math when explicitly in display mode */
 .block-markdown-viewer .katex-display {
-  margin: 1.2em auto !important;
-  text-align: center !important;
-  overflow-x: auto !important;
-  display: block !important;
+  margin: 1.2em auto;
+  text-align: center;
+  /* Remove forced display: block - let KaTeX decide */
 }
 
-/* Center interline equations in block containers */
-.block-container[data-block-type="interline_equation"] .katex-display {
-  margin: 0 auto !important;
-  text-align: center !important;
-  display: block !important;
-}
-
-.block-markdown-viewer .katex-inline {
-  margin: 0 0.1em !important;
-}
-
+/* Error handling */
 .block-markdown-viewer .katex-error {
-  color: hsl(var(--destructive)) !important;
-  background-color: hsl(var(--destructive) / 0.1) !important;
-  padding: 2px 4px !important;
-  border-radius: 3px !important;
-}
-
-/* Ensure KaTeX elements use theme colors */
-.block-markdown-viewer .katex .mord,
-.block-markdown-viewer .katex .mop,
-.block-markdown-viewer .katex .mbin,
-.block-markdown-viewer .katex .mrel,
-.block-markdown-viewer .katex .mopen,
-.block-markdown-viewer .katex .mclose,
-.block-markdown-viewer .katex .mpunct {
-  color: hsl(var(--foreground)) !important;
-}
-
-.block-markdown-viewer .katex .frac-line {
-  border-bottom-color: hsl(var(--foreground)) !important;
-}
-
-.block-markdown-viewer .katex .sqrt-line {
-  border-top-color: hsl(var(--foreground)) !important;
+  color: hsl(var(--destructive));
+  background-color: hsl(var(--destructive) / 0.1);
+  padding: 2px 4px;
+  border-radius: 3px;
 }
 
 /* Reduced motion */
@@ -723,14 +677,14 @@
   transition: all 0.2s ease;
 }
 
-/* 奇数 merged block - 浅蓝色背景 */
+/* Odd merged blocks */
 .block-container.inline-translation-container.with-translation:nth-of-type(odd) {
-  background-color: rgba(219, 234, 254, 0.3); /* 非常浅的蓝色 */
+  background-color: hsl(var(--primary) / 0.05);
 }
 
-/* 偶数 merged block - 浅灰色背景 */
+/* Even merged blocks */
 .block-container.inline-translation-container.with-translation:nth-of-type(even) {
-  background-color: rgba(243, 244, 246, 0.8); /* 非常浅的灰色 */
+  background-color: hsl(var(--muted) / 0.5);
 }
 
 /* 确保第一个区块的顶部间距正常 */
@@ -775,35 +729,30 @@
 /* 译文内容不需要特殊样式 - 直接继承原文的所有 markdown 样式 */
 /* 译文会自动使用 .markdown-* 类名，从而继承所有原文样式 */
 
-/* 整体选中时的效果 - 奇数区块 */
-.block-container.inline-translation-container.with-translation:nth-of-type(odd):hover {
-  background-color: rgba(254, 243, 199, 0.4); /* 浅黄色 hover */
-  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.1);
-}
-
-/* 整体选中时的效果 - 偶数区块 */
+/* Hover effect for translation blocks */
+.block-container.inline-translation-container.with-translation:nth-of-type(odd):hover,
 .block-container.inline-translation-container.with-translation:nth-of-type(even):hover {
-  background-color: rgba(254, 243, 199, 0.4); /* 相同的浅黄色 hover */
-  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.1);
+  background-color: hsl(var(--accent) / 0.6);
+  box-shadow: 0 2px 4px hsl(var(--accent-foreground) / 0.1);
 }
 
-/* 选中状态 - 点击后的选中效果 */
+/* Selected state */
 .block-container.inline-translation-container.with-translation.selected {
-  background-color: rgba(59, 130, 246, 0.15) !important;
-  border: 2px solid rgba(59, 130, 246, 0.5) !important;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background-color: hsl(var(--primary) / 0.15);
+  border: 2px solid hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
 }
 
-/* 选中状态的 hover 效果 */
+/* Selected state hover */
 .block-container.inline-translation-container.with-translation.selected:hover {
-  background-color: rgba(59, 130, 246, 0.2) !important;
-  border: 2px solid rgba(59, 130, 246, 0.6) !important;
+  background-color: hsl(var(--primary) / 0.2);
+  border: 2px solid hsl(var(--primary) / 0.6);
 }
 
-/* 原有的 block-selected 状态（保留用于其他用途） */
+/* Block selected state */
 .block-container.inline-translation-container.with-translation.block-selected {
-  background-color: rgba(239, 68, 68, 0.1) !important;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background-color: hsl(var(--destructive) / 0.1);
+  border: 1px solid hsl(var(--destructive) / 0.3);
 }
 
 /* Animation for streaming status dots */
@@ -860,7 +809,7 @@
 /* Print styles */
 @media print {
   .block-marker {
-    background-color: #666 !important;
+    background-color: hsl(var(--muted-foreground));
     color: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

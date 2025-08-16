@@ -9,10 +9,9 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
-import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 // Import specific languages for better performance
 import typescript from 'react-syntax-highlighter/dist/cjs/languages/prism/typescript';
 import javascript from 'react-syntax-highlighter/dist/cjs/languages/prism/javascript';
@@ -147,11 +146,13 @@ const CodeBlock: React.FC<{
       </div>
       <SyntaxHighlighter
         language={language || 'plaintext'}
-        style={oneDark}
+        style={oneLight}
         customStyle={{
           margin: 0,
           borderRadius: '0 0 0.375rem 0.375rem',
-          fontSize: '0.875rem',
+          fontSize: '0.75rem',
+          padding: '0.75rem',
+          lineHeight: '1.4',
         }}
         showLineNumbers={true}
         wrapLines={false}
@@ -163,152 +164,6 @@ const CodeBlock: React.FC<{
   );
 };
 
-
-
-// 通用的子元素处理函数，支持 LaTeX 和格式化
-function processChildrenWithLatex(children: any): any {
-  if (typeof children === 'string') {
-    return processWithMathAndFormatting(children);
-  }
-  if (Array.isArray(children)) {
-    return children.map((child, index) => {
-      if (typeof child === 'string') {
-        return <span key={index}>{processWithMathAndFormatting(child)}</span>;
-      }
-      // 递归处理嵌套元素
-      if (React.isValidElement(child)) {
-        const childProps = child.props as any;
-        if (childProps?.children) {
-          const processedChild = React.cloneElement(child as React.ReactElement<any>, {
-            children: processChildrenWithLatex(childProps.children)
-          });
-          return processedChild;
-        }
-      }
-      return child;
-    });
-  }
-  return children;
-}
-
-// 综合处理数学公式和格式标记
-function processWithMathAndFormatting(text: string): React.ReactNode {
-  if (!text || typeof text !== 'string') return text;
-  
-  // 先处理数学公式，再处理格式标记
-  // 添加对 \begin{...}\end{...} 环境的支持
-  const mathAndFormatRegex = /(\\begin\{[^}]+\}[\s\S]*?\\end\{[^}]+\}|\$\$[^$]+\$\$|\$[^$]+\$|\*\*[^*]+\*\*|\*[^*]+\*|\^[^^]+\^|~[^~]+~)/g;
-  const parts = text.split(mathAndFormatRegex);
-  
-  if (parts.length === 1) {
-    return text; // 没有特殊标记
-  }
-  
-  return parts.map((part, index) => {
-    if (!part) return null;
-    
-    // LaTeX 环境 \begin{...}...\end{...}
-    if (part.match(/^\\begin\{[^}]+\}/)) {
-      try {
-        const html = katex.renderToString(part, {
-          throwOnError: false,
-          displayMode: true,
-          output: 'html',
-          strict: false,
-          trust: true,
-        });
-        return (
-          <div 
-            key={index}
-            dangerouslySetInnerHTML={{ __html: html }} 
-            style={{ 
-              background: 'transparent', 
-              textAlign: 'center', 
-              margin: '0.5em auto',
-              display: 'block'
-            }} 
-          />
-        );
-      } catch (error) {
-        console.error('KaTeX render error for LaTeX environment:', error);
-        return <span key={index}>{part}</span>;
-      }
-    }
-    // 块级数学公式 $$...$$
-    else if (part.match(/^\$\$[^$]+\$\$$/)) {
-      const mathContent = part.slice(2, -2);
-      try {
-        const html = katex.renderToString(mathContent, {
-          throwOnError: false,
-          displayMode: true,
-          output: 'html',
-          strict: false,
-        });
-        return (
-          <div 
-            key={index}
-            dangerouslySetInnerHTML={{ __html: html }} 
-            style={{ 
-              background: 'transparent', 
-              textAlign: 'center', 
-              margin: '0.5em auto',
-              display: 'block'
-            }} 
-          />
-        );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
-        return <span key={index}>{part}</span>;
-      }
-    }
-    // 内联数学公式 $...$
-    else if (part.match(/^\$[^$]+\$$/)) {
-      const mathContent = part.slice(1, -1);
-      try {
-        const html = katex.renderToString(mathContent, {
-          throwOnError: false,
-          displayMode: false,
-          output: 'html',
-          strict: false,
-        });
-        return (
-          <span 
-            key={index}
-            dangerouslySetInnerHTML={{ __html: html }} 
-            style={{ background: 'transparent' }} 
-          />
-        );
-      } catch (error) {
-        console.error('KaTeX render error:', error);
-        return <span key={index}>{part}</span>;
-      }
-    }
-    // 粗体 **text**
-    else if (part.match(/^\*\*[^*]+\*\*$/)) {
-      const content = part.slice(2, -2);
-      return <strong key={index}>{content}</strong>;
-    }
-    // 斜体 *text*
-    else if (part.match(/^\*[^*]+\*$/) && !part.match(/^\*\*.*\*\*$/)) {
-      const content = part.slice(1, -1);
-      return <em key={index}>{content}</em>;
-    }
-    // 上标 ^text^
-    else if (part.match(/^\^[^^]+\^$/)) {
-      const content = part.slice(1, -1);
-      return <sup key={index}>{content}</sup>;
-    }
-    // 下标 ~text~
-    else if (part.match(/^~[^~]+~$/)) {
-      const content = part.slice(1, -1);
-      return <sub key={index}>{content}</sub>;
-    }
-    // 普通文本
-    else {
-      return part ? <span key={index}>{part}</span> : null;
-    }
-  }).filter(Boolean);
-}
 
 
 export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.memo(({
@@ -630,7 +485,8 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
         return false;
       });
       
-      const processedChildren = processChildrenWithLatex(children);
+      // Let rehype-katex handle LaTeX processing
+      const processedChildren = children;
       
       if (hasBlockElement) {
         return (
@@ -684,7 +540,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
               margin: '0 auto'
             }}
           />
-          {alt && <span className="markdown-image-caption" style={{ display: 'block', textAlign: 'center', fontSize: '0.9em', marginTop: '0.5em' }}>{processWithMathAndFormatting(alt)}</span>}
+          {alt && <span className="markdown-image-caption" style={{ display: 'block', textAlign: 'center', fontSize: '0.9em', marginTop: '0.5em' }}>{alt}</span>}
         </>
       );
     },
@@ -779,12 +635,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     ),
     th: ({ children, ...props }: any) => (
       <th {...props} className="markdown-table-header-cell">
-        {processChildrenWithLatex(children)}
+        {children}
       </th>
     ),
     td: ({ children, ...props }: any) => (
       <td {...props} className="markdown-table-cell">
-        {processChildrenWithLatex(children)}
+        {children}
       </td>
     ),
     
@@ -805,7 +661,7 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
     // Custom list item renderer with LaTeX support
     li: ({ children, ...props }: any) => (
       <li {...props} className="markdown-list-item">
-        {processChildrenWithLatex(children)}
+        {children}
       </li>
     ),
     
@@ -864,27 +720,12 @@ export const BlockMarkdownViewer: React.FC<BlockMarkdownViewerProps> = React.mem
           components={components}
           remarkPlugins={[
             remarkGfm,
-            [remarkMath, {
-              singleDollarTextMath: true,
-              inlineMathDouble: false,
-            }]
+            remarkMath  // remark-math v6 handles $ automatically
           ]}
           rehypePlugins={[
             rehypeRaw,
             [rehypeKatex, {
-              strict: false,
-              throwOnError: false,
-              errorColor: '#cc0000',
-              output: 'html',
-              displayMode: false,
-              macros: {
-                "\\RR": "\\mathbb{R}",
-                "\\NN": "\\mathbb{N}",
-                "\\ZZ": "\\mathbb{Z}",
-                "\\QQ": "\\mathbb{Q}",
-                "\\CC": "\\mathbb{C}",
-              },
-              trust: (context: any) => ['htmlId', 'htmlClass', 'htmlStyle', 'htmlData'].includes(context.command),
+              throwOnError: false  // Only keep essential config
             }]
           ]}
           className="markdown-content"

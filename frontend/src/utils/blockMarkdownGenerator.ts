@@ -4,6 +4,7 @@
  */
 
 import { BlockData } from '../types';
+import katex from 'katex';
 
 export class BlockMarkdownGenerator {
   /**
@@ -74,13 +75,11 @@ export class BlockMarkdownGenerator {
             cleanContent = cleanContent.replace(/^\d+\.\s/, ''); // Remove numbered marker
           }
           
-          // Wrap in a proper list item - use ol for ordered lists, ul for unordered
+          // Create markdown list format instead of HTML to allow proper LaTeX processing
           // Add extra newlines before and after to ensure div is not inside a paragraph
-          const listClass = isOrderedList ? 'markdown-ordered-list' : 'markdown-unordered-list';
-          const listTag = isOrderedList ? 'ol' : 'ul';
-          // Add start attribute for ordered lists that don't start from 1
-          const startAttr = isOrderedList && listStartNumber !== 1 ? ` start="${listStartNumber}"` : '';
-          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n<${listTag}${startAttr} class="${listClass}"><li class="markdown-list-item">${cleanContent}</li></${listTag}>\n\n</div>\n\n`);
+          const listMarker = isOrderedList ? `${listStartNumber}. ` : '- ';
+          const markdownList = `${listMarker}${cleanContent}`;
+          markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${markdownList}\n\n</div>\n\n`);
         } else {
           // Add extra newlines before and after to ensure div is not inside a paragraph
           markdownParts.push(`\n\n<div class="block-container" data-block-index="${block.index}" data-block-type="${block.type}">\n\n${formattedContent}\n\n</div>\n\n`);
@@ -231,14 +230,73 @@ export class BlockMarkdownGenerator {
    * Format table blocks
    */
   private static formatTable(block: BlockData): string {
-    // If we have HTML content, validate and fix it before returning
-    if (block.html_content) {
-      return this.validateAndFixTableHTML(block.html_content);
+    // Try to use markdown table format if available in content
+    const content = block.content.trim();
+    
+    // Check if content looks like a markdown table
+    if (content.includes('|') && (content.includes('---|') || content.includes(':-'))) {
+      // It's already in markdown table format, return as-is
+      // This will allow LaTeX expressions like $\checkmark$ to be processed
+      return content;
     }
     
-    // Fallback to markdown content if no HTML is available
-    const content = block.content.trim();
+    // If we have HTML content, process LaTeX in it
+    if (block.html_content) {
+      // Process LaTeX expressions in the HTML table
+      const processedHTML = this.processLatexInHTMLTable(block.html_content);
+      // Validate and fix the HTML structure
+      return this.validateAndFixTableHTML(processedHTML);
+    }
+    
+    // Fallback to content
     return content;
+  }
+
+  /**
+   * Process LaTeX expressions in HTML table content
+   * This renders LaTeX expressions directly in the HTML
+   */
+  private static processLatexInHTMLTable(html: string): string {
+    // Use imported katex
+    if (!katex) {
+      console.warn('KaTeX not available for table LaTeX rendering');
+      return html;
+    }
+    
+    // Process LaTeX expressions in the HTML
+    // Match $...$ patterns but be careful not to match currency or other uses
+    const latexRegex = /\$([^$]+)\$/g;
+    
+    return html.replace(latexRegex, (match, latex) => {
+      // Check if this looks like LaTeX (contains backslash commands or math symbols)
+      // Common LaTeX patterns:
+      // - Commands starting with backslash: \tau, \checkmark, \uparrow, etc.
+      // - Subscripts/superscripts: x^2, a_i
+      // - Curly braces for grouping: {abc}
+      const isLikelyLatex = 
+        latex.includes('\\') || // Has backslash command
+        latex.includes('^') ||   // Has superscript
+        latex.includes('_') ||   // Has subscript  
+        latex.includes('{') ||   // Has grouping
+        /\b(alpha|beta|gamma|tau|pi|sigma|theta|checkmark|times|uparrow|downarrow)\b/.test(latex); // Common math terms
+      
+      if (!isLikelyLatex) {
+        // Probably not LaTeX, return as-is
+        return match;
+      }
+      
+      try {
+        // Render the LaTeX to HTML
+        const rendered = katex.renderToString(latex, {
+          throwOnError: false,
+          displayMode: false, // Inline mode for table cells
+        });
+        return rendered;
+      } catch (error) {
+        console.warn('Failed to render LaTeX in table:', latex, error);
+        return match;
+      }
+    });
   }
 
   /**

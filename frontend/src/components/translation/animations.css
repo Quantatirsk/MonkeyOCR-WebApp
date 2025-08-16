@@ -31,7 +31,7 @@
   display: inline-block;
   width: 2px;
   height: 1em;
-  background-color: #3b82f6;
+  background-color: hsl(var(--primary));
   margin-left: 2px;
   animation: blink 1s infinite;
   vertical-align: bottom;
@@ -47,7 +47,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.4),
+    hsl(var(--background) / 0.4),
     transparent
   );
   animation: wave 1.5s infinite;
@@ -67,12 +67,12 @@
 
 .action-button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px hsl(var(--foreground) / 0.1);
 }
 
 .action-button:active {
   transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px hsl(var(--foreground) / 0.1);
 }
 
 /* Success/error feedback animations */
@@ -86,13 +86,13 @@
 
 @keyframes pulse-success {
   0% { transform: scale(1); }
-  50% { transform: scale(1.05); background-color: rgba(34, 197, 94, 0.1); }
+  50% { transform: scale(1.05); background-color: hsl(var(--chart-2) / 0.1); }
   100% { transform: scale(1); }
 }
 
 @keyframes pulse-error {
   0% { transform: scale(1); }
-  50% { transform: scale(1.05); background-color: rgba(239, 68, 68, 0.1); }
+  50% { transform: scale(1.05); background-color: hsl(var(--destructive) / 0.1); }
   100% { transform: scale(1); }
 }
 
@@ -103,7 +103,7 @@
 }
 
 .expand-collapse.collapsed {
-  max-height: 0 !important;
+  max-height: 0;
   opacity: 0;
 }
 
@@ -114,7 +114,7 @@
 /* Loading spinner enhancement */
 .enhanced-spinner {
   animation: spin 1s linear infinite;
-  filter: drop-shadow(0 0 2px rgba(59, 130, 246, 0.3));
+  filter: drop-shadow(0 0 2px hsl(var(--primary) / 0.3));
 }
 
 @keyframes spin {
@@ -125,7 +125,7 @@
 /* Progress bar animation */
 .progress-bar {
   position: relative;
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: hsl(var(--primary) / 0.1);
   height: 2px;
   overflow: hidden;
 }
@@ -140,7 +140,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(59, 130, 246, 0.8),
+    hsl(var(--primary) / 0.8),
     transparent
   );
   animation: progress-wave 1.5s infinite;
@@ -155,7 +155,7 @@
 .enhanced-tooltip {
   animation: tooltip-in 0.2s ease;
   backdrop-filter: blur(8px);
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: hsl(var(--foreground) / 0.8);
 }
 
 @keyframes tooltip-in {
@@ -171,9 +171,9 @@
 
 /* Focus ring enhancement for accessibility */
 .focus-enhanced:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 4px hsl(var(--primary) / 0.2);
   transition: box-shadow 0.2s ease;
 }
 
@@ -185,12 +185,12 @@
 
 .card-interactive:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 16px hsl(var(--foreground) / 0.1);
 }
 
 .card-interactive:active {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 8px hsl(var(--foreground) / 0.1);
 }
 
 /* Content fade-in animation */
