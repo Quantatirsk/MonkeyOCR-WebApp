@@ -4,6 +4,7 @@
  */
 
 import { useAuthStore } from '../store/authStore';
+import { getApiUrl } from '../config';
 
 export type MTLanguage = 'zh' | 'en';
 
@@ -59,10 +60,8 @@ interface LanguagesResponse {
 }
 
 class MTTranslationService {
-  private baseUrl: string;
-
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+    // No need to store baseUrl, will use getApiUrl directly
   }
 
   /**
@@ -152,7 +151,7 @@ class MTTranslationService {
         target_lang: normalizedTarget,
       };
       
-      const response = await fetch(`${this.baseUrl}/api/mt/translate`, {
+      const response = await fetch(getApiUrl('api/mt/translate'), {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(request),
@@ -199,7 +198,7 @@ class MTTranslationService {
         target_lang: normalizedTarget,
       };
       
-      const response = await fetch(`${this.baseUrl}/api/mt/translate/batch`, {
+      const response = await fetch(getApiUrl('api/mt/translate/batch'), {
         method: 'POST',
         headers: this.getAuthHeaders(),
         body: JSON.stringify(request),
@@ -233,7 +232,7 @@ class MTTranslationService {
    */
   async getSupportedLanguages(): Promise<LanguagesResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/mt/languages`, {
+      const response = await fetch(getApiUrl('api/mt/languages'), {
         method: 'GET',
         headers: this.getAuthHeaders(),
       });
@@ -268,7 +267,7 @@ class MTTranslationService {
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/mt/health`, {
+      const response = await fetch(getApiUrl('api/mt/health'), {
         method: 'GET',
       });
       

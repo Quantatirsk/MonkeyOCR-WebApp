@@ -7,11 +7,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   WifiOff, 
   AlertTriangle, 
-  RefreshCw,
-  X
+  RefreshCw
 } from 'lucide-react';
-import { Alert, AlertDescription } from './ui/alert';
-import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import { healthChecker } from '../utils/healthCheck';
@@ -24,7 +21,6 @@ export const OfflineIndicator: React.FC = () => {
     latency?: number;
     error?: string;
   } | null>(null);
-  const [showAlert, setShowAlert] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   
   const { syncWithServer } = useSyncActions();
@@ -36,10 +32,6 @@ export const OfflineIndicator: React.FC = () => {
       setServerHealth(health);
       setLastCheckTime(new Date());
       
-      // Show alert if server becomes unhealthy
-      if (!health.healthy && isOnline) {
-        setShowAlert(true);
-      }
       
       return health.healthy;
     } catch (error) {
@@ -57,7 +49,6 @@ export const OfflineIndicator: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      setShowAlert(false);
       toast.success("网络连接已恢复");
       
       // Check server when coming back online
@@ -66,7 +57,6 @@ export const OfflineIndicator: React.FC = () => {
 
     const handleOffline = () => {
       setIsOnline(false);
-      setShowAlert(true);
       toast.error("网络连接已断开");
     };
 
@@ -96,7 +86,6 @@ export const OfflineIndicator: React.FC = () => {
       const isHealthy = await checkServerHealth();
       
       if (isHealthy) {
-        setShowAlert(false);
         // Try to sync with server
         try {
           await syncWithServer();
@@ -147,73 +136,34 @@ export const OfflineIndicator: React.FC = () => {
   const connectionStatus = getConnectionStatus();
 
   // Don't show anything if everything is working fine
-  if (!connectionStatus && !showAlert) {
+  if (!connectionStatus) {
     return null;
   }
 
-  // Show alert version for critical issues
-  if (showAlert && connectionStatus) {
-    return (
-      <Alert variant="destructive" className="mx-4 mb-4">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="font-medium">{connectionStatus.message}</div>
-            <div className="text-sm mt-1">{connectionStatus.description}</div>
-            {lastCheckTime && (
-              <div className="text-xs text-muted-foreground mt-1">
-                最后检查: {lastCheckTime.toLocaleTimeString('zh-CN')}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 ml-4">
-            {connectionStatus.canRetry && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRetry}
-                className="h-8"
-              >
-                <RefreshCw className="w-3 h-3 mr-1" />
-                重试
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAlert(false)}
-              className="h-8 w-8 p-0"
-            >
-              <X className="w-3 h-3" />
-            </Button>
-          </div>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Show compact status in header/footer
-  if (connectionStatus) {
-    return (
-      <Badge 
-        variant={connectionStatus.type === 'offline' ? 'destructive' : 'secondary'}
-        className="flex items-center gap-1 text-xs cursor-pointer"
-        onClick={() => setShowAlert(true)}
-      >
-        {connectionStatus.type === 'offline' ? (
-          <WifiOff className="w-3 h-3" />
-        ) : (
-          <AlertTriangle className="w-3 h-3" />
-        )}
-        <span>
-          {connectionStatus.type === 'offline' ? '离线' : 
-           connectionStatus.type === 'checking' ? '检查中' : '连接异常'}
-        </span>
-      </Badge>
-    );
-  }
-
-  return null;
+  // Show compact status badge in header/footer
+  return (
+    <Badge 
+      variant={connectionStatus.type === 'offline' ? 'destructive' : 'secondary'}
+      className="flex items-center gap-1 text-xs cursor-pointer"
+      onClick={connectionStatus.canRetry ? handleRetry : undefined}
+      title={`${connectionStatus.description}${lastCheckTime ? ` (最后检查: ${lastCheckTime.toLocaleTimeString('zh-CN')})` : ''}`}
+    >
+      {connectionStatus.type === 'offline' ? (
+        <WifiOff className="w-3 h-3" />
+      ) : connectionStatus.type === 'checking' ? (
+        <RefreshCw className="w-3 h-3 animate-spin" />
+      ) : (
+        <AlertTriangle className="w-3 h-3" />
+      )}
+      <span>
+        {connectionStatus.type === 'offline' ? '离线' : 
+         connectionStatus.type === 'checking' ? '检查中' : '连接异常'}
+      </span>
+      {connectionStatus.canRetry && (
+        <RefreshCw className="w-3 h-3 ml-1 opacity-60 hover:opacity-100" />
+      )}
+    </Badge>
+  );
 };
 
 export default OfflineIndicator;

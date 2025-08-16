@@ -5,6 +5,7 @@
  */
 
 import { useAuthStore } from '../store/authStore';
+import { getApiUrl } from '../config';
 
 export interface ImageUrl {
   url: string  // Can be a URL or base64 data URL
@@ -67,11 +68,8 @@ export interface ModelsResponse {
 }
 
 export class LLMWrapper {
-  private baseUrl: string
-
   constructor() {
-    // Use the same base URL as the main API
-    this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001'
+    // No need to store baseUrl, will use getApiUrl directly
   }
 
   /**
@@ -213,7 +211,7 @@ export class LLMWrapper {
       
       // For now, use GET request as the backend expects
       // TODO: Update backend to accept POST with credentials if needed
-      const response = await fetch(`${this.baseUrl}/api/llm/models`, {
+      const response = await fetch(getApiUrl('api/llm/models'), {
         method: 'GET',
         headers
       })
@@ -368,7 +366,7 @@ export class LLMWrapper {
       headers['Authorization'] = `Bearer ${token}`;
     }
     
-    const response = await fetch(`${this.baseUrl}/api/llm/chat/completions`, {
+    const response = await fetch(getApiUrl('api/llm/chat/completions'), {
       method: 'POST',
       headers,
       body: JSON.stringify(requestBody)

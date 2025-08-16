@@ -209,17 +209,6 @@ class ApiClient {
     }
   }
 
-  /**
-   * Get server health status
-   */
-  async getHealthStatus(): Promise<{ status: string }> {
-    try {
-      const response = await axiosInstance.get('/health');
-      return response.data;
-    } catch (error) {
-      throw new Error('Server health check failed');
-    }
-  }
 
   /**
    * Get block data for a completed task (PDF-Markdown sync feature)
@@ -283,7 +272,6 @@ export const {
   getTaskList,
   downloadTaskResult,
   deleteTask,
-  getHealthStatus,
   getTaskBlockData,
   retryRequest
 } = apiClient;

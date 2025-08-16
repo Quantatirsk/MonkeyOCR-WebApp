@@ -3,9 +3,8 @@
  * 用于诊断前端与后端的连接问题
  */
 
-import { API_BASE_URL } from '../config';
+import { getApiUrl } from '../config';
 
-const API_BASE = API_BASE_URL;
 
 export class HealthChecker {
   private static instance: HealthChecker;
@@ -28,7 +27,7 @@ export class HealthChecker {
     const startTime = Date.now();
     
     try {
-      const response = await fetch(`${API_BASE}/health`, {
+      const response = await fetch(getApiUrl('health'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -83,7 +82,7 @@ export class HealthChecker {
     error?: string;
   }> {
     try {
-      const response = await fetch(`${API_BASE}/api/sync/status`, {
+      const response = await fetch(getApiUrl('api/sync/status'), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',

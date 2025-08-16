@@ -44,6 +44,11 @@ export default defineConfig(({ mode }) => {
           target: apiBaseUrl,
           changeOrigin: true,
           secure: false
+        },
+        '/health': {
+          target: apiBaseUrl,
+          changeOrigin: true,
+          secure: false
         }
       }
     }
