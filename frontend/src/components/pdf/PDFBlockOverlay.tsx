@@ -39,7 +39,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   pageNumber,
   pageSize,
   scale: _scale, // Keep for interface compatibility but unused
-  rotation: _rotation = 0, // Rotation is handled by container CSS transform
+  rotation = 0, // Rotation angle in degrees (0, 90, 180, 270)
   selectedBlock,
   highlightedBlocks,
   syncEnabled,
@@ -52,10 +52,14 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   const [hoveredBlock, setHoveredBlock] = React.useState<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Canvas uses 100% dimensions to bind with PDF page - no JavaScript scaling needed
-  // We'll use percentage-based coordinates instead of absolute scaling
-  const canvasWidth = 800; // Fixed reference width for consistent rendering
-  const canvasHeight = (canvasWidth * pageSize[1]) / pageSize[0]; // Maintain aspect ratio
+  // Canvas dimensions - swap width/height for 90/270 degree rotations
+  const isRotated = rotation === 90 || rotation === 270;
+  const baseWidth = 800; // Fixed reference width for consistent rendering
+  const baseHeight = (baseWidth * pageSize[1]) / pageSize[0]; // Maintain aspect ratio
+  
+  // Swap dimensions for rotated pages
+  const canvasWidth = isRotated ? baseHeight : baseWidth;
+  const canvasHeight = isRotated ? baseWidth : baseHeight;
 
   // Filter blocks for current page and sort by semantic reading order (same as Markdown generation)
   const pageBlocks = useMemo(() => {
@@ -64,6 +68,24 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     // This ensures consistent mapping between PDF and Markdown content even in complex layouts
     return blocksForPage.sort((a, b) => a.index - b.index);
   }, [blocks, pageNumber]);
+
+  // Transform coordinates based on rotation
+  const transformCoordinates = useCallback((x: number, y: number, width: number, height: number): [number, number, number, number] => {
+    switch (rotation) {
+      case 90:
+        // Rotate 90 degrees clockwise: (x,y) -> (h-y-height, x)
+        return [canvasWidth - y - height, x, height, width];
+      case 180:
+        // Rotate 180 degrees: (x,y) -> (w-x-width, h-y-height)
+        return [canvasWidth - x - width, canvasHeight - y - height, width, height];
+      case 270:
+        // Rotate 270 degrees clockwise: (x,y) -> (y, w-x-width)
+        return [y, canvasHeight - x - width, height, width];
+      default:
+        // No rotation
+        return [x, y, width, height];
+    }
+  }, [rotation, canvasWidth, canvasHeight]);
 
   // Draw blocks on canvas
   const drawBlocks = useCallback(() => {
@@ -97,31 +119,31 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       const [bboxX1, bboxY1, bboxX2, bboxY2] = block.bbox;
       const [pageWidth, pageHeight] = pageSize;
       
-      // Normalize coordinates to [0,1] range
+      // Use base dimensions for normalization (before rotation)
       const normalizedX1 = bboxX1 / pageWidth;
       const normalizedY1 = bboxY1 / pageHeight;
       const normalizedX2 = bboxX2 / pageWidth;  
       const normalizedY2 = bboxY2 / pageHeight;
       
-      // Map to canvas dimensions - 使用 Math.round 确保像素对齐
-      const x1 = Math.round(normalizedX1 * canvasWidth);
-      const y1 = Math.round(normalizedY1 * canvasHeight);
-      const x2 = Math.round(normalizedX2 * canvasWidth);
-      const y2 = Math.round(normalizedY2 * canvasHeight);
+      // Map to base dimensions first
+      const x1 = Math.round(normalizedX1 * baseWidth);
+      const y1 = Math.round(normalizedY1 * baseHeight);
+      const x2 = Math.round(normalizedX2 * baseWidth);
+      const y2 = Math.round(normalizedY2 * baseHeight);
       
-      // 扩展所有边界，让框线更宽松
-      const leftPadding = 2; // 向左扩展2像素
-      const topPadding = 2; // 向上扩展2像素
-      const rightPadding = 6; // 向右扩展6像素 (原4+2)
-      const bottomPadding = 6; // 向下扩展6像素 (原4+2)
+      // Calculate base dimensions and padding
+      const leftPadding = 2;
+      const topPadding = 2;
+      const rightPadding = 6;
+      const bottomPadding = 6;
       
-      const adjustedX1 = x1 - leftPadding;
-      const adjustedY1 = y1 - topPadding;
-      const adjustedX2 = x2 + rightPadding;
-      const adjustedY2 = y2 + bottomPadding;
+      const baseX = x1 - leftPadding;
+      const baseY = y1 - topPadding;
+      const baseW = (x2 + rightPadding) - (x1 - leftPadding);
+      const baseH = (y2 + bottomPadding) - (y1 - topPadding);
       
-      const width = adjustedX2 - adjustedX1;
-      const height = adjustedY2 - adjustedY1;
+      // Apply rotation transformation
+      const [adjustedX1, adjustedY1, width, height] = transformCoordinates(baseX, baseY, baseW, baseH);
 
       // Determine block style based on state - 与 Markdown 保持一致
       let borderColor = '';
@@ -171,13 +193,17 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
   }, [
     pageBlocks,
     pageSize,
+    baseWidth,
+    baseHeight,
     canvasWidth,
     canvasHeight,
     selectedBlock,
     highlightedBlocks,
     hoveredBlock,
     syncEnabled,
-    isDragging
+    isDragging,
+    rotation,
+    transformCoordinates
   ]);
 
   // RAF-driven redraw scheduler with performance optimization
@@ -199,6 +225,24 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
     }
   }, [drawBlocks, isDragging]);
 
+  // Inverse transform for mouse coordinates
+  const inverseTransformCoordinates = useCallback((canvasX: number, canvasY: number): [number, number] => {
+    switch (rotation) {
+      case 90:
+        // Inverse of 90 degree rotation
+        return [canvasY, canvasWidth - canvasX];
+      case 180:
+        // Inverse of 180 degree rotation
+        return [canvasWidth - canvasX, canvasHeight - canvasY];
+      case 270:
+        // Inverse of 270 degree rotation
+        return [canvasHeight - canvasY, canvasX];
+      default:
+        // No rotation
+        return [canvasX, canvasY];
+    }
+  }, [rotation, canvasWidth, canvasHeight]);
+
   // Handle canvas click
   const handleCanvasClick = useCallback(
     (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -212,25 +256,28 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       const y = event.clientY - rect.top;
 
       // Convert click coordinates to canvas space
-      const canvasX = (x / rect.width) * canvasWidth;
-      const canvasY = (y / rect.height) * canvasHeight;
+      const rawCanvasX = (x / rect.width) * canvasWidth;
+      const rawCanvasY = (y / rect.height) * canvasHeight;
+      
+      // Apply inverse rotation to get original coordinates
+      const [canvasX, canvasY] = inverseTransformCoordinates(rawCanvasX, rawCanvasY);
 
-      // Find clicked block using percentage-based coordinates
+      // Find clicked block using base coordinates (before rotation)
       for (const block of pageBlocks) {
         const [bboxX1, bboxY1, bboxX2, bboxY2] = block.bbox;
         const [pageWidth, pageHeight] = pageSize;
         
-        // Convert block coordinates to canvas space
-        const blockX1 = (bboxX1 / pageWidth) * canvasWidth;
-        const blockY1 = (bboxY1 / pageHeight) * canvasHeight;
-        const blockX2 = (bboxX2 / pageWidth) * canvasWidth;
-        const blockY2 = (bboxY2 / pageHeight) * canvasHeight;
+        // Convert block coordinates to base canvas space (before rotation)
+        const blockX1 = (bboxX1 / pageWidth) * baseWidth;
+        const blockY1 = (bboxY1 / pageHeight) * baseHeight;
+        const blockX2 = (bboxX2 / pageWidth) * baseWidth;
+        const blockY2 = (bboxY2 / pageHeight) * baseHeight;
         
-        // 应用与绘制时相同的扩展，确保点击区域与视觉区域一致
-        const adjustedBlockX1 = blockX1 - 2; // 向左扩展2像素
-        const adjustedBlockY1 = blockY1 - 2; // 向上扩展2像素
-        const adjustedBlockX2 = blockX2 + 6; // 向右扩展6像素
-        const adjustedBlockY2 = blockY2 + 6; // 向下扩展6像素
+        // Apply same padding as drawing
+        const adjustedBlockX1 = blockX1 - 2;
+        const adjustedBlockY1 = blockY1 - 2;
+        const adjustedBlockX2 = blockX2 + 6;
+        const adjustedBlockY2 = blockY2 + 6;
         
         // Check if click is inside block
         if (canvasX >= adjustedBlockX1 && canvasX <= adjustedBlockX2 && 
@@ -243,7 +290,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       // Click outside blocks - clear selection
       onBlockClick(-1, pageNumber);
     },
-    [syncEnabled, onBlockClick, pageBlocks, pageNumber, pageSize, canvasWidth, canvasHeight]
+    [syncEnabled, onBlockClick, pageBlocks, pageNumber, pageSize, baseWidth, baseHeight, inverseTransformCoordinates]
   );
 
   // Handle canvas mouse move
@@ -259,26 +306,29 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       const y = event.clientY - rect.top;
 
       // Convert mouse coordinates to canvas space
-      const canvasX = (x / rect.width) * canvasWidth;
-      const canvasY = (y / rect.height) * canvasHeight;
+      const rawCanvasX = (x / rect.width) * canvasWidth;
+      const rawCanvasY = (y / rect.height) * canvasHeight;
+      
+      // Apply inverse rotation to get original coordinates
+      const [canvasX, canvasY] = inverseTransformCoordinates(rawCanvasX, rawCanvasY);
 
-      // Find hovered block using percentage-based coordinates
+      // Find hovered block using base coordinates (before rotation)
       let foundBlock: number | null = null;
       for (const block of pageBlocks) {
         const [bboxX1, bboxY1, bboxX2, bboxY2] = block.bbox;
         const [pageWidth, pageHeight] = pageSize;
         
-        // Convert block coordinates to canvas space
-        const blockX1 = (bboxX1 / pageWidth) * canvasWidth;
-        const blockY1 = (bboxY1 / pageHeight) * canvasHeight;
-        const blockX2 = (bboxX2 / pageWidth) * canvasWidth;
-        const blockY2 = (bboxY2 / pageHeight) * canvasHeight;
+        // Convert block coordinates to base canvas space (before rotation)
+        const blockX1 = (bboxX1 / pageWidth) * baseWidth;
+        const blockY1 = (bboxY1 / pageHeight) * baseHeight;
+        const blockX2 = (bboxX2 / pageWidth) * baseWidth;
+        const blockY2 = (bboxY2 / pageHeight) * baseHeight;
         
-        // 应用与绘制时相同的扩展，确保hover区域与视觉区域一致
-        const adjustedBlockX1 = blockX1 - 2; // 向左扩展2像素
-        const adjustedBlockY1 = blockY1 - 2; // 向上扩展2像素
-        const adjustedBlockX2 = blockX2 + 6; // 向右扩展6像素
-        const adjustedBlockY2 = blockY2 + 6; // 向下扩展6像素
+        // Apply same padding as drawing
+        const adjustedBlockX1 = blockX1 - 2;
+        const adjustedBlockY1 = blockY1 - 2;
+        const adjustedBlockX2 = blockX2 + 6;
+        const adjustedBlockY2 = blockY2 + 6;
         
         // Check if mouse is inside block
         if (canvasX >= adjustedBlockX1 && canvasX <= adjustedBlockX2 && 
@@ -298,7 +348,7 @@ export const PDFBlockOverlay: React.FC<PDFBlockOverlayProps> = ({
       // Update cursor
       canvas.style.cursor = foundBlock !== null ? 'pointer' : 'default';
     },
-    [syncEnabled, pageBlocks, pageNumber, pageSize, canvasWidth, canvasHeight, hoveredBlock, onBlockHover]
+    [syncEnabled, pageBlocks, pageNumber, pageSize, baseWidth, baseHeight, hoveredBlock, onBlockHover, inverseTransformCoordinates]
   );
 
   // Handle canvas mouse leave
