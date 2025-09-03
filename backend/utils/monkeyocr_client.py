@@ -5,9 +5,8 @@ Handles communication with the MonkeyOCR API service
 
 import httpx
 import asyncio
-import socket
-import time
-from typing import Dict, Any, Optional, TypedDict
+import os
+from typing import Dict, Any
 from pathlib import Path
 
 
@@ -31,32 +30,24 @@ class MonkeyOCRDownloadError(MonkeyOCRError):
     pass
 
 
-class DNSCacheEntry(TypedDict):
-    """Type definition for DNS cache entries"""
-    ip: str
-    timestamp: float
 
 
 class MonkeyOCRClient:
     """
-    Client for MonkeyOCR API with dynamic DNS resolution
+    Client for MonkeyOCR API
     
     Attributes:
         timeout (int): Request timeout in seconds (default: 300)
         max_retries (int): Maximum number of retry attempts (default: 3)
-        dns_cache (Dict[str, DNSCacheEntry]): Cache for DNS resolution results
-        dns_cache_ttl (int): Time-to-live for DNS cache entries in seconds (default: 300)
-        base_url (str): Dynamically resolved base URL for the API
+        base_url (str): Base URL for the API (from MONKEYOCR_BASE_URL env var)
     """
     
     def __init__(self):
         self.timeout = 300  # 5 minutes timeout
         self.max_retries = 3
-        self.dns_cache: Dict[str, DNSCacheEntry] = {}  # Cache for DNS resolution
-        self.dns_cache_ttl = 300  # 5 minutes cache TTL
         
-        # Initialize base_url with DNS resolution
-        self.base_url = self._resolve_base_url()
+        # Load base URL from environment variable with fallback
+        self.base_url = os.getenv("MONKEYOCR_BASE_URL", "http://10.183.15.2:17001")
         
     async def process_file(
         self,
@@ -236,91 +227,11 @@ class MonkeyOCRClient:
         
         return content_types.get(suffix, "application/octet-stream")
     
-    def _resolve_dns(self, hostname: str) -> Optional[str]:
-        """
-        Resolve hostname to IP address with caching
-        
-        Args:
-            hostname: The hostname to resolve
-            
-        Returns:
-            IP address string or None if resolution fails
-        """
-        current_time = time.time()
-        
-        # Check cache first
-        if hostname in self.dns_cache:
-            cached_entry = self.dns_cache[hostname]
-            if current_time - cached_entry['timestamp'] < self.dns_cache_ttl:
-                return cached_entry['ip']
-        
-        try:
-            # Resolve hostname to IP
-            ip_address = socket.gethostbyname(hostname)
-            
-            # Cache the result
-            self.dns_cache[hostname] = DNSCacheEntry(
-                ip=ip_address,
-                timestamp=current_time
-            )
-            
-            return ip_address
-            
-        except socket.gaierror as e:
-            print(f"DNS resolution failed for {hostname}: {e}")
-            return None
     
-    def _resolve_base_url(self) -> str:
-        """
-        Resolve the base URL by querying DNS for diamond.vect.one
-        
-        Returns:
-            The resolved base URL
-            
-        Raises:
-            MonkeyOCRNetworkError: If DNS resolution fails
-        """
-        hostname = "diamond.vect.one"
-        port = 18001
-        
-        try:
-            ip_address = self._resolve_dns(hostname)
-            
-            if ip_address:
-                resolved_url = f"http://{ip_address}:{port}"
-                print(f"Resolved MonkeyOCR base URL: {resolved_url} (from {hostname})")
-                return resolved_url
-            else:
-                raise MonkeyOCRNetworkError(f"Failed to resolve DNS for {hostname}")
-                
-        except MonkeyOCRNetworkError:
-            raise
-        except Exception as e:
-            raise MonkeyOCRNetworkError(f"Error resolving base URL for {hostname}: {e}")
-    
-    def refresh_base_url(self) -> str:
-        """
-        Force refresh of the base URL by clearing cache and re-resolving
-        
-        Returns:
-            The new base URL
-        """
-        # Clear DNS cache for the hostname
-        hostname = "diamond.vect.one"
-        if hostname in self.dns_cache:
-            del self.dns_cache[hostname]
-        
-        # Re-resolve base URL
-        self.base_url = self._resolve_base_url()
-        return self.base_url
-    
-    async def health_check(self, retry_with_refresh: bool = True) -> bool:
+    async def health_check(self) -> bool:
         """
         Check if MonkeyOCR API is accessible
         
-        Args:
-            retry_with_refresh: If True, try refreshing base URL on failure
-            
         Returns:
             True if API is accessible, False otherwise
         """
@@ -335,21 +246,5 @@ class MonkeyOCRClient:
                     
         except Exception as e:
             print(f"Health check failed: {e}")
-        
-        # If initial health check failed and retry is enabled, try refreshing URL
-        if retry_with_refresh:
-            print("Attempting to refresh base URL and retry health check...")
-            try:
-                old_url = self.base_url
-                new_url = self.refresh_base_url()
-                
-                if new_url != old_url:
-                    print(f"Base URL changed from {old_url} to {new_url}, retrying health check...")
-                    return await self.health_check(retry_with_refresh=False)  # Prevent infinite recursion
-                else:
-                    print("Base URL unchanged after refresh")
-            except MonkeyOCRNetworkError as e:
-                print(f"Failed to refresh base URL: {e}")
-                # Can't refresh, return the original failure
         
         return False
